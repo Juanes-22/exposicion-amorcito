@@ -1,6 +1,7 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import type { LoadedProject } from "../../config/loadProject";
 import type { RoomController, RoomClientState } from "../../app/RoomController";
+import { prepareBackup } from "../../app/backup";
 import { roomPath } from "../../app/useRoute";
 import { NotebookView } from "../notebook/NotebookView";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
@@ -23,6 +24,12 @@ export function AdminConsole({ project, state, controller }: { project: LoadedPr
   const { config } = project.bundle;
   const [confirm, setConfirm] = useState<Confirm>(null);
   const [busy, setBusy] = useState(false);
+  // Con la sala funcionando se deja listo el respaldo: si el servidor deja de responder, la demostración ya está descargada.
+  useEffect(() => {
+    const idle = (window as unknown as { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+    const t = idle ? idle(() => void prepareBackup(project)) : window.setTimeout(() => void prepareBackup(project), 1500);
+    return () => (idle ? undefined : window.clearTimeout(t));
+  }, [project]);
   const online = state.status === "connected";
   const owner = summary.controller;
   const isOwner = summary.self.isController;

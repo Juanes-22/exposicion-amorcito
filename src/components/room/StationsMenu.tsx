@@ -1,13 +1,13 @@
 import { useRef } from "react";
 import { INVENTOR_ID } from "../../../shared/contracts/config";
 import { allRouteCompleted, isCompleted, unlockedActivityIds } from "../../../shared/domain/adventure";
-import type { RoomClientState, RoomController } from "../../app/RoomController";
+import type { RoomClientState, RoomPort } from "../../app/RoomController";
 import type { LoadedProject } from "../../config/loadProject";
 
 interface Props {
   project: LoadedProject;
   state: RoomClientState;
-  controller: RoomController;
+  controller: RoomPort;
   canAct: boolean;
 }
 

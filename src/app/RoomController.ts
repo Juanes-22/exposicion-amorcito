@@ -24,6 +24,21 @@ export interface RoomClientState {
 }
 
 type Listener = () => void;
+
+/**
+ * Lo que las vistas de la aventura necesitan de «la sala»: el estado observable, las muestras de simulación y los dos tipos de
+ * comando. `RoomController` lo cumple hablando con el servidor; `DemoController` lo cumple en local, sin red (SPECS 6.4).
+ */
+export interface RoomPort {
+  subscribe(listener: Listener): () => void;
+  getState(): RoomClientState;
+  subscribeFrames(listener: (f: SimulationFrame) => void): () => void;
+  adventure(action: AdventureAction): Promise<CommandResult>;
+  admin(action: AdminAction): Promise<CommandResult>;
+  notify(kind: Notice["kind"], text: string): void;
+  clearNotice(id: number): void;
+}
+
 type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
 /**
@@ -53,7 +68,7 @@ export interface RoomControllerOptions {
  * · Solo reintenta el MISMO comando discreto con el MISMO ID, mientras siga conectado con la misma conexión vigente.
  * · Se detiene (sin reconexión operativa) cuando la sala terminó, la pestaña fue sustituida o la credencial ya no vale.
  */
-export class RoomController {
+export class RoomController implements RoomPort {
   private socket: AppSocket | null = null;
   private listeners = new Set<Listener>();
   private state: RoomClientState = { status: "connecting", summary: null, presence: null, snapshot: null, pending: 0, notice: null };

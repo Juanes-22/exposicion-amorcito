@@ -3,7 +3,7 @@ import type { AdminAction } from "../contracts/actions";
 import type { RoomState } from "../contracts/state";
 import * as drive from "../testing/drive";
 import { bundle, Driver, finishBoxes, finishRamps, finishShadows } from "../testing/drive";
-import { applyAdminAction, applyAdventureAction, checkGeneration, checkTurn, createRoomState, isPlayable, onAdminLost, onControllerLost, recoverAfterRestart, tickRoom, type PresenceView, type RoomChange } from "./room";
+import { applyAdminAction, applyAdventureAction, checkGeneration, checkTurn, createRoomState, isPlayable, expireRoom, onAdminLost, onControllerLost, recoverAfterRestart, tickRoom, type PresenceView, type RoomChange } from "./room";
 
 const { config, map, nav } = bundle;
 const connected = new Set<string>(["admin", "p1", "p2", "p3"]);
@@ -221,6 +221,42 @@ describe("desconexiones y recuperación", () => {
     expect(r.turnVersion).toBeGreaterThan(a.turnVersion);
     expect(recoverAfterRestart(mk())).toMatchObject({ phase: "welcome", controlOwner: null });
     expect(recoverAfterRestart({ ...a, phase: "closed" })).toMatchObject({ phase: "closed" });
+  });
+});
+
+describe("vencimiento por inactividad (SPECS 6.3)", () => {
+  it("deja la sala terminal y sin propietario en una sola transición, sea cual sea la fase", () => {
+    for (const room of [mk(), running(), admin(running(), { type: "room.pause" })]) {
+      const r = expireRoom(room);
+      expect(r).toMatchObject({ ok: true, changed: true });
+      if (!r.ok) continue;
+      expect(r.room).toMatchObject({ phase: "expired", controlOwner: null, resumePhase: null });
+      expect(r.room.stateVersion).toBe(room.stateVersion + 1);
+      expect(r.room.turnVersion).toBe(room.turnVersion + 1); // un turno anterior ya no sirve
+      expect(isPlayable(r.room)).toBe(false);
+    }
+  });
+  it("no toca el avance, los registros ni las piezas (los datos se conservan hasta la limpieza)", () => {
+    const room = running();
+    const r = expireRoom(room);
+    expect(r.ok && r.room.adventure).toEqual(room.adventure);
+  });
+  it("una sala ya terminal no vuelve a cambiar (vencer dos veces no sube versiones)", () => {
+    const first = expireRoom(running());
+    if (!first.ok) throw new Error("no venció");
+    expect(expireRoom(first.room)).toMatchObject({ ok: true, changed: false, room: first.room });
+    const closed = admin(running(), { type: "room.close", confirm: true });
+    expect(expireRoom(closed)).toMatchObject({ changed: false, room: closed });
+  });
+  it("tras vencer, todo comando se rechaza con «la sala venció» y reiniciar o cerrar ya no son posibles", () => {
+    const r = expireRoom(running());
+    if (!r.ok) throw new Error("no venció");
+    for (const action of [{ type: "room.start" }, { type: "control.take" }, { type: "room.pause" }, { type: "room.reset", confirm: true }, { type: "room.close", confirm: true }] as AdminAction[]) {
+      const res = applyAdminAction(r.room, action, adminCtx);
+      expect(refused(res), action.type).toBe("ROOM_UNAVAILABLE");
+      expect(!res.ok && res.message).toMatch(/venció/);
+    }
+    expect(checkGeneration(r.room, r.room.roomGeneration)).toMatchObject({ code: "ROOM_UNAVAILABLE", message: expect.stringMatching(/venció/) });
   });
 });
 

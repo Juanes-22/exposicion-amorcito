@@ -11,6 +11,7 @@ import {
   checkGeneration,
   checkTurn,
   createRoomState,
+  expireRoom,
   isPlayable,
   isTerminal,
   onAdminLost,
@@ -95,6 +96,10 @@ interface Runtime {
   queue: Promise<unknown>;
   configMismatch: boolean;
   buckets: Map<string, KeyedLimiter>;
+  /** Última señal autenticada de la administradora (ms de reloj de pared). Solo ella mantiene viva la sala (SPECS 6.3). */
+  adminActiveAt: number;
+  /** Cuándo pasó a terminal (ms de reloj de pared); `null` mientras siga viva. Con él se decide la limpieza. */
+  terminalAt: number | null;
 }
 
 export interface AuthIdentity {
@@ -166,11 +171,14 @@ export class RoomService {
         queue: Promise.resolve(),
         configMismatch: this.mismatch(state),
         buckets: new Map(),
+        adminActiveAt: Date.parse(stored.lastAdminActivityAt) || this.now().getTime(),
+        terminalAt: isTerminal(state.phase) ? (Date.parse(stored.terminalAt ?? "") || this.now().getTime()) : null,
       });
       this.byCode.set(state.code, state.roomId);
       if (this.mismatch(state)) this.log.warn("CONFIG_MISMATCH: la sala usa otra revisión de configuración o mapa", { roomId: state.roomId });
     }
     this.startLoop();
+    this.startSweep();
     return { recovered: this.rooms.size, unreadable: unreadable.length };
   }
 
@@ -204,7 +212,7 @@ export class RoomService {
       this.log.error("no se pudo crear la sala", { error: String(e) });
       throw new ServiceError(503, "INTERNAL", "No se pudo crear la sala. Intenta de nuevo.");
     }
-    this.rooms.set(roomId, { state, principals: new Map([[admin.principalId, admin]]), presence: new Map(), adminId: admin.principalId, lastAdminSeq: 0, anchor: this.mono(), frameSeq: 0, lastCheckpoint: this.mono(), tickBusy: false, queue: Promise.resolve(), configMismatch: false, buckets: new Map() });
+    this.rooms.set(roomId, { state, principals: new Map([[admin.principalId, admin]]), presence: new Map(), adminId: admin.principalId, lastAdminSeq: 0, anchor: this.mono(), frameSeq: 0, lastCheckpoint: this.mono(), tickBusy: false, queue: Promise.resolve(), configMismatch: false, buckets: new Map(), adminActiveAt: this.now().getTime(), terminalAt: null });
     this.byCode.set(code, roomId);
     // El enlace público lleva únicamente el código: nunca una credencial (CA-01).
     return { code, joinUrl: `${origin}/sala/${code}`, adminId: admin.principalId, adminToken: token };
@@ -222,7 +230,7 @@ export class RoomService {
   joinRoom(code: string, body: JoinRoomRequest): JoinRoomResponse {
     const rt = this.runtimeByCode(code);
     if (!rt) throw new ServiceError(404, "ROOM_NOT_FOUND", "No encontramos esa sala. Revisa el código.");
-    if (isTerminal(rt.state.phase)) throw new ServiceError(410, "ROOM_UNAVAILABLE", "Esta sala ya terminó.");
+    if (isTerminal(rt.state.phase)) throw new ServiceError(410, "ROOM_UNAVAILABLE", rt.state.phase === "expired" ? "Esta sala venció por inactividad." : "Esta sala ya terminó.");
     const name = normalizeName(body.name);
     if (!name.ok) throw new ServiceError(400, "INVALID_PAYLOAD", name.message);
     if (!PARTICIPANT_COLOR_IDS.includes(body.color)) throw new ServiceError(400, "INVALID_PAYLOAD", "Elige un color de la paleta.");
@@ -253,12 +261,6 @@ export class RoomService {
   private runtimeByCode(code: string): Runtime | undefined {
     const id = this.byCode.get(code.toUpperCase());
     return id ? this.rooms.get(id) : undefined;
-  }
-
-  private rt(roomId: string): Runtime {
-    const rt = this.rooms.get(roomId);
-    if (!rt) throw new Error(`Sala desconocida ${roomId}`);
-    return rt;
   }
 
   // ---- cola serial por sala ----------------------------------------------------------------------------
@@ -302,7 +304,8 @@ export class RoomService {
 
   /** Conecta una identidad. Una nueva conexión sustituye a la anterior y sube `connectionEpoch` (SPECS 5.1). */
   attach(identity: AuthIdentity, socketId: string): Promise<{ epoch: number; replacedSocketId: string | null; terminal: boolean }> {
-    const rt = this.rt(identity.roomId);
+    const rt = this.rooms.get(identity.roomId);
+    if (!rt) return Promise.reject(new Error("La sala ya no existe")); // eliminada por la limpieza entre la autenticación y la conexión
     return this.run(rt, () => {
       const id = identity.principalId;
       const prev = rt.presence.get(id);
@@ -366,8 +369,10 @@ export class RoomService {
   }
 
   private touchAdmin(rt: Runtime): void {
+    const now = this.now();
+    rt.adminActiveAt = now.getTime();
     try {
-      this.repo.touchAdminActivity(rt.state.roomId, this.now().toISOString());
+      this.repo.touchAdminActivity(rt.state.roomId, now.toISOString());
     } catch (e) {
       this.log.warn("no se pudo registrar la actividad de la administradora", { error: String(e) });
     }
@@ -375,7 +380,8 @@ export class RoomService {
 
   /** Señal de actividad autenticada de la administradora (SPECS 6.3). */
   adminActivity(identity: AuthIdentity, socketId: string): Promise<void> {
-    const rt = this.rt(identity.roomId);
+    const rt = this.rooms.get(identity.roomId);
+    if (!rt) return Promise.resolve();
     return this.run(rt, () => {
       if (identity.role !== "admin" || this.checkConnection(rt, identity.principalId, socketId, null)) return;
       this.touchAdmin(rt);
@@ -400,7 +406,8 @@ export class RoomService {
 
   /** Comando de moderación (SPECS 5.2). Orden de comprobaciones: conexión → duplicado → generación → secuencia → dominio → persistencia. */
   adminCommand(identity: AuthIdentity, socketId: string, cmd: AdminCommand): Promise<CommandResult> {
-    const rt = this.rt(identity.roomId);
+    const rt = this.rooms.get(identity.roomId);
+    if (!rt) return Promise.resolve(failure(cmd.requestId, "ROOM_UNAVAILABLE", "La sala ya no está disponible."));
     if (!this.bucket(rt, "admin", identity.principalId)) return Promise.resolve(failure(cmd.requestId, "RATE_LIMITED", "Demasiados cambios seguidos. Espera un momento."));
     return this.run(rt, () => {
       const stale = this.checkConnection(rt, identity.principalId, socketId, cmd.connectionEpoch);
@@ -446,7 +453,8 @@ export class RoomService {
 
   /** Acción de aventura del controlador (SPECS 5.2). */
   adventureCommand(identity: AuthIdentity, socketId: string, cmd: AdventureCommand): Promise<CommandResult> {
-    const rt = this.rt(identity.roomId);
+    const rt = this.rooms.get(identity.roomId);
+    if (!rt) return Promise.resolve(failure(cmd.requestId, "ROOM_UNAVAILABLE", "La sala ya no está disponible."));
     if (!this.bucket(rt, "adventure", identity.principalId)) return Promise.resolve(failure(cmd.requestId, "RATE_LIMITED", "Demasiadas acciones seguidas. Espera un momento."));
     return this.run(rt, () => {
       const stale = this.checkConnection(rt, identity.principalId, socketId, cmd.connectionEpoch);
@@ -515,6 +523,7 @@ export class RoomService {
     }
     rt.state = next;
     rt.anchor = at;
+    if (isTerminal(next.phase) && rt.terminalAt === null) rt.terminalAt = this.now().getTime();
     return null;
   }
 
@@ -522,7 +531,8 @@ export class RoomService {
 
   /** Estado permitido para el papel de quien lo pide. La reconexión siempre pasa por aquí: no se reproducen entradas (SPECS 5.4). */
   sync(identity: AuthIdentity, socketId: string): Promise<SyncResult> {
-    const rt = this.rt(identity.roomId);
+    const rt = this.rooms.get(identity.roomId);
+    if (!rt) return Promise.resolve({ ok: false, code: "ROOM_UNAVAILABLE" as const, message: "La sala ya no está disponible." });
     return this.run(rt, () => {
       if (this.checkConnection(rt, identity.principalId, socketId, null)) return { ok: false, code: "STALE_CONNECTION" as const, message: "Esta pestaña ya no está activa en la sala." };
       this.sendFullStateTo(rt, identity.principalId);
@@ -547,10 +557,70 @@ export class RoomService {
     this.timer.unref();
   }
 
-  /** Detiene el bucle (cierre ordenado del servidor). */
+  /** Detiene el bucle y el barrido de vencimientos (cierre ordenado del servidor). */
   stop(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    if (this.sweepTimer) clearInterval(this.sweepTimer);
+    this.sweepTimer = null;
+  }
+
+  // ---- vencimiento y limpieza (SPECS 6.3) ---------------------------------------------------------------------
+
+  private sweepTimer: ReturnType<typeof setInterval> | null = null;
+
+  private startSweep(): void {
+    if (this.sweepTimer || this.settings.sweepIntervalMs <= 0) return;
+    this.sweepTimer = setInterval(() => void this.sweep().catch((e) => this.log.error("falló el barrido de vencimientos", { error: String(e) })), this.settings.sweepIntervalMs);
+    this.sweepTimer.unref();
+  }
+
+  /** Vencimiento efectivo: el valor del servidor prevalece sobre el del JSON público (SPECS 9.1). */
+  private get adminIdleTtlMs(): number {
+    return this.settings.adminIdleTtlMs ?? this.project.config.session.adminIdleTtlMs;
+  }
+
+  /**
+   * Revisa vencimientos y limpieza. Una sala viva cuya administradora lleva más del TTL sin dar señales autenticadas (comandos o
+   * `admin.activity`; los participantes no la mantienen viva) vence: pasa a terminal, se avisa y se cierran las conexiones. Una sala
+   * terminal cuya retención ya pasó se elimina por completo: sala, identidades y comandos procesados. Cada sala se procesa dentro de su
+   * cola, así que no se cruza con un comando. Si guardar falla, no se cambia nada en memoria y se reintenta en el siguiente barrido.
+   */
+  async sweep(): Promise<{ expired: number; purged: number }> {
+    const result = { expired: 0, purged: 0 };
+    const ttl = this.adminIdleTtlMs;
+    const retention = this.settings.terminalRetentionMs;
+    for (const rt of [...this.rooms.values()]) {
+      const outcome = await this.run(rt, () => {
+        const nowMs = this.now().getTime();
+        if (!isTerminal(rt.state.phase)) {
+          if (ttl <= 0 || nowMs - rt.adminActiveAt < ttl) return "none" as const;
+          const before = rt.state;
+          const at = this.mono();
+          const change = expireRoom(this.settled(rt, at));
+          if (!change.ok || !change.changed) return "none" as const;
+          const failed = this.persist(rt, change.room, undefined, at);
+          if (failed) return "none" as const; // sin guardar no se anuncia: se reintenta
+          this.fanOut(rt, before, change.room);
+          this.closeAll(rt);
+          return "expired" as const;
+        }
+        if (rt.terminalAt === null || nowMs - rt.terminalAt < retention) return "none" as const;
+        try {
+          this.closeAll(rt); // por si alguien siguiera conectado a una sala terminal
+          this.repo.deleteRoom(rt.state.roomId); // en cascada: identidades y comandos procesados
+        } catch (e) {
+          this.log.error("no se pudo limpiar una sala terminal; se reintenta", { roomId: rt.state.roomId, error: String(e) });
+          return "none" as const;
+        }
+        this.rooms.delete(rt.state.roomId);
+        this.byCode.delete(rt.state.code);
+        return "purged" as const;
+      });
+      if (outcome === "expired") result.expired++;
+      else if (outcome === "purged") result.purged++;
+    }
+    return result;
   }
 
   /**
