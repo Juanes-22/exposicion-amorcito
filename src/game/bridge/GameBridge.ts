@@ -1,5 +1,7 @@
 import type { BridgeEventName, BridgeEvents, BridgePermissions, VisualSnapshot } from "./events";
 import type { SimulationFrame } from "../../../shared/contracts/events";
+import { isPlayable } from "../../../shared/domain/room";
+import { ClientClock } from "./ClientClock";
 
 type Handler<K extends BridgeEventName> = (payload: BridgeEvents[K]) => void;
 
@@ -14,6 +16,12 @@ export class GameBridge {
   private lastSnapshot: VisualSnapshot | null = null;
   private lastPermissions: BridgePermissions | null = null;
   private lastFrame: SimulationFrame | null = null;
+  /** Reloj de simulación del cliente: lo ajustan snapshots y frames; la escena dibuja desde él. */
+  readonly clock: ClientClock;
+
+  constructor(clock: ClientClock = new ClientClock()) {
+    this.clock = clock;
+  }
 
   /** Suscribe y devuelve la función que retira exactamente esa suscripción. */
   on<K extends BridgeEventName>(event: K, handler: Handler<K>): () => void {
@@ -25,11 +33,17 @@ export class GameBridge {
 
   emit<K extends BridgeEventName>(event: K, payload: BridgeEvents[K]): void {
     if (event === "app:snapshot") {
-      this.lastSnapshot = payload as VisualSnapshot;
+      const snap = payload as VisualSnapshot;
+      this.lastSnapshot = snap;
       this.lastFrame = null; // un snapshot nuevo invalida muestras de planes o pruebas anteriores
+      // En pausa o sin propietario el reloj queda quieto exactamente en el valor del servidor: reanudar no suma la conversación.
+      this.clock.setSnapshot(snap.state.adventure.timeline.activeMs, isPlayable(snap.state));
     }
     if (event === "app:permissions") this.lastPermissions = payload as BridgePermissions;
-    if (event === "app:frame") this.lastFrame = payload as SimulationFrame;
+    if (event === "app:frame") {
+      this.lastFrame = payload as SimulationFrame;
+      this.clock.setFrame((payload as SimulationFrame).activeMs);
+    }
     // Copia: un manejador puede darse de baja mientras se emite.
     for (const handler of [...(this.handlers.get(event) ?? [])]) (handler as Handler<K>)(payload);
   }
@@ -68,5 +82,6 @@ export class GameBridge {
     this.lastPermissions = null;
     this.lastFrame = null;
     this.activeToken = 0;
+    this.clock.freeze();
   }
 }

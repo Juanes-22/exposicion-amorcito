@@ -10,6 +10,10 @@ export interface GameDeps {
   reducedMotion: boolean;
   /** Superposición de colisiones, radios y huella: solo para depurar el mapa. */
   debug: boolean;
+  /** Expone `window.__PHASER_GAME__` (pruebas e2e y depuración). */
+  hooks: boolean;
+  /** `fit`: el laboratorio entero (proyección). `follow`: sigue a Vanessa con ampliación legible (teléfono del controlador). */
+  camera: "fit" | "follow";
 }
 
 /** Clave del DataManager global de Phaser donde las escenas encuentran sus dependencias. */
@@ -36,7 +40,7 @@ export function createGame(parent: HTMLElement, deps: GameDeps): Phaser.Game {
   });
 
   // Solo en desarrollo o con `?debug` (que ya activa la superposición de colisiones): permite inspeccionar escenas y el puente.
-  if (import.meta.env.DEV || deps.debug) {
+  if (import.meta.env.DEV || deps.hooks) {
     const w = window as unknown as { __PHASER_GAME__?: Phaser.Game; __PHASER_GAMES__?: Phaser.Game[] };
     w.__PHASER_GAME__ = game;
     (w.__PHASER_GAMES__ ??= []).push(game);

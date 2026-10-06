@@ -56,6 +56,7 @@ export function createServerApp(options: ServerOptions = {}): ServerApp {
       return typeof address === "object" && address ? address.port : port;
     },
     async close() {
+      service.stop();
       await hub.close();
       if (httpServer.listening) await new Promise<void>((resolve) => httpServer.close(() => resolve()));
       repo.close();

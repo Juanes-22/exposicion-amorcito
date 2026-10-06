@@ -314,6 +314,9 @@
 }
 .adventure__panels {
   display: grid;
+  /* Una fila de paneles plegados: la proyección conserva casi toda la altura para el mapa (SPECS 11.1). */
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  align-items: start;
   gap: 8px;
   padding: 8px 12px;
   background: var(--cream);
@@ -395,4 +398,59 @@
   border: 3px solid var(--wood);
   border-radius: 12px;
   background: #fff;
+}
+
+/* ---------- mapa: menú de mesas, aviso de cercanía y panel de actividad ---------- */
+.stations-menu {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 6;
+  max-width: min(92vw, 320px);
+  background: var(--paper);
+  border: 2px solid var(--wood);
+  border-radius: 10px;
+  padding: 2px 10px;
+}
+.stations-menu summary {
+  cursor: pointer;
+  font-weight: 800;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.stations-menu__list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.stations-menu__list li {
+  display: grid;
+  gap: 2px;
+}
+.nearby-prompt {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 6;
+}
+.activity-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+  background: rgba(244, 234, 213, 0.96);
+}
+.activity-panel h2 {
+  font-family: var(--font-title);
+  margin: 0;
+  color: var(--wood-dark);
 }

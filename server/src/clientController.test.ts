@@ -87,6 +87,44 @@ describe("RoomController: comandos", () => {
   });
 });
 
+describe("RoomController: frames de simulación (CT-06)", () => {
+  it("durante un trayecto llegan muchos frames pero NINGUNO avisa al estado observable de React; solo los snapshots", async () => {
+    const { admin, people } = await adminAndParticipants(["Ana"]);
+    const ana = people[0]!.c;
+    await admin.admin({ type: "control.assign", principalId: people[0]!.id });
+    await admin.admin({ type: "room.start" });
+    // La interfaz real solo habilita los controles con la aventura EN CURSO (la fase `running` ya trae el turnVersion vigente).
+    await until(() => ana.getState().summary?.self.isController === true && ana.getState().summary?.phase === "running" && ana.getState().snapshot?.state.phase === "running" && admin.getState().snapshot?.state.phase === "running", "controladora y proyección con la aventura en curso");
+
+    let frames = 0;
+    let notifications = 0;
+    const offFrames = admin.subscribeFrames(() => void frames++);
+    const offState = admin.subscribe(() => void notifications++);
+    const target = server.app.project.map.stations[1]!.point; // ~2,6 s a 150 u/s
+    const moved = await ana.adventure({ type: "player.moveTo", target });
+    expect(moved, JSON.stringify(moved)).toMatchObject({ ok: true });
+    await until(() => admin.getState().snapshot?.state.adventure.player.plan !== null, "snapshot con el plan");
+    await until(() => admin.getState().snapshot?.state.adventure.player.plan === null, "llegada", 9000);
+    offFrames();
+    offState();
+    expect(frames).toBeGreaterThanOrEqual(15); // 10 Hz durante ~2,6 s
+    // Un aviso por el snapshot del plan y otro por el de la llegada. Los ~26 frames no provocan ningún render de React.
+    expect(notifications).toBeLessThanOrEqual(3);
+    expect(notifications).toBeGreaterThanOrEqual(1);
+  }, 20000);
+
+  it("descarta los frames de antes de conectarse: sin snapshot no hay plan que interpolar", async () => {
+    const created = await createRoom(server.url);
+    const admin = make(created.body.adminToken);
+    let frames = 0;
+    admin.subscribeFrames(() => void frames++);
+    await until(() => admin.getState().summary !== null, "resumen");
+    // Sala en bienvenida: nada se mueve y no se emite ningún frame.
+    await new Promise((r) => setTimeout(r, 400));
+    expect(frames).toBe(0);
+  });
+});
+
 describe("RoomController: conexión (SPECS 5.4, 6.2)", () => {
   it("al perder la conexión cancela lo pendiente y rechaza nuevos comandos sin colgarse; al volver pide el estado y reinicia su secuencia", async () => {
     const { admin, people, code, adminToken } = await adminAndParticipants(["Ana"]);

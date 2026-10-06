@@ -21,6 +21,7 @@ import {
   type PresenceView,
   type RoomChange,
 } from "../../shared/domain/room";
+import { buildSimulationFrame, isSimulating } from "../../shared/domain/frames";
 import { hashToken, newId, newRoomCode, newToken } from "./auth";
 import type { ServerSettings } from "./config";
 import type { PrincipalRecord, RoomRepository, StoredCommand } from "./db";
@@ -87,6 +88,10 @@ interface Runtime {
   lastAdminSeq: number;
   /** Reloj monotónico en el último commit: el tiempo activo corre desde aquí mientras la sala es jugable. */
   anchor: number;
+  /** Marcas del bucle de simulación (SPECS 5.6, 6.1). */
+  frameSeq: number;
+  lastCheckpoint: number;
+  tickBusy: boolean;
   queue: Promise<unknown>;
   configMismatch: boolean;
   buckets: Map<string, KeyedLimiter>;
@@ -155,6 +160,9 @@ export class RoomService {
         adminId: admin.principalId,
         lastAdminSeq: 0,
         anchor: this.mono(),
+        frameSeq: 0,
+        lastCheckpoint: this.mono(),
+        tickBusy: false,
         queue: Promise.resolve(),
         configMismatch: this.mismatch(state),
         buckets: new Map(),
@@ -162,6 +170,7 @@ export class RoomService {
       this.byCode.set(state.code, state.roomId);
       if (this.mismatch(state)) this.log.warn("CONFIG_MISMATCH: la sala usa otra revisión de configuración o mapa", { roomId: state.roomId });
     }
+    this.startLoop();
     return { recovered: this.rooms.size, unreadable: unreadable.length };
   }
 
@@ -195,7 +204,7 @@ export class RoomService {
       this.log.error("no se pudo crear la sala", { error: String(e) });
       throw new ServiceError(503, "INTERNAL", "No se pudo crear la sala. Intenta de nuevo.");
     }
-    this.rooms.set(roomId, { state, principals: new Map([[admin.principalId, admin]]), presence: new Map(), adminId: admin.principalId, lastAdminSeq: 0, anchor: this.mono(), queue: Promise.resolve(), configMismatch: false, buckets: new Map() });
+    this.rooms.set(roomId, { state, principals: new Map([[admin.principalId, admin]]), presence: new Map(), adminId: admin.principalId, lastAdminSeq: 0, anchor: this.mono(), frameSeq: 0, lastCheckpoint: this.mono(), tickBusy: false, queue: Promise.resolve(), configMismatch: false, buckets: new Map() });
     this.byCode.set(code, roomId);
     // El enlace público lleva únicamente el código: nunca una credencial (CA-01).
     return { code, joinUrl: `${origin}/sala/${code}`, adminId: admin.principalId, adminToken: token };
@@ -264,14 +273,14 @@ export class RoomService {
   // ---- reloj ---------------------------------------------------------------------------------------------
 
   /** Tiempo activo actual: lo guardado en el último commit más lo corrido desde entonces, solo si la sala es jugable (invariante 6). */
-  private liveActiveMs(rt: Runtime): number {
+  private liveActiveMs(rt: Runtime, at: number = this.mono()): number {
     const base = rt.state.adventure.timeline.activeMs;
-    return isPlayable(rt.state) ? base + Math.max(0, this.mono() - rt.anchor) : base;
+    return isPlayable(rt.state) ? base + Math.max(0, at - rt.anchor) : base;
   }
 
   /** La sala con el reloj al día. Antes de pausar, retirar control o cerrar hay que fijar el instante para no perder tiempo. */
-  private settled(rt: Runtime): RoomState {
-    return tickRoom(rt.state, this.liveActiveMs(rt), this.project.config).room;
+  private settled(rt: Runtime, at: number = this.mono()): RoomState {
+    return tickRoom(rt.state, this.liveActiveMs(rt, at), this.project.config).room;
   }
 
   // ---- presencia -----------------------------------------------------------------------------------------
@@ -343,7 +352,8 @@ export class RoomService {
    * falla se aplican igualmente en memoria y se registra, porque dejar jugar a quien ya no está conectado es peor.
    */
   private applyPolicy(rt: Runtime, policy: (room: RoomState) => RoomChange): RoomState {
-    const change = policy(this.settled(rt));
+    const at = this.mono();
+    const change = policy(this.settled(rt, at));
     if (!change.ok || !change.changed) return rt.state;
     try {
       this.repo.commit(change.room, this.now().toISOString());
@@ -351,7 +361,7 @@ export class RoomService {
       this.log.error("no se pudo guardar una pausa automática; se aplica solo en memoria", { roomId: rt.state.roomId, error: String(e) });
     }
     rt.state = change.room;
-    rt.anchor = this.mono();
+    rt.anchor = at;
     return rt.state;
   }
 
@@ -408,7 +418,8 @@ export class RoomService {
       this.touchAdmin(rt);
 
       const before = rt.state;
-      const change = applyAdminAction(this.settled(rt), cmd.action, {
+      const at = this.mono(); // el reloj de simulación sigue corriendo mientras se guarda: el ancla es este instante, no el del commit
+      const change = applyAdminAction(this.settled(rt, at), cmd.action, {
         adminId: rt.adminId,
         presence: this.presenceView(rt),
         config: this.project.config,
@@ -421,7 +432,7 @@ export class RoomService {
 
       const response: CommandResult = { ok: true, requestId: cmd.requestId, stateVersion: change.room.stateVersion, turnVersion: change.room.turnVersion };
       const stored: StoredCommand = { roomId: rt.state.roomId, principalId: identity.principalId, generation: cmd.roomGeneration, requestId: cmd.requestId, fingerprint: fp, response };
-      const persisted = this.persist(rt, change.room, stored);
+      const persisted = this.persist(rt, change.room, stored, at);
       if (persisted) return failure(cmd.requestId, "PERSISTENCE_FAILED", persisted);
       if (change.room.roomGeneration !== before.roomGeneration) {
         rt.configMismatch = this.mismatch(change.room);
@@ -451,6 +462,7 @@ export class RoomService {
 
       const principal = rt.principals.get(identity.principalId)!;
       const before = rt.state;
+      const at = this.mono();
       const change = applyAdventureAction(rt.state, cmd.action, {
         config: this.project.config,
         map: this.project.map,
@@ -458,14 +470,14 @@ export class RoomService {
         actor: { principalId: principal.principalId, role: principal.role, name: displayNameFor(principal.name, principal.distinction) },
         roomGeneration: rt.state.roomGeneration,
         nowIso: this.now().toISOString(),
-        activeMs: this.liveActiveMs(rt),
+        activeMs: this.liveActiveMs(rt, at),
       });
       if (!change.ok) return failure(cmd.requestId, change.code, change.message);
       if (!change.changed) return this.ack(cmd.requestId, rt.state);
 
       const response: CommandResult = { ok: true, requestId: cmd.requestId, stateVersion: change.room.stateVersion, turnVersion: change.room.turnVersion };
       const stored: StoredCommand = { roomId: rt.state.roomId, principalId: identity.principalId, generation: cmd.roomGeneration, requestId: cmd.requestId, fingerprint: fp, response };
-      const persisted = this.persist(rt, change.room, stored);
+      const persisted = this.persist(rt, change.room, stored, at);
       if (persisted) return failure(cmd.requestId, "PERSISTENCE_FAILED", persisted);
       this.fanOut(rt, before, change.room, { effects: change.effects });
       return response;
@@ -494,7 +506,7 @@ export class RoomService {
    * Guarda estado y respuesta en una transacción y solo entonces actualiza la memoria (SPECS 5.4, pasos 6–7). Devuelve un mensaje de
    * error si falló: en ese caso nada cambió ni se anuncia éxito (CT-11).
    */
-  private persist(rt: Runtime, next: RoomState, command?: StoredCommand): string | null {
+  private persist(rt: Runtime, next: RoomState, command?: StoredCommand, at: number = this.mono()): string | null {
     try {
       this.repo.commit(next, this.now().toISOString(), command);
     } catch (e) {
@@ -502,7 +514,7 @@ export class RoomService {
       return "No se pudo guardar el cambio. Tu respuesta no se perdió en tu pantalla: intenta compartirla de nuevo en unos segundos.";
     }
     rt.state = next;
-    rt.anchor = this.mono();
+    rt.anchor = at;
     return null;
   }
 
@@ -522,6 +534,75 @@ export class RoomService {
     this.out.send(principalId, "room.summary", this.summaryFor(rt, principalId));
     if (principalId === rt.adminId) this.out.send(principalId, "presence.updated", this.presenceList(rt));
     if (principalId === rt.adminId || rt.state.controlOwner?.principalId === principalId) this.out.send(principalId, "room.snapshot", this.snapshot(rt, []));
+  }
+
+  // ---- bucle de simulación (SPECS 5.6, 6.1) ----------------------------------------------------------------------
+
+  private timer: ReturnType<typeof setInterval> | null = null;
+
+  /** Con `tickIntervalMs <= 0` no hay temporizador: las pruebas llaman a `tick()` a mano y controlan el reloj. */
+  private startLoop(): void {
+    if (this.timer || this.settings.tickIntervalMs <= 0) return;
+    this.timer = setInterval(() => void this.tick().catch((e) => this.log.error("falló el bucle de simulación", { error: String(e) })), this.settings.tickIntervalMs);
+    this.timer.unref();
+  }
+
+  /** Detiene el bucle (cierre ordenado del servidor). */
+  stop(): void {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+  }
+
+  /**
+   * Un paso del bucle: solo toca las salas con algo en movimiento. Cada sala se procesa dentro de su cola, así que nunca se
+   * cruza con un comando. Si un paso tarda más que el intervalo, el siguiente de esa sala se omite en lugar de apilarse.
+   */
+  async tick(): Promise<void> {
+    const jobs: Promise<void>[] = [];
+    for (const rt of this.rooms.values()) {
+      if (rt.tickBusy || !isSimulating(rt.state)) continue;
+      rt.tickBusy = true;
+      jobs.push(
+        this.run(rt, () => this.simulate(rt))
+          .catch((e) => this.log.error("falló un paso de simulación", { roomId: rt.state.roomId, error: String(e) }))
+          .finally(() => void (rt.tickBusy = false)),
+      );
+    }
+    await Promise.all(jobs);
+  }
+
+  private simulate(rt: Runtime): void {
+    const before = rt.state;
+    if (!isSimulating(before)) return;
+    const at = this.mono();
+    const live = this.liveActiveMs(rt, at);
+    const t = tickRoom(before, live, this.project.config);
+
+    if (t.changed) {
+      // Algo terminó por reloj (el movimiento o una prueba de rampa): es una transición confirmada, con su persistencia.
+      // El final lo decide el servidor, una sola vez; si no se puede guardar no se anuncia y se reintenta en el siguiente paso.
+      const err = this.persist(rt, t.room, undefined, at);
+      if (err) return void this.log.error("no se pudo guardar el fin de un movimiento o prueba; se reintenta", { roomId: before.roomId });
+      rt.lastCheckpoint = at;
+      this.fanOut(rt, before, rt.state);
+    } else if (at - rt.lastCheckpoint >= this.settings.checkpointIntervalMs) {
+      // Checkpoint de reloj y posición: no cambia de versión ni se anuncia. Tras una caída abrupta el movimiento puede
+      // retroceder hasta este intervalo; lo ya confirmado no se pierde (SPECS 6.1).
+      try {
+        this.repo.commit(t.room, this.now().toISOString());
+        rt.state = t.room;
+        rt.anchor = at;
+        rt.lastCheckpoint = at;
+      } catch (e) {
+        this.log.warn("no se pudo guardar el checkpoint de reloj", { roomId: before.roomId, error: String(e) });
+      }
+    }
+
+    // Muestra visual efímera para la proyección y el controlador; la espera nunca la recibe (canal de vista).
+    if (isSimulating(rt.state)) {
+      const frame = buildSimulationFrame(rt.state, this.liveActiveMs(rt, at), ++rt.frameSeq);
+      if (frame) this.out.sendToView(rt.state.roomId, "simulation.frame", frame);
+    }
   }
 
   // ---- fan-out ----------------------------------------------------------------------------------------------

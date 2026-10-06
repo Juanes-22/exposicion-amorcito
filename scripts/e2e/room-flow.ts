@@ -8,7 +8,9 @@ import { chromium, type BrowserContext, type Page } from "playwright";
 import { createServerApp } from "../../server/src/app";
 import { loadSettings } from "../../server/src/config";
 
-const EVIDENCE = resolve("docs/evidencia/fase2");
+// Las capturas de evidencia solo se escriben en docs/ cuando se pide (E2E_EVIDENCE=1); si no, van a una carpeta temporal para no
+// ensuciar el historial con binarios que cambian en cada ejecución.
+const EVIDENCE = process.env.E2E_EVIDENCE ? resolve("docs/evidencia/fase2") : mkdtempSync(join(tmpdir(), "laboratorio-evidencia-"));
 const dir = mkdtempSync(join(tmpdir(), "laboratorio-e2e-"));
 const app = createServerApp({ settings: loadSettings({}, { databasePath: join(dir, "e2e.sqlite"), port: 0, host: "127.0.0.1", distDir: resolve("dist") }) });
 const port = await app.listen(0);

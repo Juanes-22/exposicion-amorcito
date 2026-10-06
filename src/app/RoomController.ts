@@ -1,6 +1,6 @@
 import { io, type Socket } from "socket.io-client";
 import type { AdminAction, AdminCommand, AdventureAction, AdventureCommand, CommandResult } from "../../shared/contracts/actions";
-import type { ClientToServerEvents, PresenceUpdate, RoomSnapshot, RoomSummary, ServerToClientEvents } from "../../shared/contracts/events";
+import type { ClientToServerEvents, PresenceUpdate, RoomSnapshot, RoomSummary, ServerToClientEvents, SimulationFrame } from "../../shared/contracts/events";
 import { isTerminal } from "../../shared/domain/room";
 import { newRequestId } from "./ids";
 
@@ -25,6 +25,15 @@ export interface RoomClientState {
 
 type Listener = () => void;
 type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
+
+/**
+ * ¿Un frame sigue siendo válido? Se ordena por generación, versiones y `frameSeq`, y se descartan las muestras de planes o pruebas
+ * anteriores (SPECS 5.6): del recorrido previo a un reinicio, de un turno ya superado, de un estado más viejo que el snapshot que
+ * ya se tiene, o repetidas / fuera de orden.
+ */
+export function shouldAcceptFrame(f: Pick<SimulationFrame, "roomGeneration" | "turnVersion" | "stateVersion" | "frameSeq">, known: { generation: number; turnVersion: number; stateVersion: number; lastSeq: number }): boolean {
+  return f.roomGeneration === known.generation && f.turnVersion >= known.turnVersion && f.stateVersion >= known.stateVersion && f.frameSeq > known.lastSeq;
+}
 
 const DEFAULT_ACK_TIMEOUT_MS = 4000;
 const ADMIN_ACTIVITY_MS = 30_000;
@@ -53,6 +62,9 @@ export class RoomController {
   private noticeId = 0;
   private heartbeat: ReturnType<typeof setInterval> | null = null;
   private inflight = new Set<(r: CommandResult) => void>();
+  // Los frames NO pasan por el estado de React: se entregan a quien se suscribe (el puente de Phaser) para no renderizar por cada posición.
+  private frameListeners = new Set<(f: SimulationFrame) => void>();
+  private lastFrameSeq = -1;
   private stopped = false;
   /** Se invoca al detectar que la credencial dejó de valer, para que la aplicación la borre. */
   onUnauthorized: (() => void) | null = null;
@@ -101,6 +113,7 @@ export class RoomController {
     socket.on("connect", () => {
       // Conexión nueva (o recuperada): contador administrativo propio y nada pendiente del intento anterior.
       this.commandSeq = 0;
+      this.lastFrameSeq = -1; // la secuencia de frames empieza de nuevo con cada conexión (y con cada reinicio del servidor)
       this.failInflight("STALE_CONNECTION", "Se perdió la conexión; vuelve a intentarlo.");
       // El estado de antes de la caída ya no es fiable: se descarta y NO se pasa a «conectada» hasta que llegue el resumen de
       // esta conexión (SPECS 5.4: al volver se pide el estado; los controles se habilitan desde el estado actual).
@@ -142,11 +155,32 @@ export class RoomController {
     socket.on("control.changed", (change) => {
       this.turnVersion = Math.max(this.turnVersion, change.turnVersion);
     });
+    socket.on("simulation.frame", (f) => {
+      if (!this.acceptFrame(f)) return;
+      this.lastFrameSeq = f.frameSeq;
+      for (const listener of [...this.frameListeners]) listener(f);
+    });
     socket.on("session.replaced", () => {
       this.stop("replaced");
       this.notify("info", "Abriste la sala en otra pestaña. Esta quedó desactivada.");
     });
   }
+
+  /**
+   * Ordena las muestras por generación, versiones y secuencia, y descarta las de planes o pruebas anteriores (SPECS 5.6). Un frame
+   * solo tiene sentido sobre un snapshot ya recibido: sin él no hay plan que interpolar.
+   */
+  private acceptFrame(f: SimulationFrame): boolean {
+    const { summary, snapshot } = this.state;
+    if (!summary || !snapshot || this.state.status !== "connected") return false;
+    return shouldAcceptFrame(f, { generation: summary.roomGeneration, turnVersion: this.turnVersion, stateVersion: snapshot.state.stateVersion, lastSeq: this.lastFrameSeq });
+  }
+
+  /** Suscripción a las muestras de simulación válidas. Devuelve la función que la retira. */
+  subscribeFrames = (listener: (f: SimulationFrame) => void): (() => void) => {
+    this.frameListeners.add(listener);
+    return () => void this.frameListeners.delete(listener);
+  };
 
   private announceTurn(prev: RoomSummary | null, next: RoomSummary): void {
     if (!prev || next.self.role !== "participant") return;
@@ -168,6 +202,7 @@ export class RoomController {
     this.stopped = true;
     if (this.heartbeat) clearInterval(this.heartbeat);
     this.failInflight("STALE_CONNECTION", "Conexión cerrada.");
+    this.frameListeners.clear();
     this.socket?.removeAllListeners();
     this.socket?.disconnect();
     this.socket = null;

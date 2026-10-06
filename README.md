@@ -12,10 +12,11 @@ contradice a SPECS, manda SPECS.
 
 ## Estado
 
-Construido y verificado: fases 0, 1 y 2 de PLAN (base, contratos/dominio/Tiled directo, sala con control exclusivo y
-persistencia). **Todavía no existe**: tocar el mapa para mover a Vanessa (fase 3), las tres mesas jugables en pantalla
-(fase 4; sus reglas ya están en el dominio y probadas), cuaderno y final en pantalla (fase 5), demostración local (fase 6),
-arte, audio y ensayo de capacidad (fases 7–8). Detalle y evidencias en PLAN §5.
+Construido y verificado: fases 0 a 3 de PLAN (base, contratos/dominio/Tiled directo, sala con control exclusivo y
+persistencia, y movimiento compartido: el teléfono mueve a Vanessa y la proyección dibuja el mismo plan). **Todavía no
+existe**: las escenas y formularios de las tres mesas (fase 4; sus reglas ya están en el dominio y probadas; hoy una mesa
+abierta muestra un panel provisional), cuaderno y final en pantalla (fase 5), demostración local (fase 6), arte, audio y
+ensayo de capacidad (fases 7–8). Detalle y evidencias en PLAN §5.
 
 ## Requisitos
 
@@ -38,7 +39,7 @@ Cada persona usa su propio navegador/contexto: la credencial se guarda por sala 
 | `npm run validate:project` | Valida `laboratorio.json`, `assets.json`, el TMJ y los frames contra la imagen real, sin escribir nada. |
 | `npm run typecheck` | Tipos de frontend, `shared/` y servidor. |
 | `npm test` | Dominio, contratos, servidor con Socket.IO real y SQLite temporal, cliente y componentes. |
-| `npm run test:e2e` | Compila y ejecuta los e2e en Chromium con identidades independientes (ver «Pruebas»). |
+| `npm run test:e2e` | Compila y ejecuta los 4 e2e en Chromium con identidades independientes (ver «Pruebas»). Las capturas de evidencia solo se escriben en `docs/` con `E2E_EVIDENCE=1`. |
 | `npm run build` | Valida, comprueba tipos y compila el frontend en `dist/`. |
 | `npm start` | Servicio de producción: sirve `dist/`, la API y Socket.IO desde el mismo origen. |
 
@@ -93,7 +94,9 @@ crea una sala nueva para probar un cambio.
 `npx playwright install chromium`).
 
 Los e2e actuales cubren: ciclo de vida de Phaser bajo StrictMode (CT-04), administradora + dos participantes en contextos
-independientes (capturas en `docs/evidencia/fase2/`) y edición directa del TMJ (CT-01). **No** sustituyen el ensayo en
+independientes (capturas en `docs/evidencia/fase2/`), movimiento compartido con toque real, cambio de turno en pleno
+movimiento, pausa, redimensionado y pestaña congelada (capturas en `docs/evidencia/fase3/`) y edición directa del TMJ (CT-01).
+`?debug` en la URL de la sala superpone colisiones y radios; `?hooks` solo expone el juego para las pruebas. **No** sustituyen el ensayo en
 Safari/iPhone, Chrome/Android y el equipo proyectado (PLAN fase 7).
 
 ## Recursos provisionales
@@ -107,5 +110,6 @@ Vanessa, Jerry, los botones/paneles crema y las margaritas son recursos reales d
 - El **PRD v2.0** no está en el proyecto; SPECS lo cita como fuente de guiones y requisitos RF/CA. Los textos que SPECS no fija
   (p. ej. `ideaSuggestions` de Sombras y las descripciones de los objetos de la caja) son de prototipo y requieren revisión de
   Vanessa. Ver PLAN §5.
-- Cámara de seguimiento para teléfono vertical (hoy el mapa completo queda pequeño): fase 3.
+- Medición formal de latencia, FPS y carga con celulares reales y 50 participantes: fase 7 (la latencia preliminar de la fase 3 es de localhost).
+- Foco de los formularios con el teclado móvil abierto: fase 4.
 - Audio de Phaser desactivado hasta la fase 7 (ver PLAN §5, decisiones).

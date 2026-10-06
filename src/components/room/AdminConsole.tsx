@@ -58,7 +58,7 @@ export function AdminConsole({ project, state, controller }: { project: LoadedPr
       </div>
 
       <Suspense fallback={<div className="adventure__map"><p role="status" style={{ padding: 16 }}>Cargando el mapa…</p></div>}>
-        <AdventureHost project={project} state={state} canAct={isOwner && (summary.phase === "running" || summary.phase === "finished")} reason={summary.phase === "paused" ? "La aventura está en pausa." : isOwner ? null : "Usa «Tomar control» para participar."} label="Escena de la aventura" />
+        <AdventureHost project={project} state={state} controller={controller} camera="fit" canAct={isOwner && (summary.phase === "running" || summary.phase === "finished")} reason={summary.phase === "paused" ? "La aventura está en pausa." : isOwner ? null : "Usa «Tomar control» para participar."} label="Escena de la aventura" />
       </Suspense>
 
       <div className="adventure__panels">

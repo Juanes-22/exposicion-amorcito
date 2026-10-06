@@ -9,6 +9,8 @@ interface Props {
   project: LoadedProject;
   bridge: GameBridge;
   debug?: boolean;
+  hooks?: boolean;
+  camera?: "fit" | "follow";
   label?: string;
 }
 
@@ -16,7 +18,7 @@ interface Props {
  * Aloja la única instancia de `Phaser.Game` de este host. Solo se recrea si cambian el proyecto o el puente (es decir, tras
  * una recarga), nunca por progreso, formularios ni registros (SPECS 10.1). Al destruir retira listeners, canvas y suscripciones.
  */
-export function PhaserGame({ project, bridge, debug = false, label = "Mapa del laboratorio" }: Props) {
+export function PhaserGame({ project, bridge, debug = false, hooks = false, camera = "fit", label = "Mapa del laboratorio" }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [loading, setLoading] = useState<number | null>(0);
   const [failures, setFailures] = useState<AssetFailure[]>([]);
@@ -36,7 +38,7 @@ export function PhaserGame({ project, bridge, debug = false, label = "Mapa del l
     const container = containerRef.current;
     if (!container) return;
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-    const game: Phaser.Game = createGame(container, { project, bridge, reducedMotion, debug });
+    const game: Phaser.Game = createGame(container, { project, bridge, reducedMotion, debug, hooks: hooks || debug, camera });
     // Un toque en el mapa le da el foco: el teclado del juego solo escucha ahí.
     const focus = () => container.focus({ preventScroll: true });
     container.addEventListener("pointerdown", focus);
@@ -44,7 +46,7 @@ export function PhaserGame({ project, bridge, debug = false, label = "Mapa del l
       container.removeEventListener("pointerdown", focus);
       game.destroy(true);
     };
-  }, [project, bridge, debug]);
+  }, [project, bridge, debug, hooks, camera]);
 
   const loadingText = project.bundle.config.ui.labels.loadingMap ?? "Cargando…";
   return (

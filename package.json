@@ -14,7 +14,7 @@
     "validate:project": "tsx scripts/validate-project.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "test": "vitest run",
-    "test:e2e": "vite build && tsx scripts/e2e/strictmode.ts && tsx scripts/e2e/room-flow.ts && tsx scripts/e2e/tiled-direct.ts",
+    "test:e2e": "vite build && tsx scripts/e2e/strictmode.ts && tsx scripts/e2e/room-flow.ts && tsx scripts/e2e/movement.ts && tsx scripts/e2e/tiled-direct.ts",
     "build": "npm run validate:project && npm run typecheck && vite build",
     "start": "tsx server/src/index.ts"
   },

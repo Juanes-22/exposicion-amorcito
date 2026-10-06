@@ -1,18 +1,40 @@
+import { useMemo } from "react";
 import type { LoadedProject } from "../../config/loadProject";
-import type { RoomClientState } from "../../app/RoomController";
+import type { RoomClientState, RoomController } from "../../app/RoomController";
 import { useBridgeFeed } from "../../app/useBridgeFeed";
+import { useIntentRouter } from "../../app/useIntentRouter";
+import { readGameFlags } from "../../game/flags";
 import { PhaserGame } from "../game/PhaserGame";
+import { ActivityPanel } from "./ActivityPanel";
+import { NearbyPrompt } from "./NearbyPrompt";
+import { StationsMenu } from "./StationsMenu";
+
+interface Props {
+  project: LoadedProject;
+  state: RoomClientState;
+  controller: RoomController;
+  canAct: boolean;
+  reason: string | null;
+  label: string;
+  /** `fit`: el laboratorio entero (proyección). `follow`: sigue a Vanessa (teléfono del controlador). */
+  camera: "fit" | "follow";
+}
 
 /**
- * Mapa de la aventura. Un solo host de Phaser por vista: no se recrea por turnos ni por registros. Mientras no llegue el primer
- * snapshot se muestra un aviso en lugar de un mapa vacío.
+ * Mapa de la aventura. Un solo host de Phaser por vista: no se recrea por turnos, formularios ni registros. Mientras no llegue el
+ * primer snapshot se muestra un aviso en lugar de un mapa vacío.
  */
-export function AdventureHost({ project, state, canAct, reason, label }: { project: LoadedProject; state: RoomClientState; canAct: boolean; reason: string | null; label: string }) {
-  const bridge = useBridgeFeed(state, canAct, reason);
+export function AdventureHost({ project, state, controller, canAct, reason, label, camera }: Props) {
+  const bridge = useBridgeFeed(state, controller, canAct, reason);
+  useIntentRouter(bridge, controller, project);
+  const flags = useMemo(() => readGameFlags(), []);
   return (
     <div className="adventure__map">
-      <PhaserGame project={project} bridge={bridge} label={label} />
+      <PhaserGame project={project} bridge={bridge} debug={flags.debug} hooks={flags.hooks} camera={camera} label={label} />
       {!state.snapshot ? <div className="overlay" role="status"><p>Cargando el estado de la aventura…</p></div> : null}
+      <StationsMenu project={project} state={state} controller={controller} canAct={canAct} />
+      <NearbyPrompt project={project} state={state} controller={controller} canAct={canAct} />
+      <ActivityPanel project={project} state={state} controller={controller} canAct={canAct} />
       {state.snapshot?.state.phase === "paused" ? (
         <div className="overlay" role="status">
           <h2>En pausa</h2>

@@ -34,7 +34,7 @@ export function RoomView({ project, code, navigate }: { project: LoadedProject; 
   else if (summary && isTerminal(summary.phase)) body = <TerminalView reason={summary.phase as "closed" | "expired"} onHome={goHome} />;
   else if (!summary || !controller) body = <main className="screen screen--center"><p role="status">Conectando con la sala…</p></main>;
   else if (summary.self.role === "admin") body = summary.phase === "welcome" ? <AdminWelcome project={project} state={state} controller={controller} /> : <AdminConsole project={project} state={state} controller={controller} />;
-  else body = summary.self.isController ? <ControllerView project={project} state={state} /> : <WaitingView project={project} state={state} />;
+  else body = summary.self.isController ? <ControllerView project={project} state={state} controller={controller} /> : <WaitingView project={project} state={state} />;
 
   return (
     <>

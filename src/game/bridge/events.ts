@@ -1,6 +1,12 @@
-import type { AdventureAction } from "../../../shared/contracts/actions";
 import type { EffectEvent, PublicController, RoomSnapshot, SimulationFrame } from "../../../shared/contracts/events";
+import type { Point } from "../../../shared/contracts/geometry";
 import type { ConfigIssue } from "../../../shared/contracts/assets";
+
+/**
+ * Intención del jugador sobre el mapa, ya en coordenadas de MUNDO (la conversión pantalla→mundo la hace la escena con su cámara).
+ * La aplicación decide si la envía como comando; Phaser nunca habla con el servidor.
+ */
+export type MapIntent = { type: "move"; target: Point } | { type: "openStation"; stationId: string };
 
 /** Un asset gráfico que no cargó: el ID del catálogo y la URL resuelta. */
 export interface AssetFailure {
@@ -30,7 +36,7 @@ export interface BridgeEvents {
   /** Avance (0..1) de la carga esencial: la aplicación lo muestra hasta que llega `game:ready`. */
   "game:load-progress": { value: number };
   /** Intención tipada desde el mapa o la escena; la aplicación decide si la envía y resuelve `requestId`. */
-  "game:action-request": { action: AdventureAction; requestId: string; token: number };
+  "game:action-request": { intent: MapIntent; requestId: string; token: number };
   "game:asset-failures": { failures: AssetFailure[]; token: number };
   "game:invalid-project": { issues: ConfigIssue[] };
 
