@@ -1,0 +1,15 @@
+node_modules
+dist
+.DS_Store
+*.local
+.claude/settings.local.json
+# SQLite de desarrollo y credenciales: nunca en Git (SPECS 7.3, PLAN P0-04)
+server/data/*
+!server/data/.gitkeep
+.env
+.env.*
+!.env.example
+# Tiled: estado personal del editor y copias de seguridad
+*.tiled-session
+tools/tiled/backups/
+playtest-output

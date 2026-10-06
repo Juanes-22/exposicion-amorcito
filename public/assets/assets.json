@@ -1,0 +1,304 @@
+{
+  "version": 1,
+  "project": "El laboratorio de las cosas cotidianas",
+  "basePath": ".",
+  "pathConvention": "Paths are relative to the directory containing this assets.json.",
+  "assetCount": 14,
+  "categoryCounts": {
+    "characters": 1,
+    "ui": 6,
+    "decorations": 1,
+    "backgrounds": 1,
+    "stations": 5
+  },
+  "assets": {
+    "character.vanessa-jerry.walk.poses-v4": {
+      "path": "characters/vanessa-jerry/pose-sheets/vanessa-jerry-walk-poses-v4.png",
+      "type": "image",
+      "format": "png",
+      "category": "characters",
+      "label": "Vanessa y Jerry: doce poses de movimiento, versión v4",
+      "kind": "pose-sheet",
+      "poseCount": 12,
+      "visualLayout": {
+        "columns": 3,
+        "rows": 4
+      },
+      "rowDirections": [
+        "down",
+        "left",
+        "right",
+        "up"
+      ],
+      "requiresFrameDefinition": true,
+      "width": 1086,
+      "height": 1448,
+      "hasAlphaChannel": true,
+      "transparent": true,
+      "sizeBytes": 1148764,
+      "sha256": "efa38d2c32eb783e3dbe1598f470f38ad6b89586cf66c3e0f4f8c46f027424e8",
+      "originalPath": "assets/bitacora-amorcito-assets-v4/poses_movimiento_con_jerry.png"
+    },
+    "ui.button.green.default": {
+      "path": "ui/buttons/button-green.png",
+      "type": "image",
+      "format": "png",
+      "category": "ui",
+      "label": "Botón verde: estado normal",
+      "kind": "button",
+      "state": "default",
+      "width": 528,
+      "height": 104,
+      "hasAlphaChannel": true,
+      "transparent": true,
+      "sizeBytes": 773,
+      "sha256": "7d3d143968e577a185952fd140234f7ec9c424f85931a52d3ddf3b3f582e7243",
+      "originalPath": "assets/bitacora-ui-assets/assets/boton-verde.png"
+    },
+    "ui.button.green.hover": {
+      "path": "ui/buttons/button-green-hover.png",
+      "type": "image",
+      "format": "png",
+      "category": "ui",
+      "label": "Botón verde: hover",
+      "kind": "button",
+      "state": "hover",
+      "width": 528,
+      "height": 104,
+      "hasAlphaChannel": true,
+      "transparent": true,
+      "sizeBytes": 771,
+      "sha256": "846d571e35a402e1271c496716916736305b496c2cfb867b3de447eefd52f3dc",
+      "originalPath": "assets/bitacora-ui-assets/assets/boton-verde-hover.png"
+    },
+    "ui.panel.cream.nine-slice": {
+      "path": "ui/panels/panel-cream-9slice.png",
+      "type": "image",
+      "format": "png",
+      "category": "ui",
+      "label": "Panel crema para escalado de nueve secciones",
+      "kind": "panel",
+      "nineSlice": {
+        "top": 32,
+        "right": 32,
+        "bottom": 32,
+        "left": 32
+      },
+      "width": 128,
+      "height": 128,
+      "hasAlphaChannel": true,
+      "transparent": true,
+      "sizeBytes": 749,
+      "sha256": "3b2bbc1b743775a60f6e4b8de65e60952c74c2a1873d514d79c0134f2a28e3c3",
+      "originalPath": "assets/bitacora-ui-assets/assets/ventana-crema-9slice.png"
+    },
+    "ui.panel.cream.small": {
+      "path": "ui/panels/panel-cream-small.png",
+      "type": "image",
+      "format": "png",
+      "category": "ui",
+      "label": "Panel crema pequeño",
+      "kind": "panel",
+      "width": 640,
+      "height": 360,
+      "hasAlphaChannel": true,
+      "transparent": true,
+      "sizeBytes": 2125,
+      "sha256": "fb7ab090acf0fa0bc57e7c90713546e434f027573b9ea505be276ba14039a432",
+      "originalPath": "assets/bitacora-ui-assets/assets/ventana-crema-pequena.png"
+    },
+    "ui.panel.cream.large": {
+      "path": "ui/panels/panel-cream-large.png",
+      "type": "image",
+      "format": "png",
+      "category": "ui",
+      "label": "Panel crema grande",
+      "kind": "panel",
+      "width": 960,
+      "height": 640,
+      "hasAlphaChannel": true,
+      "transparent": true,
+      "sizeBytes": 4224,
+      "sha256": "1251734cff60077d70278b63b50a19b31e16f73c84d5d73e43d354d8463f064e",
+      "originalPath": "assets/bitacora-ui-assets/assets/ventana-crema-grande.png"
+    },
+    "ui.icon.open-book": {
+      "path": "ui/icons/open-book.png",
+      "type": "image",
+      "format": "png",
+      "category": "ui",
+      "label": "Libro abierto",
+      "kind": "icon",
+      "width": 220,
+      "height": 149,
+      "hasAlphaChannel": true,
+      "transparent": true,
+      "sizeBytes": 40266,
+      "sha256": "76485a047c96e85db4da770e825a0e6a6d74e08f118a0fced7d761b32ad71bf5",
+      "originalPath": "assets/bitacora-ui-assets/assets/libro-abierto.png"
+    },
+    "decoration.plant.daisies": {
+      "path": "decorations/plants/flower-daisies.png",
+      "type": "image",
+      "format": "png",
+      "category": "decorations",
+      "label": "Planta de margaritas",
+      "kind": "foliage",
+      "width": 1254,
+      "height": 1254,
+      "hasAlphaChannel": true,
+      "transparent": true,
+      "sizeBytes": 738672,
+      "sha256": "100b4c6beb4ca81a5afa59395a68db2b5d45a2bfdf50f752773e4c3168faa76a",
+      "originalPath": "bitacora-landscape-animations/assets/decorations/flower-daisies.png",
+      "origin": {
+        "x": 0.504785,
+        "y": 0.920255
+      },
+      "recommendedScale": 0.06883,
+      "recommendedContentHeightPx": 70,
+      "contentBounds": {
+        "x": 151,
+        "y": 137,
+        "width": 964,
+        "height": 1017
+      },
+      "filter": "nearest",
+      "motion": {
+        "type": "sway",
+        "angleDegrees": {
+          "from": -1,
+          "to": 1
+        },
+        "durationMs": 1800,
+        "yoyo": true,
+        "repeat": -1,
+        "ease": "Sine.easeInOut"
+      }
+    },
+    "lab.tiles.laboratorio": {
+      "path": "backgrounds/laboratorio/tiles.png",
+      "type": "image",
+      "format": "png",
+      "category": "backgrounds",
+      "label": "Laboratorio: tileset provisional de piso y paredes (8 tiles de 32 × 32)",
+      "kind": "tileset",
+      "width": 256,
+      "height": 32,
+      "hasAlphaChannel": true,
+      "transparent": true,
+      "sizeBytes": 528,
+      "sha256": "bcc97216d0337047d2f65f94f2ffb0df97f4f901d0d01a09def5e860847a04a0",
+      "placeholder": true,
+      "provenance": "Generado para el prototipo (formas provisionales, sin licencia externa). Sustituir por arte real antes de mode: presentation.",
+      "tileWidth": 32,
+      "tileHeight": 32,
+      "tileCount": 8
+    },
+    "lab.station.shadows": {
+      "path": "stations/laboratorio/station-shadows.png",
+      "type": "image",
+      "format": "png",
+      "category": "stations",
+      "label": "Mesa Sombras (provisional)",
+      "kind": "station-item",
+      "width": 192,
+      "height": 160,
+      "hasAlphaChannel": true,
+      "transparent": true,
+      "sizeBytes": 813,
+      "sha256": "4c340dc61369846e8f63b86f4e108ea51847a66a0b4063fb2c130fbccbc6e335",
+      "placeholder": true,
+      "provenance": "Generado para el prototipo (formas provisionales, sin licencia externa). Sustituir por arte real antes de mode: presentation.",
+      "origin": {
+        "x": 0.5,
+        "y": 1
+      }
+    },
+    "lab.station.ramps": {
+      "path": "stations/laboratorio/station-ramps.png",
+      "type": "image",
+      "format": "png",
+      "category": "stations",
+      "label": "Mesa Rampas (provisional)",
+      "kind": "station-item",
+      "width": 192,
+      "height": 160,
+      "hasAlphaChannel": true,
+      "transparent": true,
+      "sizeBytes": 989,
+      "sha256": "f83d67036e16ff14dc54fd4d24ee0107c830073a74d24d3af6b07f97b50c48d6",
+      "placeholder": true,
+      "provenance": "Generado para el prototipo (formas provisionales, sin licencia externa). Sustituir por arte real antes de mode: presentation.",
+      "origin": {
+        "x": 0.5,
+        "y": 1
+      }
+    },
+    "lab.station.boxes": {
+      "path": "stations/laboratorio/station-boxes.png",
+      "type": "image",
+      "format": "png",
+      "category": "stations",
+      "label": "Mesa La caja de las sorpresas (provisional)",
+      "kind": "station-item",
+      "width": 192,
+      "height": 160,
+      "hasAlphaChannel": true,
+      "transparent": true,
+      "sizeBytes": 795,
+      "sha256": "d5d2a201945d8b328dc60550b480900287e268f0e74f5d5db557b5e3668dece3",
+      "placeholder": true,
+      "provenance": "Generado para el prototipo (formas provisionales, sin licencia externa). Sustituir por arte real antes de mode: presentation.",
+      "origin": {
+        "x": 0.5,
+        "y": 1
+      }
+    },
+    "lab.inventor.off": {
+      "path": "stations/laboratorio/inventor-off.png",
+      "type": "image",
+      "format": "png",
+      "category": "stations",
+      "label": "Máquina del inventor apagada (provisional)",
+      "kind": "station-item",
+      "width": 192,
+      "height": 176,
+      "hasAlphaChannel": true,
+      "transparent": true,
+      "sizeBytes": 904,
+      "sha256": "852b67bb296668f548d758195d8091a7146120d4dbfa1f5da8406d815b0863c8",
+      "placeholder": true,
+      "provenance": "Generado para el prototipo (formas provisionales, sin licencia externa). Sustituir por arte real antes de mode: presentation.",
+      "origin": {
+        "x": 0.5,
+        "y": 1
+      }
+    },
+    "lab.inventor.on": {
+      "path": "stations/laboratorio/inventor-on.png",
+      "type": "image",
+      "format": "png",
+      "category": "stations",
+      "label": "Máquina del inventor encendida (provisional)",
+      "kind": "station-item",
+      "width": 192,
+      "height": 176,
+      "hasAlphaChannel": true,
+      "transparent": true,
+      "sizeBytes": 1302,
+      "sha256": "72a51da89d50d48638b34c511a789329d68cc4eb451ae1e0b0f05ec5cb424aa7",
+      "placeholder": true,
+      "provenance": "Generado para el prototipo (formas provisionales, sin licencia externa). Sustituir por arte real antes de mode: presentation.",
+      "origin": {
+        "x": 0.5,
+        "y": 1
+      }
+    }
+  },
+  "sourceDocuments": [],
+  "notes": [
+    "Subconjunto de Bitácora Amorcito (Juanes-22/bitacora-amorcito, commit 041d326f1f0b9e30b2d0de816cb7bb986e542d50). Los IDs, paths y metadata de estas entradas se conservan idénticos a los del catálogo original; los archivos son copias byte a byte (el sha256 sigue siendo válido).",
+    "Las entradas con placeholder: true son recursos provisionales del prototipo generados para este proyecto; deben sustituirse por arte real antes de usar mode: presentation (SPECS 9.5)."
+  ]
+}

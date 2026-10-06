@@ -1,0 +1,183 @@
+{
+    "automappingRulesFile": "",
+    "commands": [],
+    "extensionsPath": "extensions",
+    "folders": [
+        "../../public/maps"
+    ],
+    "objectTypesFile": "",
+    "propertyTypes": [
+        {
+            "color": "#ff3b7dd8",
+            "drawFill": true,
+            "id": 1,
+            "members": [
+                {
+                    "name": "spawnId",
+                    "type": "string",
+                    "value": ""
+                }
+            ],
+            "name": "Spawn",
+            "type": "class",
+            "useAs": [
+                "object"
+            ]
+        },
+        {
+            "color": "#ff4e9a51",
+            "drawFill": true,
+            "id": 2,
+            "members": [
+                {
+                    "name": "activityId",
+                    "type": "string",
+                    "value": ""
+                },
+                {
+                    "name": "assetId",
+                    "type": "string",
+                    "value": ""
+                },
+                {
+                    "name": "interactionRadius",
+                    "type": "float",
+                    "value": 72
+                },
+                {
+                    "name": "scale",
+                    "type": "float",
+                    "value": 1
+                }
+            ],
+            "name": "Station",
+            "type": "class",
+            "useAs": [
+                "object"
+            ]
+        },
+        {
+            "color": "#ff8a63c4",
+            "drawFill": true,
+            "id": 3,
+            "members": [
+                {
+                    "name": "assetId",
+                    "type": "string",
+                    "value": ""
+                },
+                {
+                    "name": "interactionRadius",
+                    "type": "float",
+                    "value": 72
+                },
+                {
+                    "name": "scale",
+                    "type": "float",
+                    "value": 1
+                }
+            ],
+            "name": "Inventor",
+            "type": "class",
+            "useAs": [
+                "object"
+            ]
+        },
+        {
+            "color": "#ffe3b92c",
+            "drawFill": true,
+            "id": 4,
+            "members": [
+                {
+                    "name": "assetId",
+                    "type": "string",
+                    "value": ""
+                },
+                {
+                    "name": "originX",
+                    "type": "float",
+                    "value": 0.5
+                },
+                {
+                    "name": "originY",
+                    "type": "float",
+                    "value": 1
+                },
+                {
+                    "name": "scale",
+                    "type": "float",
+                    "value": 1
+                },
+                {
+                    "name": "depthMode",
+                    "type": "string",
+                    "value": ""
+                }
+            ],
+            "name": "Decoration",
+            "type": "class",
+            "useAs": [
+                "object"
+            ]
+        },
+        {
+            "color": "#ffd9534f",
+            "drawFill": true,
+            "id": 5,
+            "members": [],
+            "name": "Collision",
+            "type": "class",
+            "useAs": [
+                "object"
+            ]
+        },
+        {
+            "color": "#ff2f9c95",
+            "drawFill": true,
+            "id": 6,
+            "members": [
+                {
+                    "name": "soundId",
+                    "type": "string",
+                    "value": ""
+                },
+                {
+                    "name": "assetId",
+                    "type": "string",
+                    "value": ""
+                },
+                {
+                    "name": "volume",
+                    "type": "float",
+                    "value": 1
+                },
+                {
+                    "name": "radius",
+                    "type": "float",
+                    "value": 200
+                },
+                {
+                    "name": "mode",
+                    "type": "string",
+                    "value": ""
+                }
+            ],
+            "name": "SoundEmitter",
+            "type": "class",
+            "useAs": [
+                "object"
+            ]
+        },
+        {
+            "color": "#ff9a9a9a",
+            "drawFill": true,
+            "id": 7,
+            "members": [],
+            "name": "EditorOnly",
+            "type": "class",
+            "useAs": [
+                "object"
+            ]
+        }
+    ]
+}

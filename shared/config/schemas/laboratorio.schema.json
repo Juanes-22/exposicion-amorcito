@@ -1,0 +1,672 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://laboratorio.local/schemas/laboratorio.schema.json",
+  "title": "Configuración de El laboratorio de las cosas cotidianas",
+  "description": "Contenido, recorrido y parámetros de experimentos. No contiene posiciones (viven en el TMJ), credenciales ni datos de sala. Las referencias cruzadas las comprueba validateProject.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "contentSetId",
+    "configRevision",
+    "mode",
+    "project",
+    "world",
+    "route",
+    "activities",
+    "inventor",
+    "dialogues",
+    "facilitatorNotes",
+    "ui",
+    "audio",
+    "session"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "contentSetId": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "minLength": 3,
+      "maxLength": 80
+    },
+    "configRevision": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "mode": {
+      "enum": [
+        "prototype",
+        "presentation"
+      ]
+    },
+    "project": {
+      "type": "object",
+      "required": [
+        "title",
+        "subtitle",
+        "studentName",
+        "university",
+        "program",
+        "courseName",
+        "durationMinutes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "subtitle": {
+          "$ref": "#/$defs/text"
+        },
+        "studentName": {
+          "$ref": "#/$defs/text"
+        },
+        "university": {
+          "$ref": "#/$defs/text"
+        },
+        "program": {
+          "$ref": "#/$defs/text"
+        },
+        "courseName": {
+          "$ref": "#/$defs/text"
+        },
+        "durationMinutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 180
+        }
+      }
+    },
+    "world": {
+      "type": "object",
+      "required": [
+        "mapPath",
+        "initialSpawnId",
+        "playerSpeed",
+        "player"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "mapPath": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._/-]+\\.tmj$"
+        },
+        "initialSpawnId": {
+          "$ref": "#/$defs/id"
+        },
+        "playerSpeed": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 2000
+        },
+        "player": {
+          "type": "object",
+          "required": [
+            "assetId",
+            "origin",
+            "scale",
+            "footprint"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "assetId": {
+              "$ref": "#/$defs/assetId"
+            },
+            "origin": {
+              "$ref": "#/$defs/origin"
+            },
+            "scale": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 10
+            },
+            "footprint": {
+              "type": "object",
+              "required": [
+                "width",
+                "height"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "width": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 1000
+                },
+                "height": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 1000
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "route": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/id"
+      }
+    },
+    "activities": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "oneOf": [
+          {
+            "$ref": "#/$defs/shadows"
+          },
+          {
+            "$ref": "#/$defs/ramps"
+          },
+          {
+            "$ref": "#/$defs/boxes"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type"
+        }
+      }
+    },
+    "inventor": {
+      "type": "object",
+      "required": [
+        "activeAssetId",
+        "requiredPieceIds",
+        "pieces",
+        "prompt",
+        "placeButtonLabel",
+        "oralQuestionText",
+        "finalMessage",
+        "reflection"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "activeAssetId": {
+          "$ref": "#/$defs/assetId"
+        },
+        "requiredPieceIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "pieces": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "label",
+              "message"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "label": {
+                "$ref": "#/$defs/text"
+              },
+              "message": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          }
+        },
+        "prompt": {
+          "$ref": "#/$defs/text"
+        },
+        "placeButtonLabel": {
+          "$ref": "#/$defs/text"
+        },
+        "oralQuestionText": {
+          "$ref": "#/$defs/text"
+        },
+        "finalMessage": {
+          "$ref": "#/$defs/text"
+        },
+        "reflection": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      }
+    },
+    "dialogues": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/text"
+      }
+    },
+    "facilitatorNotes": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/text"
+        }
+      }
+    },
+    "ui": {
+      "type": "object",
+      "required": [
+        "assets",
+        "maxRecordCharacters",
+        "labels"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "assets": {
+          "type": "object",
+          "required": [
+            "button",
+            "buttonHover",
+            "panel",
+            "notebookIcon"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "button": {
+              "$ref": "#/$defs/assetId"
+            },
+            "buttonHover": {
+              "$ref": "#/$defs/assetId"
+            },
+            "panel": {
+              "$ref": "#/$defs/assetId"
+            },
+            "notebookIcon": {
+              "$ref": "#/$defs/assetId"
+            }
+          }
+        },
+        "maxRecordCharacters": {
+          "type": "integer",
+          "minimum": 20,
+          "maximum": 280
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      }
+    },
+    "audio": {
+      "type": "object",
+      "required": [
+        "phoneInitiallyMuted",
+        "events"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "phoneInitiallyMuted": {
+          "type": "boolean"
+        },
+        "events": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/assetId"
+          }
+        }
+      }
+    },
+    "session": {
+      "type": "object",
+      "required": [
+        "maxParticipants",
+        "adminIdleTtlMs"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "maxParticipants": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        },
+        "adminIdleTtlMs": {
+          "type": "integer",
+          "minimum": 60000,
+          "maximum": 86400000
+        }
+      }
+    }
+  },
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 600
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "maxLength": 40
+    },
+    "assetId": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(\\.[a-z0-9-]+)+$"
+    },
+    "origin": {
+      "type": "object",
+      "required": [
+        "x",
+        "y"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "suggestion": {
+      "type": "object",
+      "required": [
+        "id",
+        "text"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "text": {
+          "$ref": "#/$defs/text"
+        },
+        "objectId": {
+          "$ref": "#/$defs/id"
+        }
+      }
+    },
+    "shadows": {
+      "type": "object",
+      "required": [
+        "type",
+        "title",
+        "pieceId",
+        "firstPrompt",
+        "experiment",
+        "ideaSuggestions",
+        "suggestions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "shadows"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "pieceId": {
+          "$ref": "#/$defs/id"
+        },
+        "firstPrompt": {
+          "$ref": "#/$defs/text"
+        },
+        "experiment": {
+          "type": "object",
+          "required": [
+            "sourceDistanceMinCm",
+            "sourceDistanceMaxCm",
+            "screenDistanceCm",
+            "objectHeightCm",
+            "minDistinctDistanceCm",
+            "requiredSamples"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "sourceDistanceMinCm": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1000
+            },
+            "sourceDistanceMaxCm": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1000
+            },
+            "screenDistanceCm": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1000
+            },
+            "objectHeightCm": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1000
+            },
+            "minDistinctDistanceCm": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1000
+            },
+            "requiredSamples": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 10
+            }
+          }
+        },
+        "ideaSuggestions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/suggestion"
+          }
+        },
+        "suggestions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/suggestion"
+          }
+        }
+      }
+    },
+    "ramps": {
+      "type": "object",
+      "required": [
+        "type",
+        "title",
+        "pieceId",
+        "firstPrompt",
+        "guideLine",
+        "inviteDialogueId",
+        "experiment",
+        "suggestions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "ramps"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "pieceId": {
+          "$ref": "#/$defs/id"
+        },
+        "firstPrompt": {
+          "$ref": "#/$defs/text"
+        },
+        "guideLine": {
+          "$ref": "#/$defs/text"
+        },
+        "inviteDialogueId": {
+          "$ref": "#/$defs/id"
+        },
+        "experiment": {
+          "type": "object",
+          "required": [
+            "model",
+            "minAngleDeg",
+            "maxAngleDeg",
+            "angleStepDeg",
+            "minDistinctAngleDeg",
+            "lengthMeters",
+            "visualTimeScale",
+            "requiredTrials"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "model": {
+              "const": "solid-sphere-ideal-v1"
+            },
+            "minAngleDeg": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 89
+            },
+            "maxAngleDeg": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 89
+            },
+            "angleStepDeg": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 89
+            },
+            "minDistinctAngleDeg": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 89
+            },
+            "lengthMeters": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100
+            },
+            "visualTimeScale": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 10
+            },
+            "requiredTrials": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 10
+            }
+          }
+        },
+        "suggestions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/suggestion"
+          }
+        }
+      }
+    },
+    "boxes": {
+      "type": "object",
+      "required": [
+        "type",
+        "title",
+        "pieceId",
+        "sharedObjects",
+        "refusalDialogueId",
+        "personalTouchDialogueId",
+        "personalBox",
+        "suggestions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "boxes"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "pieceId": {
+          "$ref": "#/$defs/id"
+        },
+        "sharedObjects": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "label",
+              "description"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "label": {
+                "$ref": "#/$defs/text"
+              },
+              "description": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          }
+        },
+        "refusalDialogueId": {
+          "$ref": "#/$defs/id"
+        },
+        "personalTouchDialogueId": {
+          "$ref": "#/$defs/id"
+        },
+        "personalBox": {
+          "type": "object",
+          "required": [
+            "label",
+            "ownerLabel"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/text"
+            },
+            "ownerLabel": {
+              "$ref": "#/$defs/text"
+            }
+          }
+        },
+        "suggestions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/suggestion"
+          }
+        }
+      }
+    }
+  }
+}

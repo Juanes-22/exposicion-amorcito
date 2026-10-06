@@ -1,0 +1,330 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://laboratorio.local/schemas/assets.schema.json",
+  "title": "Catálogo de assets del laboratorio (formato heredado de la bitácora)",
+  "description": "Describe fielmente el assets.json entregado; no es una migración. Las entradas admiten metadata adicional para conservar campos futuros. Las comprobaciones de coherencia (assetCount, categoryCounts, archivos) las hace validateAssetManifest.",
+  "type": "object",
+  "required": ["version", "project", "basePath", "pathConvention", "assetCount", "categoryCounts", "assets"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "project": { "type": "string", "minLength": 1 },
+    "basePath": { "type": "string", "minLength": 1 },
+    "pathConvention": { "type": "string", "minLength": 1 },
+    "assetCount": { "type": "integer", "minimum": 0 },
+    "categoryCounts": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "notes": { "type": "array", "items": { "type": "string" } },
+    "assets": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z0-9]+(\\.[a-z0-9-]+)+$" },
+      "additionalProperties": { "$ref": "#/$defs/assetEntry" }
+    },
+    "sourceDocuments": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/sourceDocument" }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "assetEntry": {
+      "type": "object",
+      "required": ["path", "type", "category", "label", "kind"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "minLength": 1 },
+        "format": { "type": "string", "minLength": 1 },
+        "category": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "width": { "type": "integer", "exclusiveMinimum": 0 },
+        "height": { "type": "integer", "exclusiveMinimum": 0 },
+        "hasAlphaChannel": { "type": "boolean" },
+        "transparent": { "type": "boolean" },
+        "sizeBytes": { "type": "integer", "minimum": 0 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "originalPath": { "type": "string" },
+        "zone": { "type": "string", "minLength": 1 },
+        "layer": { "type": "string", "minLength": 1 },
+        "variant": { "type": "string", "minLength": 1 },
+        "state": { "type": "string", "minLength": 1 },
+        "text": { "type": "string" },
+        "exampleFraction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "nineSlice": {
+          "type": "object",
+          "required": ["top", "right", "bottom", "left"],
+          "properties": {
+            "top": { "type": "number", "minimum": 0 },
+            "right": { "type": "number", "minimum": 0 },
+            "bottom": { "type": "number", "minimum": 0 },
+            "left": { "type": "number", "minimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "placement": {
+          "type": "object",
+          "required": ["relativeTo", "x", "y"],
+          "properties": {
+            "relativeTo": { "type": "string", "minLength": 1 },
+            "x": { "type": "number" },
+            "y": { "type": "number" }
+          },
+          "additionalProperties": false
+        },
+        "poseCount": { "type": "integer", "exclusiveMinimum": 0 },
+        "visualLayout": {
+          "type": "object",
+          "required": ["columns", "rows"],
+          "properties": {
+            "columns": { "type": "integer", "exclusiveMinimum": 0 },
+            "rows": { "type": "integer", "exclusiveMinimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "rowDirections": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "requiresFrameDefinition": { "type": "boolean" },
+        "atlasPath": { "type": "string", "minLength": 1 },
+        "frameCount": { "type": "integer", "exclusiveMinimum": 0 },
+        "animations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["key", "frameNames", "frameRate", "repeat"],
+            "properties": {
+              "key": { "type": "string", "minLength": 1 },
+              "direction": { "enum": ["front", "left", "right", "back"] },
+              "frameNames": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+              "frameRate": { "type": "number", "exclusiveMinimum": 0 },
+              "repeat": { "type": "integer", "minimum": -1 },
+              "repeatDelay": { "type": "number", "minimum": 0 }
+            },
+            "additionalProperties": false
+          }
+        },
+        "critterAnimations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["key", "state", "frameNames", "durationsMs", "repeat"],
+            "properties": {
+              "key": { "type": "string", "minLength": 1 },
+              "state": { "enum": ["idle", "walk", "peck"] },
+              "frameNames": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+              "durationsMs": { "type": "array", "minItems": 1, "items": { "type": "number", "exclusiveMinimum": 0 } },
+              "repeat": { "type": "integer", "minimum": -1 }
+            },
+            "additionalProperties": false
+          }
+        },
+        "avatarAnimations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["key", "state", "frameNames", "durationsMs", "repeat"],
+            "properties": {
+              "key": { "type": "string", "minLength": 1 },
+              "state": { "enum": ["idle", "happy"] },
+              "frameNames": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+              "durationsMs": { "type": "array", "minItems": 1, "items": { "type": "number", "exclusiveMinimum": 0 } },
+              "repeat": { "type": "integer", "minimum": -1 }
+            },
+            "additionalProperties": false
+          }
+        },
+        "labelZones": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "object",
+            "required": ["x", "y", "width", "height"],
+            "properties": {
+              "x": { "type": "number", "minimum": 0 }, "y": { "type": "number", "minimum": 0 },
+              "width": { "type": "number", "exclusiveMinimum": 0 }, "height": { "type": "number", "exclusiveMinimum": 0 },
+              "align": { "enum": ["left", "center", "right"] }, "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+              "fontSize": { "type": "number", "exclusiveMinimum": 0 }, "fontWeight": { "type": "integer", "minimum": 100, "maximum": 900 },
+              "maxLines": { "type": "integer", "minimum": 1 }
+            },
+            "additionalProperties": false
+          }
+        },
+        "attachments": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "object",
+            "required": ["x", "y", "width", "height"],
+            "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "width": { "type": "number", "exclusiveMinimum": 0 }, "height": { "type": "number", "exclusiveMinimum": 0 } },
+            "additionalProperties": false
+          }
+        },
+        "meaning": { "type": "string", "minLength": 1 },
+        "group": { "type": "string", "minLength": 1 },
+        "hitArea": {
+          "type": "object",
+          "required": ["x", "y", "width", "height"],
+          "properties": { "x": { "type": "number", "minimum": 0 }, "y": { "type": "number", "minimum": 0 }, "width": { "type": "number", "exclusiveMinimum": 0 }, "height": { "type": "number", "exclusiveMinimum": 0 } },
+          "additionalProperties": false
+        },
+        "recommendedDisplay": {
+          "type": "object",
+          "required": ["width", "height"],
+          "properties": { "width": { "type": "number", "exclusiveMinimum": 0 }, "height": { "type": "number", "exclusiveMinimum": 0 } },
+          "additionalProperties": false
+        },
+        "direction": { "enum": ["left", "right"] },
+        "anchor": { "type": "string", "minLength": 1 },
+        "referenceHeightPx": { "type": "number", "exclusiveMinimum": 0 },
+        "opacityByFrame": { "type": "array", "minItems": 1, "items": { "type": "number", "minimum": 0, "maximum": 1 } },
+        "hideOnComplete": { "type": "boolean" },
+        "frameAdjust": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["name", "scaleMultiplier", "origin"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "scaleMultiplier": { "type": "number", "exclusiveMinimum": 0 },
+              "origin": {
+                "type": "object",
+                "required": ["x", "y"],
+                "properties": { "x": { "type": "number", "minimum": 0, "maximum": 1 }, "y": { "type": "number", "minimum": 0, "maximum": 1 } },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "animation": {
+          "type": "object",
+          "required": ["frameNames", "frameRate", "repeat"],
+          "properties": {
+            "frameNames": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+            "frameRate": { "type": "number", "exclusiveMinimum": 0 },
+            "repeat": { "type": "integer", "minimum": -1 }
+          },
+          "additionalProperties": false
+        },
+        "motion": { "$ref": "#/$defs/motion" },
+        "origin": {
+          "type": "object",
+          "required": ["x", "y"],
+          "properties": { "x": { "type": "number", "minimum": 0, "maximum": 1 }, "y": { "type": "number", "minimum": 0, "maximum": 1 } },
+          "additionalProperties": false
+        },
+        "recommendedScale": { "type": "number", "exclusiveMinimum": 0 },
+        "recommendedContentHeightPx": { "type": "number", "exclusiveMinimum": 0 },
+        "contentBounds": {
+          "type": "object",
+          "required": ["x", "y", "width", "height"],
+          "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "width": { "type": "number", "exclusiveMinimum": 0 }, "height": { "type": "number", "exclusiveMinimum": 0 }, "alphaThreshold": { "type": "number", "minimum": 0, "maximum": 255 } },
+          "additionalProperties": false
+        },
+        "filter": { "enum": ["nearest", "linear"] },
+        "blendMode": { "enum": ["NORMAL", "ADD"] },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "alignment": { "type": "string", "minLength": 1 },
+        "facing": { "enum": ["left", "right"] },
+        "flipForLeft": { "type": "boolean" },
+        "durationSeconds": { "type": "number", "exclusiveMinimum": 0 },
+        "credit": { "$ref": "#/$defs/credit" }
+      },
+      "additionalProperties": true
+    },
+    "credit": {
+      "type": "object",
+      "required": ["title", "artist", "license", "verified"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "artist": { "type": "string", "minLength": 1 },
+        "license": { "type": "string", "minLength": 1 },
+        "licenseUrl": { "type": "string", "pattern": "^https://" },
+        "sourceUrl": { "type": "string", "pattern": "^https://" },
+        "attribution": { "type": "string" },
+        "verified": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "range": {
+      "type": "object",
+      "required": ["from", "to"],
+      "properties": { "from": { "type": "number" }, "to": { "type": "number" } },
+      "additionalProperties": false
+    },
+    "motion": {
+      "type": "object",
+      "required": ["type"],
+      "oneOf": [
+        {
+          "properties": {
+            "type": { "const": "sway" },
+            "angleDegrees": { "$ref": "#/$defs/range" },
+            "offsetXPx": { "$ref": "#/$defs/range" },
+            "durationMs": { "type": "number", "exclusiveMinimum": 0 },
+            "yoyo": { "type": "boolean" },
+            "repeat": { "type": "integer", "minimum": -1 },
+            "ease": { "type": "string" }
+          },
+          "required": ["type", "durationMs"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "const": "drift" },
+            "direction": { "enum": ["left", "right"] },
+            "speedPxPerSecond": { "type": "number", "exclusiveMinimum": 0 },
+            "wrapAtMapEdge": { "type": "boolean" }
+          },
+          "required": ["type", "direction", "speedPxPerSecond"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "const": "pulse" },
+            "alphaMin": { "type": "number", "minimum": 0, "maximum": 1 },
+            "alphaMax": { "type": "number", "minimum": 0, "maximum": 1 },
+            "durationMs": { "type": "number", "exclusiveMinimum": 0 }
+          },
+          "required": ["type", "alphaMin", "alphaMax", "durationMs"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "const": "swim" },
+            "speedPxPerSecond": { "type": "number", "exclusiveMinimum": 0 }
+          },
+          "required": ["type", "speedPxPerSecond"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "const": "particle" },
+            "lifespanMs": { "type": "number", "exclusiveMinimum": 0 },
+            "lifespanMaxMs": { "type": "number", "exclusiveMinimum": 0 },
+            "speedX": { "type": "object", "required": ["min", "max"], "properties": { "min": { "type": "number" }, "max": { "type": "number" } }, "additionalProperties": false },
+            "speedY": { "type": "object", "required": ["min", "max"], "properties": { "min": { "type": "number" }, "max": { "type": "number" } }, "additionalProperties": false },
+            "gravityY": { "type": "number" }
+          },
+          "required": ["type", "lifespanMs", "speedX", "speedY"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "sourceDocument": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "originalPath": { "type": "string" },
+        "sizeBytes": { "type": "integer", "minimum": 0 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      },
+      "additionalProperties": true
+    }
+  }
+}

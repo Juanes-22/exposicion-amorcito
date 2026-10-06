@@ -1,0 +1,230 @@
+{
+  "$schema": "../../shared/config/schemas/laboratorio.schema.json",
+  "schemaVersion": 1,
+  "contentSetId": "laboratorio-cosas-cotidianas",
+  "configRevision": "2026-10-05-v1",
+  "mode": "prototype",
+  "project": {
+    "title": "El laboratorio de las cosas cotidianas",
+    "subtitle": "Una aventura interactiva sobre la curiosidad",
+    "studentName": "Vanessa Estrada",
+    "university": "Universidad de Antioquia",
+    "program": "Licenciatura en Educación Infantil",
+    "courseName": "Práctica pedagógica 5",
+    "durationMinutes": 18
+  },
+  "world": {
+    "mapPath": "maps/laboratorio.tmj",
+    "initialSpawnId": "entrada",
+    "playerSpeed": 150,
+    "player": {
+      "assetId": "character.vanessa-jerry.walk.poses-v4",
+      "origin": {
+        "x": 0.5,
+        "y": 1
+      },
+      "scale": 0.34,
+      "footprint": {
+        "width": 42,
+        "height": 25
+      }
+    }
+  },
+  "route": [
+    "sombras",
+    "rampas",
+    "cajas"
+  ],
+  "activities": {
+    "sombras": {
+      "type": "shadows",
+      "title": "Sombras",
+      "pieceId": "lupa",
+      "firstPrompt": "El objeto es pequeño. ¿Por qué su sombra se ve tan grande?",
+      "experiment": {
+        "sourceDistanceMinCm": 10,
+        "sourceDistanceMaxCm": 60,
+        "screenDistanceCm": 25,
+        "objectHeightCm": 8,
+        "minDistinctDistanceCm": 5,
+        "requiredSamples": 2
+      },
+      "ideaSuggestions": [
+        {
+          "id": "la-luz",
+          "text": "Creo que la luz tiene algo que ver."
+        },
+        {
+          "id": "el-objeto",
+          "text": "Creo que el objeto es más grande de lo que parece."
+        },
+        {
+          "id": "la-pantalla",
+          "text": "Creo que la pantalla hace que se vea más grande."
+        }
+      ],
+      "suggestions": [
+        {
+          "id": "mover-objeto",
+          "text": "¿Qué pasaría si movemos el objeto?"
+        },
+        {
+          "id": "otras-formas",
+          "text": "¿Todas las formas producen la misma sombra?"
+        }
+      ]
+    },
+    "rampas": {
+      "type": "ramps",
+      "title": "Rampas",
+      "pieceId": "dialogo",
+      "firstPrompt": "Copia el resultado de la guía. No hagas preguntas.",
+      "guideLine": "En este montaje, al aumentar la inclinación la pelota llega antes al final de la rampa.",
+      "inviteDialogueId": "rampa-invitacion",
+      "experiment": {
+        "model": "solid-sphere-ideal-v1",
+        "minAngleDeg": 15,
+        "maxAngleDeg": 45,
+        "angleStepDeg": 5,
+        "minDistinctAngleDeg": 5,
+        "lengthMeters": 2,
+        "visualTimeScale": 2.4,
+        "requiredTrials": 2
+      },
+      "suggestions": [
+        {
+          "id": "mas-inclinacion",
+          "text": "¿Qué pasaría si aumentamos la inclinación?"
+        }
+      ]
+    },
+    "cajas": {
+      "type": "boxes",
+      "title": "La caja de las sorpresas",
+      "pieceId": "corazon",
+      "sharedObjects": [
+        {
+          "id": "campanita",
+          "label": "Campanita",
+          "description": "Una campanita pequeña. Cuando se mueve, suena."
+        },
+        {
+          "id": "lupa",
+          "label": "Lupa",
+          "description": "Una lupa. Al mirar a través de ella, los detalles se ven más grandes."
+        },
+        {
+          "id": "piedra",
+          "label": "Piedra",
+          "description": "Una piedra de forma redondeada. De cerca se ven sus manchas y su textura."
+        }
+      ],
+      "refusalDialogueId": "caja-negativa",
+      "personalTouchDialogueId": "caja-personal-toque",
+      "personalBox": {
+        "label": "Caja personal",
+        "ownerLabel": "Pertenece a una compañera"
+      },
+      "suggestions": [
+        {
+          "id": "sonido",
+          "objectId": "campanita",
+          "text": "¿Qué hace que la campanita suene?"
+        },
+        {
+          "id": "aumento",
+          "objectId": "lupa",
+          "text": "¿Por qué la lupa hace que algo se vea más grande?"
+        },
+        {
+          "id": "forma",
+          "objectId": "piedra",
+          "text": "¿Cómo habrá adquirido esta forma la piedra?"
+        }
+      ]
+    }
+  },
+  "inventor": {
+    "activeAssetId": "lab.inventor.on",
+    "requiredPieceIds": [
+      "lupa",
+      "dialogo",
+      "corazon"
+    ],
+    "pieces": [
+      {
+        "id": "lupa",
+        "label": "Lupa",
+        "message": "Observar y probar."
+      },
+      {
+        "id": "dialogo",
+        "label": "Bocadillo",
+        "message": "Preguntar y escuchar."
+      },
+      {
+        "id": "corazon",
+        "label": "Corazón",
+        "message": "Investigar con respeto."
+      }
+    ],
+    "prompt": "Después de lo que descubrimos, ¿qué nos gustaría seguir investigando?",
+    "placeButtonLabel": "Colocar las piezas",
+    "oralQuestionText": "Compartamos nuestra próxima pregunta en voz alta",
+    "finalMessage": "Cada descubrimiento puede abrir otra pregunta.",
+    "reflection": [
+      "Aprender comienza con preguntas.",
+      "Observar, probar y escuchar puede cambiar lo que pensábamos.",
+      "Las preguntas de los niños importan y deben acompañarse con respeto por los demás."
+    ]
+  },
+  "dialogues": {
+    "caja-negativa": "Prefiero guardar esas cosas para mí",
+    "caja-personal-toque": "Su contenido es personal. Podemos seguir explorando los objetos compartidos.",
+    "rampa-invitacion": "Exploremos esa pregunta. ¿Cómo podríamos comprobarlo?"
+  },
+  "facilitatorNotes": {
+    "bienvenida": [
+      "Explicar cómo funcionan los turnos y presentar al inventor."
+    ],
+    "sombras": [
+      "Antes: escuchar la primera explicación y relacionar la sorpresa con la curiosidad espontánea.",
+      "Después: preguntar qué cambió al probar y conectar observación, comparación y revisión de ideas con la curiosidad epistemológica."
+    ],
+    "rampas": [
+      "Durante la escena inicial: conversar sobre tener una respuesta sin poder investigar.",
+      "Después: pedir razones apoyadas en los resultados y relacionar preguntar, escuchar y comprender con las ideas de Freire."
+    ],
+    "cajas": [
+      "Sentir curiosidad no da permiso para revisar algo personal: pedir permiso, respetar y seguir investigando.",
+      "Preguntar: «¿Cómo acompañaríamos a un niño que quiere revisar las cosas personales de un compañero?»"
+    ],
+    "cierre": [
+      "¿Qué les gustaría seguir descubriendo después de esta aventura?"
+    ]
+  },
+  "ui": {
+    "assets": {
+      "button": "ui.button.green.default",
+      "buttonHover": "ui.button.green.hover",
+      "panel": "ui.panel.cream.nine-slice",
+      "notebookIcon": "ui.icon.open-book"
+    },
+    "maxRecordCharacters": 280,
+    "labels": {
+      "shareNotice": "Esta idea se compartirá con el grupo",
+      "oralRecord": "Lo compartiremos en voz alta",
+      "uncertainRecord": "Todavía no tenemos una explicación",
+      "waiting": "Estás en la sala. Sigue la aventura en la proyección",
+      "loadingMap": "Cargando el laboratorio…"
+    }
+  },
+  "audio": {
+    "phoneInitiallyMuted": true,
+    "events": {}
+  },
+  "session": {
+    "maxParticipants": 50,
+    "adminIdleTtlMs": 7200000
+  }
+}

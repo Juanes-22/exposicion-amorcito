@@ -1,0 +1,50 @@
+:root {
+  --cream: #f4ead5;
+  --cream-deep: #e9d9b6;
+  --paper: #fffaf0;
+  --wood: #7a4f2a;
+  --wood-dark: #5e3b1f;
+  --ink: #3b2a1a;
+  --ink-soft: #6b5640;
+  --green: #4e9a51;
+  --green-dark: #3b7a3e;
+  --amber: #e3b92c;
+  --red: #d9534f;
+  --blue: #3b7dd8;
+  --focus: #1f5fbf;
+  --radius: 14px;
+  --font-body: "Nunito Variable", "Nunito", system-ui, sans-serif;
+  --font-title: "Gelasio Variable", "Gelasio", Georgia, serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-text-size-adjust: 100%;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

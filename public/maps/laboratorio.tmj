@@ -1,0 +1,450 @@
+{
+ "compressionlevel": -1,
+ "height": 24,
+ "infinite": false,
+ "layers": [
+  {
+   "data": [
+    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+    3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+    3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    8, 2, 1, 2, 1, 6, 6, 6, 6, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 6, 6, 6, 6, 2, 1, 2, 1, 8,
+    8, 1, 2, 1, 2, 6, 6, 6, 6, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 6, 6, 6, 6, 1, 2, 1, 2, 8,
+    8, 2, 1, 2, 1, 6, 6, 6, 6, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 6, 6, 6, 6, 2, 1, 2, 1, 8,
+    8, 1, 2, 1, 2, 6, 6, 6, 6, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 6, 6, 6, 6, 1, 2, 1, 2, 8,
+    8, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 8,
+    8, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 8,
+    8, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 8,
+    8, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 8,
+    8, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 8,
+    8, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 8,
+    8, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 8,
+    8, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 8,
+    8, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 8,
+    8, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 8,
+    8, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 8,
+    8, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 8,
+    8, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 8,
+    8, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 8,
+    8, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 8,
+    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8
+   ],
+   "height": 24,
+   "id": 1,
+   "name": "floor",
+   "opacity": 1,
+   "type": "tilelayer",
+   "visible": true,
+   "width": 40,
+   "x": 0,
+   "y": 0
+  },
+  {
+   "draworder": "topdown",
+   "id": 2,
+   "name": "decorations",
+   "objects": [
+    {
+     "class": "Decoration",
+     "id": 15,
+     "name": "margaritas-izquierda",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "width": 0,
+     "height": 0,
+     "x": 88,
+     "y": 236,
+     "properties": [
+      {
+       "name": "assetId",
+       "type": "string",
+       "value": "decoration.plant.daisies"
+      },
+      {
+       "name": "originX",
+       "type": "float",
+       "value": 0.504785
+      },
+      {
+       "name": "originY",
+       "type": "float",
+       "value": 0.920255
+      },
+      {
+       "name": "scale",
+       "type": "float",
+       "value": 0.06883
+      },
+      {
+       "name": "depthMode",
+       "type": "string",
+       "value": "feet"
+      }
+     ]
+    },
+    {
+     "class": "Decoration",
+     "id": 16,
+     "name": "margaritas-derecha",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "width": 0,
+     "height": 0,
+     "x": 1192,
+     "y": 236,
+     "properties": [
+      {
+       "name": "assetId",
+       "type": "string",
+       "value": "decoration.plant.daisies"
+      },
+      {
+       "name": "originX",
+       "type": "float",
+       "value": 0.504785
+      },
+      {
+       "name": "originY",
+       "type": "float",
+       "value": 0.920255
+      },
+      {
+       "name": "scale",
+       "type": "float",
+       "value": 0.06883
+      },
+      {
+       "name": "depthMode",
+       "type": "string",
+       "value": "feet"
+      }
+     ]
+    },
+    {
+     "class": "Decoration",
+     "id": 17,
+     "name": "margaritas-sur",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "width": 0,
+     "height": 0,
+     "x": 120,
+     "y": 690,
+     "properties": [
+      {
+       "name": "assetId",
+       "type": "string",
+       "value": "decoration.plant.daisies"
+      },
+      {
+       "name": "originX",
+       "type": "float",
+       "value": 0.504785
+      },
+      {
+       "name": "originY",
+       "type": "float",
+       "value": 0.920255
+      },
+      {
+       "name": "scale",
+       "type": "float",
+       "value": 0.06883
+      },
+      {
+       "name": "depthMode",
+       "type": "string",
+       "value": "feet"
+      }
+     ]
+    }
+   ],
+   "opacity": 1,
+   "type": "objectgroup",
+   "visible": true,
+   "x": 0,
+   "y": 0
+  },
+  {
+   "draworder": "topdown",
+   "id": 3,
+   "name": "collisions",
+   "objects": [
+    {
+     "class": "Collision",
+     "id": 1,
+     "name": "pared-superior",
+     "rotation": 0,
+     "visible": true,
+     "width": 1280,
+     "height": 128,
+     "x": 0,
+     "y": 0
+    },
+    {
+     "class": "Collision",
+     "id": 2,
+     "name": "pared-izquierda",
+     "rotation": 0,
+     "visible": true,
+     "width": 32,
+     "height": 640,
+     "x": 0,
+     "y": 128
+    },
+    {
+     "class": "Collision",
+     "id": 3,
+     "name": "pared-derecha",
+     "rotation": 0,
+     "visible": true,
+     "width": 32,
+     "height": 640,
+     "x": 1248,
+     "y": 128
+    },
+    {
+     "class": "Collision",
+     "id": 4,
+     "name": "pared-inferior-izquierda",
+     "rotation": 0,
+     "visible": true,
+     "width": 608,
+     "height": 32,
+     "x": 0,
+     "y": 736
+    },
+    {
+     "class": "Collision",
+     "id": 5,
+     "name": "pared-inferior-derecha",
+     "rotation": 0,
+     "visible": true,
+     "width": 608,
+     "height": 32,
+     "x": 672,
+     "y": 736
+    },
+    {
+     "class": "Collision",
+     "id": 6,
+     "name": "mesa-sombras",
+     "rotation": 0,
+     "visible": true,
+     "width": 168,
+     "height": 62,
+     "x": 176,
+     "y": 236
+    },
+    {
+     "class": "Collision",
+     "id": 7,
+     "name": "mesa-rampas",
+     "rotation": 0,
+     "visible": true,
+     "width": 168,
+     "height": 62,
+     "x": 556,
+     "y": 236
+    },
+    {
+     "class": "Collision",
+     "id": 8,
+     "name": "mesa-cajas",
+     "rotation": 0,
+     "visible": true,
+     "width": 168,
+     "height": 62,
+     "x": 936,
+     "y": 236
+    },
+    {
+     "class": "Collision",
+     "id": 9,
+     "name": "maquina-inventor",
+     "rotation": 0,
+     "visible": true,
+     "width": 162,
+     "height": 106,
+     "x": 960,
+     "y": 504
+    }
+   ],
+   "opacity": 1,
+   "type": "objectgroup",
+   "visible": true,
+   "x": 0,
+   "y": 0
+  },
+  {
+   "draworder": "topdown",
+   "id": 4,
+   "name": "spawns",
+   "objects": [
+    {
+     "class": "Spawn",
+     "id": 10,
+     "name": "entrada",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "width": 0,
+     "height": 0,
+     "x": 640,
+     "y": 720,
+     "properties": [
+      {
+       "name": "spawnId",
+       "type": "string",
+       "value": "entrada"
+      }
+     ]
+    }
+   ],
+   "opacity": 1,
+   "type": "objectgroup",
+   "visible": true,
+   "x": 0,
+   "y": 0
+  },
+  {
+   "draworder": "topdown",
+   "id": 5,
+   "name": "stations",
+   "objects": [
+    {
+     "class": "Station",
+     "id": 11,
+     "name": "sombras",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "width": 0,
+     "height": 0,
+     "x": 260,
+     "y": 330,
+     "properties": [
+      {
+       "name": "activityId",
+       "type": "string",
+       "value": "sombras"
+      },
+      {
+       "name": "assetId",
+       "type": "string",
+       "value": "lab.station.shadows"
+      }
+     ]
+    },
+    {
+     "class": "Station",
+     "id": 12,
+     "name": "rampas",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "width": 0,
+     "height": 0,
+     "x": 640,
+     "y": 330,
+     "properties": [
+      {
+       "name": "activityId",
+       "type": "string",
+       "value": "rampas"
+      },
+      {
+       "name": "assetId",
+       "type": "string",
+       "value": "lab.station.ramps"
+      }
+     ]
+    },
+    {
+     "class": "Station",
+     "id": 13,
+     "name": "cajas",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "width": 0,
+     "height": 0,
+     "x": 1020,
+     "y": 330,
+     "properties": [
+      {
+       "name": "activityId",
+       "type": "string",
+       "value": "cajas"
+      },
+      {
+       "name": "assetId",
+       "type": "string",
+       "value": "lab.station.boxes"
+      }
+     ]
+    },
+    {
+     "class": "Inventor",
+     "id": 14,
+     "name": "inventor",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "width": 0,
+     "height": 0,
+     "x": 1040,
+     "y": 640,
+     "properties": [
+      {
+       "name": "assetId",
+       "type": "string",
+       "value": "lab.inventor.off"
+      }
+     ]
+    }
+   ],
+   "opacity": 1,
+   "type": "objectgroup",
+   "visible": true,
+   "x": 0,
+   "y": 0
+  }
+ ],
+ "nextlayerid": 6,
+ "nextobjectid": 18,
+ "orientation": "orthogonal",
+ "renderorder": "right-down",
+ "tiledversion": "1.10.2",
+ "tileheight": 32,
+ "tilesets": [
+  {
+   "columns": 8,
+   "firstgid": 1,
+   "image": "../assets/backgrounds/laboratorio/tiles.png",
+   "imageheight": 32,
+   "imagewidth": 256,
+   "margin": 0,
+   "name": "laboratorio-tiles",
+   "properties": [
+    {
+     "name": "assetId",
+     "type": "string",
+     "value": "lab.tiles.laboratorio"
+    }
+   ],
+   "spacing": 0,
+   "tilecount": 8,
+   "tileheight": 32,
+   "tilewidth": 32
+  }
+ ],
+ "tilewidth": 32,
+ "type": "map",
+ "version": "1.10",
+ "width": 40
+}
