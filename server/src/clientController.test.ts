@@ -214,4 +214,35 @@ describe("RoomController: conexión (SPECS 5.4, 6.2)", () => {
     await until(() => people[0]!.c.getState().notice?.text === "Ahora explora Beto.", "aviso de pérdida de turno");
     expect(people[1]!.c.getState().notice?.text).toBe("Es tu turno.");
   });
+
+  it("avisa a la aplicación cuando la sala se reinicia (nueva generación), y solo entonces", async () => {
+    const { admin, people } = await adminAndParticipants();
+    let changes = 0;
+    people[0]!.c.onGenerationChange = () => changes++;
+    await admin.admin({ type: "control.assign", principalId: people[0]!.id });
+    await admin.admin({ type: "room.start" });
+    await until(() => people[0]!.c.getState().summary?.phase === "running", "sala en curso");
+    expect(changes).toBe(0); // un cambio de fase o de turno no es un reinicio
+    await admin.admin({ type: "room.reset", confirm: true });
+    await until(() => people[0]!.c.getState().summary?.phase === "welcome", "sala reiniciada");
+    expect(changes).toBe(1);
+    expect(people[0]!.c.getState().summary?.roomGeneration).toBe(2);
+  });
+
+  it("al perder el turno añade el aviso de la aplicación (p. ej. un borrador sin compartir) solo cuando lo hay (SPECS 3.1)", async () => {
+    const { admin, people } = await adminAndParticipants();
+    let unshared = true;
+    people[0]!.c.turnLossHint = () => (unshared ? "Quedó un texto sin compartir en tu borrador; no se envió al grupo." : null);
+    await admin.admin({ type: "control.assign", principalId: people[0]!.id });
+    await until(() => people[0]!.c.getState().notice?.text === "Es tu turno.", "aviso de turno");
+    await admin.admin({ type: "control.assign", principalId: people[1]!.id });
+    await until(() => people[0]!.c.getState().notice?.text?.startsWith("Ahora explora Beto.") === true, "aviso de pérdida de turno");
+    expect(people[0]!.c.getState().notice?.text).toBe("Ahora explora Beto. Quedó un texto sin compartir en tu borrador; no se envió al grupo.");
+    // Sin borrador, el aviso queda como siempre.
+    unshared = false;
+    await admin.admin({ type: "control.assign", principalId: people[0]!.id });
+    await until(() => people[0]!.c.getState().notice?.text === "Es tu turno.", "vuelve el turno");
+    await admin.admin({ type: "control.assign", principalId: people[1]!.id });
+    await until(() => people[0]!.c.getState().notice?.text === "Ahora explora Beto.", "pérdida sin borrador");
+  });
 });

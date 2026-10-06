@@ -35,7 +35,16 @@ interface ActivityBase {
   /** Pieza colectiva que concede completar la mesa. */
   pieceId: string;
   suggestions: SuggestedOption[];
+  /** Indicación de cada paso, por nombre de paso. Es contenido editable: no vive en el código (SPECS 9.1). */
+  prompts: Record<string, string>;
 }
+
+/** Pasos que necesitan indicación propia en cada tipo de mesa (los demás usan `firstPrompt` o un diálogo). */
+export const REQUIRED_PROMPTS: Record<"shadows" | "ramps" | "boxes", readonly string[]> = {
+  shadows: ["firstIdea", "explore", "observation", "nextQuestion"],
+  ramps: ["question", "prediction", "trials", "observation"],
+  boxes: ["exploreShared", "askPermission", "respect", "nextQuestion"],
+};
 
 export interface ShadowsActivityConfig extends ActivityBase {
   type: "shadows";
@@ -88,6 +97,9 @@ export interface InventorConfig {
   activeAssetId: string;
   requiredPieceIds: string[];
   pieces: PieceConfig[];
+  /** Indicación antes de colocar las piezas (contenido editable). */
+  placePrompt: string;
+  /** Indicación de la pregunta final, una vez colocadas las piezas. */
   prompt: string;
   placeButtonLabel: string;
   oralQuestionText: string;

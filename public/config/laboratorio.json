@@ -72,7 +72,13 @@
           "id": "otras-formas",
           "text": "¿Todas las formas producen la misma sombra?"
         }
-      ]
+      ],
+      "prompts": {
+        "firstIdea": "¿Por qué crees que pasa? Cuéntanos tu primera idea; no hace falta acertar.",
+        "explore": "Mueve la linterna y observa la sombra. Anota al menos dos posiciones distintas.",
+        "observation": "¿Qué observaste cuando cambiaste la posición de la linterna?",
+        "nextQuestion": "Después de probar, ¿qué nueva pregunta te gustaría investigar?"
+      }
     },
     "rampas": {
       "type": "ramps",
@@ -96,7 +102,13 @@
           "id": "mas-inclinacion",
           "text": "¿Qué pasaría si aumentamos la inclinación?"
         }
-      ]
+      ],
+      "prompts": {
+        "question": "¿Qué quieres preguntar sobre la rampa y la pelota?",
+        "prediction": "¿Qué crees que va a pasar? También puedes decir que no estás segura o contarlo en voz alta.",
+        "trials": "Suelta la pelota desde el reposo. Cambia solo la inclinación y repite.",
+        "observation": "Compara tus pruebas. ¿Qué notas? ¿Qué resultado apoya tu explicación?"
+      }
     },
     "cajas": {
       "type": "boxes",
@@ -141,7 +153,13 @@
           "objectId": "piedra",
           "text": "¿Cómo habrá adquirido esta forma la piedra?"
         }
-      ]
+      ],
+      "prompts": {
+        "exploreShared": "Abre la caja para explorar y mira al menos un objeto.",
+        "askPermission": "Hay otra caja: es personal y pertenece a una compañera. Sientes curiosidad por lo que guarda. ¿Qué haces?",
+        "respect": "Ella prefiere guardar esas cosas para sí. Podemos respetar su decisión y seguir investigando.",
+        "nextQuestion": "Vuelve a elegir un objeto compartido y escribe una pregunta sobre él."
+      }
     }
   },
   "inventor": {
@@ -168,6 +186,7 @@
         "message": "Investigar con respeto."
       }
     ],
+    "placePrompt": "Tenemos las tres piezas. Colócalas para encender el inventor de preguntas.",
     "prompt": "Después de lo que descubrimos, ¿qué nos gustaría seguir investigando?",
     "placeButtonLabel": "Colocar las piezas",
     "oralQuestionText": "Compartamos nuestra próxima pregunta en voz alta",

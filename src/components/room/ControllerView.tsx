@@ -15,7 +15,7 @@ export function ControllerView({ project, state, controller }: { project: Loaded
     <div className="adventure">
       <div className="banner" role="status">Es tu turno, {summary.self.displayName}</div>
       <Suspense fallback={<div className="adventure__map"><p role="status" style={{ padding: 16 }}>Cargando el mapa…</p></div>}>
-        <AdventureHost project={project} state={state} controller={controller} camera="follow" canAct={canAct} reason={canAct ? null : "La aventura está en pausa."} label="Mapa del laboratorio" />
+        <AdventureHost project={project} state={state} controller={controller} camera="follow" notebookMenu canAct={canAct} reason={canAct ? null : "La aventura está en pausa."} label="Mapa del laboratorio" />
       </Suspense>
     </div>
   );

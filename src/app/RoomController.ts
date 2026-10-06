@@ -68,6 +68,10 @@ export class RoomController {
   private stopped = false;
   /** Se invoca al detectar que la credencial dejó de valer, para que la aplicación la borre. */
   onUnauthorized: (() => void) | null = null;
+  /** La sala se reinició (cambió la generación): lo guardado en este dispositivo para la aventura anterior ya no corresponde. */
+  onGenerationChange: (() => void) | null = null;
+  /** Texto que se añade al aviso de perder el turno (p. ej. «quedó un borrador sin compartir»); lo decide la aplicación. */
+  turnLossHint: (() => string | null) | null = null;
 
   private readonly path: string;
   private readonly ackTimeoutMs: number;
@@ -142,6 +146,7 @@ export class RoomController {
     socket.on("room.summary", (summary) => {
       this.turnVersion = Math.max(this.turnVersion, summary.turnVersion);
       const prev = this.state.summary;
+      if (prev && prev.roomGeneration !== summary.roomGeneration) this.onGenerationChange?.();
       const live = this.state.status === "connecting" || this.state.status === "reconnecting";
       this.set({ summary, ...(live ? { status: "connected" as const } : {}) });
       this.announceTurn(prev, summary);
@@ -185,7 +190,11 @@ export class RoomController {
   private announceTurn(prev: RoomSummary | null, next: RoomSummary): void {
     if (!prev || next.self.role !== "participant") return;
     if (!prev.self.isController && next.self.isController) this.notify("info", "Es tu turno.");
-    else if (prev.self.isController && !next.self.isController) this.notify("info", next.controller ? `Ahora explora ${next.controller.displayName}.` : "Ya no tienes el turno.");
+    else if (prev.self.isController && !next.self.isController) {
+      const base = next.controller ? `Ahora explora ${next.controller.displayName}.` : "Ya no tienes el turno.";
+      const hint = this.turnLossHint?.();
+      this.notify("info", hint ? `${base} ${hint}` : base);
+    }
   }
 
   /** Detiene la conexión operativa: sin reconexión ni comandos. Los datos ya recibidos se conservan para mostrar el estado final. */

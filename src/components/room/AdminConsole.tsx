@@ -2,6 +2,7 @@ import { lazy, Suspense, useState } from "react";
 import type { LoadedProject } from "../../config/loadProject";
 import type { RoomController, RoomClientState } from "../../app/RoomController";
 import { roomPath } from "../../app/useRoute";
+import { NotebookView } from "../notebook/NotebookView";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { QrCode } from "../ui/QrCode";
 import { ParticipantList } from "./ParticipantList";
@@ -65,6 +66,15 @@ export function AdminConsole({ project, state, controller }: { project: LoadedPr
         <details className="panel">
           <summary>Participantes ({state.presence?.connectedCount ?? 0} conectadas)</summary>
           <ParticipantList participants={participants} loading={state.presence === null} busy={disabled} onAssign={(principalId) => void run(() => controller.admin({ type: "control.assign", principalId }))} />
+        </details>
+        <details className="panel">
+          <summary>Cuaderno ({state.snapshot?.state.adventure.notebook.length ?? 0})</summary>
+          {/* Panel local de Vanessa: leer o corregir aquí no cambia la escena ni el turno de quien explora. */}
+          {state.snapshot ? (
+            <NotebookView room={summary.code} config={config} records={state.snapshot.state.adventure.notebook} canEdit={isOwner && (summary.phase === "running" || summary.phase === "finished")} busy={state.pending > 0} send={(a) => controller.adventure(a)} />
+          ) : (
+            <p className="hint" role="status">Cargando…</p>
+          )}
         </details>
         <details className="panel">
           <summary>Guía para conversar</summary>
