@@ -24,7 +24,8 @@ export function PhaserGame({ project, bridge, debug = false, hooks = false, came
   const [failures, setFailures] = useState<AssetFailure[]>([]);
 
   useEffect(() => {
-    const offProgress = bridge.on("game:load-progress", ({ value }) => setLoading((prev) => (prev === null ? value : Math.max(prev, value))));
+    const offProgress = bridge.on("game:load-progress", ({ value }) => // Una vez listo no se vuelve a mostrar el aviso de carga: cambiar de escena (mesa ↔ mapa) no es «cargar de nuevo».
+    setLoading((prev) => (prev === null ? null : Math.max(prev, value))));
     const offReady = bridge.on("game:ready", () => setLoading(null));
     const offFail = bridge.on("game:asset-failures", ({ failures: f }) => setFailures(f));
     return () => {

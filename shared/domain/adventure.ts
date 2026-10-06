@@ -75,7 +75,8 @@ export function createInitialAdventure(config: LaboratorioConfig, map: MapIndex)
 function initialActivityState(a: ActivityConfig): ActivityState {
   switch (a.type) {
     case "shadows":
-      return { type: "shadows", step: "surprise", distanceCm: Math.round((a.experiment.sourceDistanceMinCm + a.experiment.sourceDistanceMaxCm) / 2), samples: [] };
+      // La linterna empieza cerca del objeto: es cuando la sombra se ve más grande, justo lo que dice la sorpresa inicial.
+      return { type: "shadows", step: "surprise", distanceCm: a.experiment.sourceDistanceMinCm, samples: [] };
     case "ramps":
       return { type: "ramps", step: "closedAnswer", angleDeg: a.experiment.minAngleDeg, trials: [] };
     case "boxes":

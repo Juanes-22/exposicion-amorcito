@@ -1,7 +1,7 @@
 import configSchema from "./schemas/laboratorio.schema.json";
 import type { AssetManifest, ConfigIssue, ValidationResult } from "../contracts/assets";
 import type { LaboratorioConfig, SuggestedOption } from "../contracts/config";
-import { INVENTOR_ID } from "../contracts/config";
+import { INVENTOR_ID, REQUIRED_PROMPTS } from "../contracts/config";
 import { ajvIssues, compileSchema } from "./ajv";
 import type { SheetDefinition } from "./frameDefinitions";
 
@@ -79,6 +79,12 @@ export function validateConfig(data: unknown, ctx: ConfigContext): ConfigValidat
 
   for (const [id, a] of Object.entries(c.activities)) {
     const where = `activities.${id}`;
+    for (const step of REQUIRED_PROMPTS[a.type]) {
+      if (!a.prompts[step]?.trim()) issues.push(at(`${where}.prompts.${step}`, "falta la indicación de este paso"));
+    }
+    for (const step of Object.keys(a.prompts)) {
+      if (!REQUIRED_PROMPTS[a.type].includes(step)) issues.push(at(`${where}.prompts.${step}`, `«${step}» no es un paso con indicación en una mesa de tipo ${a.type}`));
+    }
     switch (a.type) {
       case "shadows": {
         const e = a.experiment;

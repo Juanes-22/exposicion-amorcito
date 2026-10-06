@@ -217,6 +217,12 @@ describe("configuración de contenido", () => {
     expectIssue(issuesFor((r) => (r.config.adminToken = "secreto")), "adminToken", "no permitida");
     expectIssue(issuesFor((r) => (r.config.activities.cajas.contenidoCajaPersonal = ["x"])), "contenidoCajaPersonal", "no permitida");
   });
+  it("exige la indicación de cada paso de cada mesa y rechaza pasos que no existen en ese tipo", () => {
+    expectIssue(issuesFor((r) => delete r.config.activities.sombras.prompts.explore), "activities.sombras.prompts.explore", "falta la indicación");
+    expectIssue(issuesFor((r) => (r.config.activities.rampas.prompts.trials = "   ")), "activities.rampas.prompts.trials", "falta la indicación");
+    expectIssue(issuesFor((r) => delete r.config.activities.cajas.prompts), "prompts", "obligatoria");
+    expectIssue(issuesFor((r) => (r.config.activities.cajas.prompts.explore = "no es un paso de cajas")), "prompts.explore", "no es un paso con indicación");
+  });
   it("mode presentation no admite recursos provisionales ni guiones vacíos; prototype sí", () => {
     expect(issuesFor((r) => (r.config.mode = "prototype"))).toEqual([]);
     expectIssue(issuesFor((r) => (r.config.mode = "presentation")), "laboratorio.tmj", "lab.station.shadows", "provisional");

@@ -189,6 +189,7 @@
         "activeAssetId",
         "requiredPieceIds",
         "pieces",
+        "placePrompt",
         "prompt",
         "placeButtonLabel",
         "oralQuestionText",
@@ -231,6 +232,9 @@
               }
             }
           }
+        },
+        "placePrompt": {
+          "$ref": "#/$defs/text"
         },
         "prompt": {
           "$ref": "#/$defs/text"
@@ -423,7 +427,8 @@
         "firstPrompt",
         "experiment",
         "ideaSuggestions",
-        "suggestions"
+        "suggestions",
+        "prompts"
       ],
       "additionalProperties": false,
       "properties": {
@@ -494,6 +499,12 @@
           "items": {
             "$ref": "#/$defs/suggestion"
           }
+        },
+        "prompts": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/text"
+          }
         }
       }
     },
@@ -507,7 +518,8 @@
         "guideLine",
         "inviteDialogueId",
         "experiment",
-        "suggestions"
+        "suggestions",
+        "prompts"
       ],
       "additionalProperties": false,
       "properties": {
@@ -588,6 +600,12 @@
           "items": {
             "$ref": "#/$defs/suggestion"
           }
+        },
+        "prompts": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/text"
+          }
         }
       }
     },
@@ -601,7 +619,8 @@
         "refusalDialogueId",
         "personalTouchDialogueId",
         "personalBox",
-        "suggestions"
+        "suggestions",
+        "prompts"
       ],
       "additionalProperties": false,
       "properties": {
@@ -664,6 +683,12 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/suggestion"
+          }
+        },
+        "prompts": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/text"
           }
         }
       }

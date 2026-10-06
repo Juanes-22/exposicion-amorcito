@@ -1,26 +1,28 @@
 import type { RoomClientState, RoomController } from "../../app/RoomController";
 import type { LoadedProject } from "../../config/loadProject";
+import { ActivityView, type ActivityViewProps } from "../activities/ActivityView";
+import { InventorPanel } from "../activities/InventorPanel";
 
 /**
- * Panel provisional de la mesa abierta. Las escenas y los formularios de cada mesa son la fase 4 del plan: aquí solo se
- * muestra cuál está abierta y se puede volver al mapa conservando su avance (SPECS 5.2: `adventure.returnToMap`).
+ * Celda de la mesa abierta junto al escenario. Adapta el estado de la sala a `ActivityView`: solo quien tiene el turno (y con la
+ * sala en curso o terminada) puede actuar; la proyección y los demás ven lo mismo en modo lectura. La vista `final` es la máquina del
+ * inventor (fase 5).
  */
 export function ActivityPanel({ project, state, controller, canAct }: { project: LoadedProject; state: RoomClientState; controller: RoomController; canAct: boolean }) {
-  const adv = state.snapshot?.state.adventure;
-  if (!adv || adv.view.kind === "map") return null;
-  const { config } = project.bundle;
-  const title = adv.view.kind === "activity" ? config.activities[adv.view.activityId]?.title ?? adv.view.activityId : "El inventor";
-  return (
-    <section className="activity-panel" aria-labelledby="activity-title">
-      <h2 id="activity-title">{title}</h2>
-      <p>Esta mesa se abre aquí; su experimento llega en la fase 4 del plan.</p>
-      {canAct ? (
-        <button type="button" className="btn btn--primary" disabled={state.pending > 0} onClick={() => void controller.adventure({ type: "adventure.returnToMap" })}>
-          Volver al mapa
-        </button>
-      ) : (
-        <p className="hint">Quien tiene el turno puede volver al mapa.</p>
-      )}
-    </section>
-  );
+  const snapshot = state.snapshot;
+  const adv = snapshot?.state.adventure;
+  if (!snapshot || !adv || adv.view.kind === "map") return null;
+  const props: ActivityViewProps = {
+    room: snapshot.state.code,
+    config: project.bundle.config,
+    adv,
+    // `canAct` ya implica sala en curso o terminada: en `finished` se pueden revisitar y explorar las mesas completadas (SPECS 3.5);
+    // el servidor decide qué acciones siguen siendo válidas.
+    interactive: canAct,
+    canReturn: canAct,
+    busy: state.pending > 0,
+    ownerName: state.summary?.controller?.displayName ?? null,
+    send: (action) => controller.adventure(action),
+  };
+  return <aside className="adventure__activity">{adv.view.kind === "final" ? <InventorPanel {...props} /> : <ActivityView {...props} />}</aside>;
 }

@@ -12,11 +12,12 @@ contradice a SPECS, manda SPECS.
 
 ## Estado
 
-Construido y verificado: fases 0 a 3 de PLAN (base, contratos/dominio/Tiled directo, sala con control exclusivo y
-persistencia, y movimiento compartido: el teléfono mueve a Vanessa y la proyección dibuja el mismo plan). **Todavía no
-existe**: las escenas y formularios de las tres mesas (fase 4; sus reglas ya están en el dominio y probadas; hoy una mesa
-abierta muestra un panel provisional), cuaderno y final en pantalla (fase 5), demostración local (fase 6), arte, audio y
-ensayo de capacidad (fases 7–8). Detalle y evidencias en PLAN §5.
+Construido y verificado: fases 0 a 5 de PLAN (base, contratos/dominio/Tiled directo, sala con control exclusivo y
+persistencia, movimiento compartido, las tres mesas con estado compartido, y el cuaderno, las piezas, el inventor y el final).
+El recorrido completo funciona de punta a punta en Chromium: Sombras, Rampas, La caja de las sorpresas, colocar las tres piezas,
+elegir la pregunta final, revisar mesas ya completadas y reiniciar la sala. **Todavía no existe**: la demostración local y el
+vencimiento y limpieza de salas (fase 6), el arte final, el audio y el ensayo de capacidad (fases 7–8). El dibujo de las mesas y del
+inventor es procedimental y los textos de cada paso son de prototipo. Detalle y evidencias en PLAN §5.
 
 ## Requisitos
 
@@ -39,7 +40,7 @@ Cada persona usa su propio navegador/contexto: la credencial se guarda por sala 
 | `npm run validate:project` | Valida `laboratorio.json`, `assets.json`, el TMJ y los frames contra la imagen real, sin escribir nada. |
 | `npm run typecheck` | Tipos de frontend, `shared/` y servidor. |
 | `npm test` | Dominio, contratos, servidor con Socket.IO real y SQLite temporal, cliente y componentes. |
-| `npm run test:e2e` | Compila y ejecuta los 4 e2e en Chromium con identidades independientes (ver «Pruebas»). Las capturas de evidencia solo se escriben en `docs/` con `E2E_EVIDENCE=1`. |
+| `npm run test:e2e` | Compila y ejecuta los 5 e2e en Chromium con identidades independientes (ver «Pruebas»). Las capturas de evidencia solo se escriben en `docs/` con `E2E_EVIDENCE=1`. |
 | `npm run build` | Valida, comprueba tipos y compila el frontend en `dist/`. |
 | `npm start` | Servicio de producción: sirve `dist/`, la API y Socket.IO desde el mismo origen. |
 
@@ -95,7 +96,10 @@ crea una sala nueva para probar un cambio.
 
 Los e2e actuales cubren: ciclo de vida de Phaser bajo StrictMode (CT-04), administradora + dos participantes en contextos
 independientes (capturas en `docs/evidencia/fase2/`), movimiento compartido con toque real, cambio de turno en pleno
-movimiento, pausa, redimensionado y pestaña congelada (capturas en `docs/evidencia/fase3/`) y edición directa del TMJ (CT-01).
+movimiento, pausa, redimensionado y pestaña congelada (capturas en `docs/evidencia/fase3/`), las tres mesas completas desde dos
+teléfonos y la proyección, con borradores, teclado reducido, pausa con la pelota rodando y la caja personal, y después el cuaderno
+(panel de Vanessa y corrección desde el teléfono), el inventor, la pregunta final, la revisita en `finished` y el reinicio de sala
+(capturas en `docs/evidencia/fase4/`), y edición directa del TMJ (CT-01).
 `?debug` en la URL de la sala superpone colisiones y radios; `?hooks` solo expone el juego para las pruebas. **No** sustituyen el ensayo en
 Safari/iPhone, Chrome/Android y el equipo proyectado (PLAN fase 7).
 
@@ -111,5 +115,7 @@ Vanessa, Jerry, los botones/paneles crema y las margaritas son recursos reales d
   (p. ej. `ideaSuggestions` de Sombras y las descripciones de los objetos de la caja) son de prototipo y requieren revisión de
   Vanessa. Ver PLAN §5.
 - Medición formal de latencia, FPS y carga con celulares reales y 50 participantes: fase 7 (la latencia preliminar de la fase 3 es de localhost).
-- Foco de los formularios con el teclado móvil abierto: fase 4.
+- El teclado real de iOS y Android no se ha probado: el e2e simula un teléfono con la ventana reducida (fase 7).
+- Los textos de cada paso (`prompts`), las sugerencias y las descripciones de los objetos son de prototipo: requieren revisión de
+  Vanessa y una prueba de claridad con niñas y niños (fase 8).
 - Audio de Phaser desactivado hasta la fase 7 (ver PLAN §5, decisiones).

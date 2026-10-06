@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { isTerminal } from "../../../shared/domain/room";
 import type { LoadedProject } from "../../config/loadProject";
 import { useRoomSession } from "../../app/useRoomSession";
+import { drafts } from "../activities/drafts";
 import { AdminConsole } from "./AdminConsole";
 import { AdminWelcome } from "./AdminWelcome";
 import { ControllerView } from "./ControllerView";
@@ -21,6 +22,12 @@ export function RoomView({ project, code, navigate }: { project: LoadedProject; 
     const t = setTimeout(() => controller.clearNotice(notice.id), 5000);
     return () => clearTimeout(t);
   }, [notice, controller]);
+
+  // Una sala que terminó ya no admite más registros: no quedan borradores que conservar para ella.
+  const terminal = state.summary ? isTerminal(state.summary.phase) : false;
+  useEffect(() => {
+    if (terminal) drafts.forgetRoom(code);
+  }, [terminal, code]);
 
   if (!credential) return <JoinView code={code} onJoined={session.adopt} navigate={navigate} />;
   const goHome = () => {

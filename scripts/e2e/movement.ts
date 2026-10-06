@@ -260,8 +260,9 @@ try {
   const mesa = { x: 260, y: 270 };
   await tapWorld(beto.page, mesa.x, mesa.y);
   await beto.page.getByRole("heading", { name: "Sombras" }).waitFor({ timeout: 20000 });
-  const b3 = await read(beto.page);
-  check(dist2(b3.player, { x: 260, y: 330 }) < 80, "tocar la mesa camina hasta su punto de interacción y la abre al llegar (el servidor valida la proximidad)");
+  // Con la mesa abierta la escena del laboratorio ya no está activa (la de la mesa la reemplaza): la posición se lee del snapshot.
+  const feet = await beto.page.evaluate(() => (window as any).__PHASER_GAME__.registry.get("deps").bridge.snapshot.state.adventure.player.feet as { x: number; y: number });
+  check(dist2(feet, { x: 260, y: 330 }) < 80, "tocar la mesa camina hasta su punto de interacción y la abre al llegar (el servidor valida la proximidad)");
   await beto.page.getByRole("button", { name: "Volver al mapa" }).click();
   await beto.page.getByRole("heading", { name: "Sombras" }).waitFor({ state: "detached" });
   // Tocar una mesa bloqueada: se explica y no se camina. Primero se acerca lo bastante para que Rampas quede a la vista del teléfono.

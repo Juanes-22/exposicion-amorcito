@@ -9,8 +9,8 @@ import { Player } from "../entities/Player";
 import { easeCenter, fitFraming, followFraming, type Framing } from "../framing";
 import { ensureSheet } from "../sheets";
 import { buildMap, MAP_KEY, requiredTextureAssets, type BuiltMap } from "../tiled/buildMap";
+import { LABORATORY_SCENE } from "./sceneKeys";
 
-export const LABORATORY_SCENE = "LaboratoryScene";
 
 /** Un toque es un gesto corto y casi quieto; un arrastre o una pulsación larga no mueven a Vanessa. */
 const TAP_MAX_TRAVEL_PX = 14;
@@ -59,9 +59,10 @@ export class LaboratoryScene extends Phaser.Scene {
     });
 
     // El TMJ ya validado se entrega como objeto (sin segunda descarga). Se clona: el loader no debe poder alterar el original.
-    this.load.tilemapTiledJSON(MAP_KEY, structuredClone(project.tmj) as object);
+    // Al volver de una mesa el laboratorio se vuelve a crear: lo que ya está en caché no se descarga ni se registra otra vez.
+    if (!this.cache.tilemap.exists(MAP_KEY)) this.load.tilemapTiledJSON(MAP_KEY, structuredClone(project.tmj) as object);
     // El TMJ no descarga las texturas por sí solo: se cargan por AssetRegistry, solo las referenciadas.
-    for (const assetId of requiredTextureAssets(bundle.map, bundle.config)) this.load.image(assetId, registry.url(assetId));
+    for (const assetId of requiredTextureAssets(bundle.map, bundle.config)) if (!this.textures.exists(assetId)) this.load.image(assetId, registry.url(assetId));
   }
 
   create(): void {

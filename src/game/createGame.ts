@@ -1,7 +1,12 @@
 import Phaser from "phaser";
 import type { LoadedProject } from "../config/loadProject";
 import type { GameBridge } from "./bridge/GameBridge";
+import { BoxesScene } from "./scenes/BoxesScene";
+import { InventorScene } from "./scenes/InventorScene";
+import { SceneDirector } from "./scenes/director";
 import { LaboratoryScene } from "./scenes/LaboratoryScene";
+import { RampsScene } from "./scenes/RampsScene";
+import { ShadowsScene } from "./scenes/ShadowsScene";
 
 export interface GameDeps {
   project: LoadedProject;
@@ -36,8 +41,11 @@ export function createGame(parent: HTMLElement, deps: GameDeps): Phaser.Game {
     // Sin física: la trayectoria compartida procede del dominio y las colisiones las decide el servidor (SPECS 5.6).
     loader: { maxParallelDownloads: 6, imageLoadType: "HTMLImageElement" },
     callbacks: { preBoot: (g) => g.registry.set(DEPS_KEY, deps) },
-    scene: [LaboratoryScene],
+    // Solo la primera arranca sola; el director cambia a la de la mesa abierta y de vuelta (un solo juego, un solo canvas).
+    scene: [LaboratoryScene, ShadowsScene, RampsScene, BoxesScene, InventorScene],
   });
+  const director = new SceneDirector(game, deps);
+  game.events.once(Phaser.Core.Events.DESTROY, () => director.dispose());
 
   // Solo en desarrollo o con `?debug` (que ya activa la superposición de colisiones): permite inspeccionar escenas y el puente.
   if (import.meta.env.DEV || deps.hooks) {
