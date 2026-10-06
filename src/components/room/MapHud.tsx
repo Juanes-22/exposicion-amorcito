@@ -1,4 +1,4 @@
-import type { RoomClientState, RoomController } from "../../app/RoomController";
+import type { RoomClientState, RoomPort } from "../../app/RoomController";
 import type { LoadedProject } from "../../config/loadProject";
 import { NotebookView } from "../notebook/NotebookView";
 import { PieceTray } from "../notebook/PieceTray";
@@ -6,7 +6,7 @@ import { PieceTray } from "../notebook/PieceTray";
 interface Props {
   project: LoadedProject;
   state: RoomClientState;
-  controller: RoomController;
+  controller: RoomPort;
   canAct: boolean;
   /** El teléfono del controlador abre el cuaderno desde aquí; la consola de Vanessa tiene su propio panel. */
   notebookMenu: boolean;

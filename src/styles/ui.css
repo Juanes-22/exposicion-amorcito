@@ -890,3 +890,37 @@
   display: grid;
   gap: 6px;
 }
+
+/* ---------- demostración local ---------- */
+.demo-bar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  padding: 6px 14px;
+  background: var(--amber);
+  color: var(--ink);
+  font-weight: 700;
+}
+.demo-bar strong {
+  font-family: var(--font-title);
+  font-size: 1.2rem;
+}
+.backup-offer {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  width: min(94vw, 560px);
+  display: grid;
+  gap: 8px;
+  background: var(--paper);
+  border: 3px solid var(--amber);
+  border-radius: 12px;
+  padding: 10px 14px;
+  box-shadow: 0 4px 0 var(--wood-dark);
+}
+.backup-offer p {
+  margin: 0;
+}

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { LoadedProject } from "../../config/loadProject";
-import type { RoomClientState, RoomController } from "../../app/RoomController";
+import type { RoomClientState, RoomPort } from "../../app/RoomController";
 import { useBridgeFeed } from "../../app/useBridgeFeed";
 import { useIntentRouter } from "../../app/useIntentRouter";
 import { readGameFlags } from "../../game/flags";
@@ -13,7 +13,7 @@ import { StationsMenu } from "./StationsMenu";
 interface Props {
   project: LoadedProject;
   state: RoomClientState;
-  controller: RoomController;
+  controller: RoomPort;
   canAct: boolean;
   reason: string | null;
   label: string;

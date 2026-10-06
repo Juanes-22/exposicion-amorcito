@@ -1,4 +1,4 @@
-import type { RoomClientState, RoomController } from "../../app/RoomController";
+import type { RoomClientState, RoomPort } from "../../app/RoomController";
 import type { LoadedProject } from "../../config/loadProject";
 import { ActivityView, type ActivityViewProps } from "../activities/ActivityView";
 import { InventorPanel } from "../activities/InventorPanel";
@@ -8,7 +8,7 @@ import { InventorPanel } from "../activities/InventorPanel";
  * sala en curso o terminada) puede actuar; la proyección y los demás ven lo mismo en modo lectura. La vista `final` es la máquina del
  * inventor (fase 5).
  */
-export function ActivityPanel({ project, state, controller, canAct }: { project: LoadedProject; state: RoomClientState; controller: RoomController; canAct: boolean }) {
+export function ActivityPanel({ project, state, controller, canAct }: { project: LoadedProject; state: RoomClientState; controller: RoomPort; canAct: boolean }) {
   const snapshot = state.snapshot;
   const adv = snapshot?.state.adventure;
   if (!snapshot || !adv || adv.view.kind === "map") return null;

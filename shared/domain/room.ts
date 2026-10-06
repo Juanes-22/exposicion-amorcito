@@ -141,6 +141,15 @@ export function applyAdminAction(room: RoomState, action: AdminAction, ctx: Admi
   }
 }
 
+/**
+ * Vencimiento por inactividad de la administradora (SPECS 6.3). Es una transición automática del servidor, no un comando: deja la sala
+ * terminal, sin propietario, y sube las versiones para que cualquier acción posterior sea rechazada. Una sala ya terminal no cambia.
+ */
+export function expireRoom(room: RoomState): RoomChange {
+  if (isTerminal(room.phase)) return { ok: true, room, changed: false, effects: [] };
+  return { ok: true, room: { ...bump(room, true), phase: "expired", resumePhase: null, controlOwner: null }, changed: true, effects: [] };
+}
+
 /** Retirar control: propietario vacío y, si la aventura estaba en curso, pausa. */
 function revoked(room: RoomState): RoomState {
   const next = { ...bump(room, true), controlOwner: null as ControlOwner };

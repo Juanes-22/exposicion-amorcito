@@ -545,6 +545,8 @@ Una sala terminal no admite entradas o acciones. Propuesta inicial de limpieza: 
 
 Una credencial está ligada a una sola sala. Probar que códigos y IDs de otra sala no permiten suscribir ni modificar sus datos.
 
+*(Añadido al implementar la fase 6.)* Un barrido del servidor (`SWEEP_INTERVAL_MS`, 30 s) vence las salas cuya administradora lleva más de `ADMIN_IDLE_TTL_MS` sin comandos ni señal periódica, y elimina en cascada (sala, identidades y comandos procesados) las salas terminales pasadas `TERMINAL_RETENTION_MS`. El plazo se calcula con la hora guardada, de modo que un reinicio no «perdona» el tiempo con el servicio apagado.
+
 ### 6.4. Demostración local
 
 `DemoController` utiliza el mismo dominio y modelos, sustituyendo solo transporte y persistencia. Mantiene un snapshot local con un espacio de almacenamiento distinto, sin tokens ni IDs de sala compartida.
@@ -554,6 +556,8 @@ Vanessa decide entrar al respaldo. Mostrar «Demostración», conservar el últi
 Preparar el respaldo antes de exponer: cargar recursos mínimos de las tres mesas y guiones, y disponer de una compilación servida localmente en la computadora. Si solo falla el backend, el frontend ya abierto debe poder cambiar a demo. Si falla toda la red o se recarga la página, usar la copia local preparada; una web nunca descargada no puede abrirse mágicamente sin conexión.
 
 No hacer obligatorio un service worker. Documentar y ensayar ambas situaciones: backend caído con frontend cargado; computadora sin red usando el build local.
+
+*(Añadido al implementar la fase 6.)* `DemoController` cumple el mismo contrato que `RoomController` (`RoomPort`) y usa las mismas funciones puras de `shared/domain`; Vanessa es administradora y quien explora, empieza en el mapa y, al recargar, vuelve en pausa con lo confirmado. Su espacio de almacenamiento es `laboratorio-cosas-cotidianas:v1:demo:estado`. La ruta es `/demo`; `/demo?from=CÓDIGO` solo sirve para ofrecer «Volver a la sala». Con la conexión caída más de 5 s, la consola de Vanessa le ofrece pasar a la demostración (nunca lo hace sola) y, con la sala funcionando, ya dejó descargado el módulo y los recursos. `npm run preview:demo` sirve el build local sin servidor.
 
 <a id="spec-7"></a>
 

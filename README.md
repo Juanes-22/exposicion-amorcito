@@ -12,12 +12,11 @@ contradice a SPECS, manda SPECS.
 
 ## Estado
 
-Construido y verificado: fases 0 a 5 de PLAN (base, contratos/dominio/Tiled directo, sala con control exclusivo y
-persistencia, movimiento compartido, las tres mesas con estado compartido, y el cuaderno, las piezas, el inventor y el final).
-El recorrido completo funciona de punta a punta en Chromium: Sombras, Rampas, La caja de las sorpresas, colocar las tres piezas,
-elegir la pregunta final, revisar mesas ya completadas y reiniciar la sala. **Todavía no existe**: la demostración local y el
-vencimiento y limpieza de salas (fase 6), el arte final, el audio y el ensayo de capacidad (fases 7–8). El dibujo de las mesas y del
-inventor es procedimental y los textos de cada paso son de prototipo. Detalle y evidencias en PLAN §5.
+Construido y verificado: fases 0 a 6 de PLAN (base, contratos/dominio/Tiled directo, sala con control exclusivo y persistencia,
+movimiento compartido, las tres mesas, el cuaderno, las piezas y el inventor, y la continuidad: detección de cortes, reinicio real
+del servicio, vencimiento y limpieza de salas, y la demostración local de respaldo). El recorrido completo funciona de punta a punta
+en Chromium. **Todavía no existe**: el arte final, el audio y el ensayo de capacidad con celulares reales (fases 7–8). El dibujo de
+las mesas y del inventor es procedimental y los textos de cada paso son de prototipo. Detalle y evidencias en PLAN §5.
 
 ## Requisitos
 
@@ -40,11 +39,12 @@ Cada persona usa su propio navegador/contexto: la credencial se guarda por sala 
 | `npm run validate:project` | Valida `laboratorio.json`, `assets.json`, el TMJ y los frames contra la imagen real, sin escribir nada. |
 | `npm run typecheck` | Tipos de frontend, `shared/` y servidor. |
 | `npm test` | Dominio, contratos, servidor con Socket.IO real y SQLite temporal, cliente y componentes. |
-| `npm run test:e2e` | Compila y ejecuta los 5 e2e en Chromium con identidades independientes (ver «Pruebas»). Las capturas de evidencia solo se escriben en `docs/` con `E2E_EVIDENCE=1`. |
+| `npm run test:e2e` | Compila y ejecuta los 7 e2e en Chromium (uno de ellos reinicia de verdad el proceso del servidor) con identidades independientes (ver «Pruebas»). Las capturas de evidencia solo se escriben en `docs/` con `E2E_EVIDENCE=1`. |
 | `npm run build` | Valida, comprueba tipos y compila el frontend en `dist/`. |
 | `npm start` | Servicio de producción: sirve `dist/`, la API y Socket.IO desde el mismo origen. |
+| `npm run preview:demo` | Compila y sirve SOLO el frontend en <http://127.0.0.1:4173/demo>, sin servidor de salas ni base de datos: la demostración de respaldo (ver «Respaldo»). |
 
-Aún no existen `test:load` ni `preview:demo` (fases 6–7).
+Aún no existe `test:load` (fase 7).
 
 ## Estructura
 
@@ -84,8 +84,36 @@ crea una sala nueva para probar un cambio.
 - `PUBLIC_ORIGIN` fija el origen de los enlaces de entrada; si hay prefijo, compila con `VITE_BASE=/prefijo/`.
 - Un reinicio recupera las salas pausadas y sin controlador; Vanessa recupera la administración con su credencial y elige
   cómo continuar. El tiempo con el servidor apagado no cuenta.
+- **Vencimiento y limpieza** (`ADMIN_IDLE_TTL_MS`, `TERMINAL_RETENTION_MS`, `SWEEP_INTERVAL_MS`): una sala cuya administradora lleva
+  2 horas sin dar señales (comandos o la señal periódica del navegador abierto; las participantes no cuentan) **vence**: se avisa y se
+  cierran las conexiones. Una sala terminal (cerrada o vencida) se **elimina por completo** (sala, identidades y comandos) 24 horas
+  después. El plazo de inactividad se cuenta con la hora guardada: si el servicio estuvo apagado más tiempo, vence al volver.
+- Detección de cortes: `PING_INTERVAL_MS=4000` y `PING_TIMEOUT_MS=5000`. Un corte de red silencioso se detectó en ~8,6 s en las pruebas
+  (objetivo ≤ 10 s; peor caso teórico 9 s). No se han medido falsos cortes en celulares reales (fase 7).
 - Las credenciales se guardan como hash. **No** se registran tokens ni textos del público.
 - El proveedor de hosting sigue **sin elegir** (PLAN P8-03).
+
+## Respaldo: la demostración local
+
+`/demo` es la misma aventura (mismo dominio, reglas, escenas y formularios) **sin servidor ni red**. Vanessa explora y modera sola. Siempre
+muestra el rótulo «Demostración». Su estado vive en el navegador, en un espacio propio (`…:demo:estado`), sin credenciales ni IDs de
+sala: **nunca se mezcla ni se sincroniza con una sala**. Si se recarga, vuelve en pausa con lo confirmado. «Reiniciar la demostración»
+solo borra el avance de la demostración.
+
+**Antes de exponer** (hacerlo con la sala funcionando):
+
+1. `npm run build` y `npm start` (o el servicio desplegado). Abre la sala como Vanessa y espera unos segundos: la consola descarga sola el
+   módulo de la demostración y calienta la caché con los recursos del catálogo.
+2. Abre `/demo` una vez en esa computadora y recorre una mesa. Así queda comprobado que funciona ahí.
+
+**Si el servidor deja de responder con la página ya abierta** (backend caído): a los ~5 s aparece «La conexión con la sala no vuelve»
+con el botón **Usar la demostración**. No se activa sola: decide Vanessa. Desde la demostración, **Volver a la sala** retoma la sala con su
+estado propio (si el servicio se reinició, la encuentra pausada y elige cuándo continuar). Los celulares de las personas no tienen
+demostración: siguen la proyección.
+
+**Si la computadora se queda sin red o sin servidor y hay que abrir la página de nuevo**: una página que nunca se descargó o que se
+recargó con el servidor apagado no se puede abrir. Por eso se prepara el build local: `npm run preview:demo` lo sirve desde la propia
+computadora (no necesita internet) y abre `/demo`. No es obligatorio ningún service worker. Ensayar ambos casos antes del día.
 
 ## Pruebas
 
@@ -94,12 +122,17 @@ crea una sala nueva para probar un cambio.
 `requestId`. `npm run test:e2e` usa el Chromium que Playwright ya tenga instalado (revisión 1243 para Playwright 1.63; si falta,
 `npx playwright install chromium`).
 
+Además: `server/src/detection.test.ts` usa relojes reales y un proxy que corta el tráfico sin cerrar nada (un corte silencioso) para medir
+cuánto tarda en detectarse; `scripts/e2e/restart.ts` arranca el servidor como proceso aparte, lo mata con `SIGKILL` a mitad de una prueba
+de rampa y lo vuelve a arrancar con el mismo archivo SQLite.
+
 Los e2e actuales cubren: ciclo de vida de Phaser bajo StrictMode (CT-04), administradora + dos participantes en contextos
 independientes (capturas en `docs/evidencia/fase2/`), movimiento compartido con toque real, cambio de turno en pleno
 movimiento, pausa, redimensionado y pestaña congelada (capturas en `docs/evidencia/fase3/`), las tres mesas completas desde dos
 teléfonos y la proyección, con borradores, teclado reducido, pausa con la pelota rodando y la caja personal, y después el cuaderno
 (panel de Vanessa y corrección desde el teléfono), el inventor, la pregunta final, la revisita en `finished` y el reinicio de sala
-(capturas en `docs/evidencia/fase4/`), y edición directa del TMJ (CT-01).
+(capturas en `docs/evidencia/fase4/`), el reinicio real del servicio y la demostración local con el servidor apagado y con la red
+cortada (capturas en `docs/evidencia/fase6/`), y edición directa del TMJ (CT-01).
 `?debug` en la URL de la sala superpone colisiones y radios; `?hooks` solo expone el juego para las pruebas. **No** sustituyen el ensayo en
 Safari/iPhone, Chrome/Android y el equipo proyectado (PLAN fase 7).
 
@@ -118,4 +151,8 @@ Vanessa, Jerry, los botones/paneles crema y las margaritas son recursos reales d
 - El teclado real de iOS y Android no se ha probado: el e2e simula un teléfono con la ventana reducida (fase 7).
 - Los textos de cada paso (`prompts`), las sugerencias y las descripciones de los objetos son de prototipo: requieren revisión de
   Vanessa y una prueba de claridad con niñas y niños (fase 8).
+- Falsos cortes de conexión con celulares reales (pantalla que se apaga, cambio de wifi a datos) y el comportamiento en segundo plano
+  de Safari/iPhone: fase 7. Los cortes de las pruebas son de red simulada en la misma computadora.
+- La demostración exige que la página **ya esté abierta** o que se sirva el build local; no hay service worker ni modo sin conexión
+  para una web que nunca se descargó (decisión de SPECS 6.4).
 - Audio de Phaser desactivado hasta la fase 7 (ver PLAN §5, decisiones).
