@@ -3,7 +3,7 @@ import type { GameDeps } from "../createGame";
 import { ALL_SCENES, desiredScene, LABORATORY_SCENE } from "./sceneKeys";
 
 /**
- * Cambia de escena DENTRO del mismo `Phaser.Game` cuando cambia la vista del snapshot: no se crea otro juego ni otro canvas al abrir
+ * Cambia de escena DENTRO del mismo `Phaser.Game` cuando cambia lo que ve esta audiencia: no se crea otro juego ni otro canvas al abrir
  * o cerrar una mesa (SPECS 10.1). Cada escena que entra obtiene su propio token del puente y la anterior se detiene y limpia.
  */
 export class SceneDirector {
@@ -19,7 +19,7 @@ export class SceneDirector {
     const { bridge } = deps;
     // `game:ready` cubre el caso de arrancar con una mesa ya abierta (recarga o reconexión): se cambia en cuanto el laboratorio existe.
     this.offs.push(
-      bridge.on("app:snapshot", () => this.reconcile()),
+      bridge.on("app:visual", () => this.reconcile()),
       bridge.on("game:ready", () => {
         this.labReady = true;
         this.reconcile();
@@ -28,8 +28,8 @@ export class SceneDirector {
   }
 
   reconcile(): void {
-    const snap = this.deps.bridge.snapshot;
-    if (!this.game.isBooted || !snap || !this.labReady) return;
+    const visual = this.deps.bridge.visual;
+    if (!this.game.isBooted || !visual || !this.labReady) return;
     // `game:ready` se emite DENTRO del `create` de la escena, y una escena en `create` no se puede parar con fiabilidad (Phaser la
     // deja en marcha al terminar). Se espera al final del fotograma, cuando ya está en marcha.
     const settling = this.game.scene.getScenes(false).some((s) => s.sys.settings.status === Phaser.Scenes.CREATING || s.sys.settings.status === Phaser.Scenes.LOADING);
@@ -37,7 +37,7 @@ export class SceneDirector {
       this.game.events.once(Phaser.Core.Events.POST_STEP, () => this.reconcile());
       return;
     }
-    const want = desiredScene(snap.state.adventure.view, this.deps.project.bundle.config.activities);
+    const want = desiredScene(visual, this.deps.project.bundle.config.activities);
     if (want === this.target) return; // ya pedida (arrancando o en marcha)
     const sm = this.game.scene;
     for (const key of ALL_SCENES) if (key !== want && (sm.isActive(key) || sm.isPaused(key) || sm.isSleeping(key))) sm.stop(key);

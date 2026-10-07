@@ -9,16 +9,17 @@ import { SHADOWS_SCENE } from "./sceneKeys";
 
 
 /**
- * Sombras, escena cercana. Dibuja el modelo ideal de fuente puntual con la geometría de `geometry/shadows.ts` (la misma fórmula
- * que la descripción textual). Mantiene fijos objeto y pantalla; solo se mueve la linterna, que no atraviesa el objeto: la
- * distancia mínima del rango la deja siempre a la izquierda de él (SPECS 3.2).
+ * Sombras, escena cercana de quien explora (o de la demostración de Vanessa). Dibuja el modelo ideal de fuente puntual con la geometría
+ * de `geometry/shadows.ts` (la misma fórmula que la descripción textual). Mantiene fijos objeto y pantalla; solo se mueve la linterna,
+ * que no atraviesa el objeto: la distancia mínima del rango la deja siempre a la izquierda de él (SPECS 3.2). La posición de la linterna
+ * mientras se ajusta es local; al terminar el ajuste se registra su posición y su sombra, y quedan marcadas en la escena.
  */
 export class ShadowsScene extends Phaser.Scene {
   private cleanups: Array<() => void> = [];
   private gfx!: Phaser.GameObjects.Graphics;
   private labels!: Record<"d" | "b" | "h" | "shadow" | "samples", Phaser.GameObjects.Text>;
   private jerry!: JerryReaction;
-  private seen = { step: "", counted: -1 };
+  private seen = { counted: -1 };
 
   constructor() {
     super(SHADOWS_SCENE);
@@ -45,16 +46,18 @@ export class ShadowsScene extends Phaser.Scene {
     if (!a) return;
     const cfg = a.config as ShadowsActivityConfig;
     const { experiment: e } = cfg;
-    const { reducedMotion } = getDeps(this);
+    const { bridge } = getDeps(this);
     const st = a.state;
-    const L = shadowLayout(st.distanceCm, e.screenDistanceCm, e.objectHeightCm);
+    // La linterna se ve donde la persona la tiene ahora (local, sin esperar al servidor); en reposo, en la última posición registrada.
+    const distanceCm = Math.min(e.sourceDistanceMaxCm, Math.max(e.sourceDistanceMinCm, bridge.local.lanternCm ?? st.samples.at(-1)?.distanceCm ?? e.sourceDistanceMinCm));
+    const L = shadowLayout(distanceCm, e.screenDistanceCm, e.objectHeightCm);
     const g = this.gfx;
     g.clear();
 
-    // Reacción de Jerry: cada posición que cuenta, la primera idea y completar la mesa.
+    // Reacción de Jerry: cada posición que cuenta.
     const counted = st.samples.filter((s) => s.counts).length;
-    if (this.seen.counted >= 0 && (counted > this.seen.counted || (st.step !== this.seen.step && this.seen.step !== ""))) this.jerry.trigger(st.step === "completed" ? "¡Guau, guau!" : "¡Guau!");
-    this.seen = { step: st.step, counted };
+    if (this.seen.counted >= 0 && counted > this.seen.counted) this.jerry.trigger(counted >= e.requiredSamples ? "¡Guau, guau!" : "¡Guau!");
+    this.seen = { counted };
 
     // Fondo y mesa.
     g.fillStyle(0x2f2418, 1).fillRect(0, 0, STAGE.width, STAGE.height);
@@ -73,11 +76,13 @@ export class ShadowsScene extends Phaser.Scene {
     g.fillStyle(0xe8e4d8, 1).fillRect(L.screenX, boardTop, 12, TABLE_Y - boardTop);
     g.fillStyle(0x1b1b1b, 0.92).fillRect(L.screenX - 16, L.shadowTopY, 16, L.shadowHeightPx);
     g.lineStyle(2, 0x1b1b1b, 1).strokeRect(L.screenX - 16, L.shadowTopY, 16, L.shadowHeightPx);
-    if (st.step === "surprise" && !reducedMotion) {
-      // La sorpresa inicial: un anillo late alrededor de la sombra para llamar la atención sobre ella.
-      const pulse = 0.5 + 0.5 * Math.sin(this.time.now / 260);
-      g.lineStyle(4, 0xffd9a0, 0.35 + 0.5 * pulse).strokeRoundedRect(L.screenX - 30, L.shadowTopY - 10, 52, L.shadowHeightPx + 20, 10);
-    }
+    // Los resultados ya registrados quedan como marcas en la pantalla, a la altura de cada sombra: así se comparan a simple vista.
+    const counts = st.samples.filter((s) => s.counts);
+    counts.forEach((s, i) => {
+      const y = TABLE_Y - Math.min(s.shadowCm * L.scale, TABLE_Y - 54);
+      const color = i === 0 ? 0x4e9a51 : 0x3b7dd8;
+      g.lineStyle(4, color, 1).lineBetween(L.screenX + 14, y, L.screenX + 40, y);
+    });
 
     // Objeto fijo (pequeño) y linterna.
     g.fillStyle(0x4a86d9, 1).fillRect(L.objectX - L.objectWidthPx / 2, L.objectTopY, L.objectWidthPx, L.objectHeightPx);
@@ -91,7 +96,7 @@ export class ShadowsScene extends Phaser.Scene {
     const dimY = TABLE_Y + 62;
     g.lineStyle(2, 0xcdbf9d, 1).lineBetween(L.sourceX + 18, dimY, L.objectX, dimY).lineBetween(L.objectX, dimY, L.screenX, dimY);
     for (const x of [L.sourceX + 18, L.objectX, L.screenX]) g.lineBetween(x, dimY - 7, x, dimY + 7);
-    setLabel(this.labels.d, `d = ${formatNumber(st.distanceCm, st.distanceCm % 1 ? 1 : 0)} cm`, (L.sourceX + 18 + L.objectX) / 2, dimY + 20);
+    setLabel(this.labels.d, `d = ${formatNumber(distanceCm, distanceCm % 1 ? 1 : 0)} cm`, (L.sourceX + 18 + L.objectX) / 2, dimY + 20);
     setLabel(this.labels.b, `b = ${formatNumber(e.screenDistanceCm)} cm`, (L.objectX + L.screenX) / 2, dimY + 20);
     setLabel(this.labels.h, `objeto: ${formatNumber(e.objectHeightCm)} cm`, L.objectX, L.objectTopY - 16);
     setLabel(this.labels.shadow, `sombra: ${formatNumber(L.shadowCm, 1)} cm`, L.screenX + 22, L.shadowTopY + L.shadowHeightPx / 2, 0, 0.5);
@@ -101,7 +106,8 @@ export class ShadowsScene extends Phaser.Scene {
       const x = L.objectX - s.distanceCm * L.scale;
       g.fillStyle(s.counts ? 0x4e9a51 : 0x8b7b66, 1).fillTriangle(x - 7, TABLE_Y + 40, x + 7, TABLE_Y + 40, x, TABLE_Y + 28);
     }
-    setLabel(this.labels.samples, st.samples.length ? `Posiciones anotadas: ${counted} de ${e.requiredSamples}` : "", STAGE.width / 2, 28);
+    const summary = counts.map((s, i) => `${i + 1}) linterna a ${formatNumber(s.distanceCm)} cm → sombra de ${formatNumber(s.shadowCm, 1)} cm`).join("     ");
+    setLabel(this.labels.samples, summary ? `${summary}     (${Math.min(counted, e.requiredSamples)} de ${e.requiredSamples} posiciones)` : `Compara la sombra con la linterna cerca y lejos (0 de ${e.requiredSamples} posiciones)`, STAGE.width / 2, 28);
     this.jerry.draw();
   }
 }

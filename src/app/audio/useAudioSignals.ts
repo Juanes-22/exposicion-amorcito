@@ -23,7 +23,7 @@ export interface AudioSignals {
  * Señales de la aventura para una pantalla (SPECS 10.4): texto equivalente SIEMPRE y sonido solo si la persona lo activó con un gesto.
  * - `phone`: empieza en silencio y no recupera una preferencia anterior si `audio.phoneInitiallyMuted`.
  * - `computer` (la proyección): si la última vez estaba activado, el PRIMER gesto en la página lo vuelve a activar.
- * La espera nunca llega aquí: no recibe snapshots ni efectos.
+ * Quien acompaña como observadora recibe las señales de grupo, pero ninguna personal.
  */
 export function useAudioSignals({ project, state, device, player: injected }: { project: LoadedProject; state: RoomClientState; device: "computer" | "phone"; player?: AudioPlayer }): AudioSignals {
   const { config } = project.bundle;
@@ -92,16 +92,25 @@ export function useAudioSignals({ project, state, device, player: injected }: { 
     if (state.status !== "connected") tracker.reset();
   }, [tracker, state.status]);
 
-  const snapshot = state.snapshot;
+  const group = state.group;
+  const me = state.me;
   const connected = state.status === "connected";
+  const emit = useCallback(
+    (signals: Signal[]) => {
+      for (const s of signals) {
+        setSignal({ id: s.id, text: s.text });
+        player.play(s.event);
+      }
+    },
+    [player],
+  );
+  // Un estado que llega sin conexión vigente no es una transición: el primero tras reconectar vuelve a ser línea de base.
   useEffect(() => {
-    // Un snapshot que llega sin conexión vigente no es una transición: el primero tras reconectar vuelve a ser línea de base.
-    if (!snapshot || !connected) return;
-    for (const s of tracker.consume(snapshot)) {
-      setSignal({ id: s.id, text: s.text });
-      player.play(s.event);
-    }
-  }, [snapshot, connected, tracker, player]);
+    if (group && connected) emit(tracker.group(group));
+  }, [group, connected, tracker, emit]);
+  useEffect(() => {
+    if (me && connected) emit(tracker.me(me));
+  }, [me, connected, tracker, emit]);
 
   useEffect(() => {
     if (!signal) return;

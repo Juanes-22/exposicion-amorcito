@@ -5,21 +5,22 @@ import { roomPath } from "../../app/useRoute";
 import { QrCode } from "../ui/QrCode";
 import { ParticipantList } from "./ParticipantList";
 
-/** Bienvenida de Vanessa (se proyecta): QR, código, cantidad conectada, tarjetas de participantes, elegir turno y comenzar (SPECS 2.1). */
+/** Bienvenida de Vanessa (se proyecta): QR, código, cuántas personas entraron y «Comenzar». Todas exploran a la vez: no se elige turno. */
 export function AdminWelcome({ project, state, controller }: { project: LoadedProject; state: RoomClientState; controller: RoomController }) {
   const summary = state.summary!;
   const { config } = project.bundle;
   const [busy, setBusy] = useState(false);
   const joinUrl = `${window.location.origin}${roomPath(summary.code)}`;
   const participants = state.presence?.participants ?? [];
-  const connected = state.presence?.connectedCount ?? 0;
-  const first = summary.controller;
+  const players = participants.filter((p) => !p.observer);
+  const connectedPlayers = players.filter((p) => p.connected).length;
+  const observers = participants.length - players.length;
   const online = state.status === "connected";
 
-  const run = async (fn: () => Promise<unknown>) => {
+  const start = async () => {
     setBusy(true);
     try {
-      await fn();
+      await controller.admin({ type: "room.start" });
     } finally {
       setBusy(false);
     }
@@ -49,18 +50,18 @@ export function AdminWelcome({ project, state, controller }: { project: LoadedPr
         <section className="card stack" aria-labelledby="who-title">
           <div className="row" style={{ justifyContent: "space-between" }}>
             <h2 id="who-title" style={{ margin: 0 }}>En la sala</h2>
-            <span className="chip" role="status">{connected} {connected === 1 ? "conectada" : "conectadas"}</span>
+            <span className="chip" role="status">
+              {connectedPlayers} {connectedPlayers === 1 ? "persona conectada" : "personas conectadas"}
+              {observers > 0 ? ` · ${observers} ${observers === 1 ? "observa" : "observan"}` : ""}
+            </span>
           </div>
-          <ParticipantList participants={participants} loading={state.presence === null} busy={busy || !online} onAssign={(principalId) => void run(() => controller.admin({ type: "control.assign", principalId }))} />
+          <ParticipantList participants={participants} loading={state.presence === null} busy={busy || !online} />
           <div className="row">
-            <button type="button" className="btn btn--ghost" disabled={busy || !online} onClick={() => void run(() => controller.admin({ type: "control.take" }))}>
-              Empiezo yo (tomar control)
-            </button>
-            <button type="button" className="btn btn--primary" disabled={busy || !online || !first} onClick={() => void run(() => controller.admin({ type: "room.start" }))}>
-              {first ? `Comenzar con ${first.displayName}` : "Elige quién comienza"}
+            <button type="button" className="btn btn--primary" disabled={busy || !online || players.length === 0} onClick={() => void start()}>
+              Comenzar la aventura
             </button>
           </div>
-          <p className="hint">Solo la persona con el turno usa el mapa y los experimentos en su celular. Los demás siguen la proyección y participan en voz alta.</p>
+          <p className="hint">Todas las personas exploran a la vez desde su celular. Tú abres cada mesa, reúnes al grupo para conversar y decides cuándo seguir.</p>
         </section>
       </div>
     </main>

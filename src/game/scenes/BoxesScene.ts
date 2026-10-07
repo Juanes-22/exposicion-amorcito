@@ -12,9 +12,9 @@ const PERSONAL_X = 690;
 const OBJECT_Y = 292;
 
 /**
- * La caja de las sorpresas, escena cercana. Dibuja la caja compartida con sus objetos y la caja personal de una compañera ficticia,
- * que **siempre** permanece cerrada: no existe dibujo, textura ni dato de su contenido (SPECS 3.4). Tocar o abrir cosas se hace con los
- * controles HTML; la escena solo refleja el estado.
+ * La caja de las sorpresas, escena cercana de quien explora (o de la demostración de Vanessa). Una sola escena con la caja compartida,
+ * abierta, y la caja personal de una compañera ficticia, que **siempre** permanece cerrada: no existe dibujo, textura ni dato de su
+ * contenido (SPECS 3.4). Elegir un objeto o pedir permiso se hace con los controles HTML; la escena solo refleja el estado.
  */
 export class BoxesScene extends Phaser.Scene {
   private cleanups: Array<() => void> = [];
@@ -62,9 +62,8 @@ export class BoxesScene extends Phaser.Scene {
     g.fillStyle(0x3e2f20, 1).fillRect(0, 0, STAGE.width, TABLE_Y);
     g.fillStyle(0x9a6a38, 1).fillRect(16, TABLE_Y, STAGE.width - 32, 30).fillStyle(0x7a4f2a, 1).fillRect(16, TABLE_Y + 30, STAGE.width - 32, 10);
 
-    this.drawSharedBox(g, st.sharedOpen);
+    this.drawSharedBox(g, true);
     cfg.sharedObjects.forEach((o, i) => {
-      if (!st.sharedOpen) return;
       const x = SHARED_X - 80 + i * 80;
       const selected = st.selectedObjectId === o.id;
       this.drawObject(g, o.id, x, OBJECT_Y, selected ? 1.35 : 1);
@@ -81,7 +80,7 @@ export class BoxesScene extends Phaser.Scene {
     setLabel(this.labels.owner, cfg.personalBox.ownerLabel, PERSONAL_X, TABLE_Y + 84);
 
     // Compañera ficticia y su respuesta.
-    const refusal = st.step === "refusal" || st.step === "respect" ? dialogues[cfg.refusalDialogueId] ?? "" : "";
+    const refusal = st.askedPermission ? dialogues[cfg.refusalDialogueId] ?? "" : "";
     this.drawPeer(g, 850, TABLE_Y);
     if (refusal) {
       if (this.labels.bubble.text !== refusal) this.labels.bubble.setText(refusal);
@@ -93,7 +92,7 @@ export class BoxesScene extends Phaser.Scene {
 
     // Detalle del objeto elegido: el texto equivalente de lo que se ve, se oye o se observa.
     const sel = cfg.sharedObjects.find((o) => o.id === st.selectedObjectId);
-    if (sel && st.sharedOpen) {
+    if (sel) {
       g.fillStyle(0x3e2f20, 1).fillRoundedRect(36, 24, 440, 130, 12).lineStyle(3, 0x9a6a38, 1).strokeRoundedRect(36, 24, 440, 130, 12);
       setLabel(this.labels.detailTitle, sel.label, 56, 38, 0, 0);
       if (this.labels.detail.text !== sel.description) this.labels.detail.setText(sel.description);

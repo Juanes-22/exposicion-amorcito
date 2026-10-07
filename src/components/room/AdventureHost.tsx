@@ -1,55 +1,63 @@
-import { useMemo } from "react";
-import type { LoadedProject } from "../../config/loadProject";
+import { useMemo, type ReactNode } from "react";
+import type { ParticipantState } from "../../../shared/contracts/state";
 import type { RoomClientState, RoomPort } from "../../app/RoomController";
 import { useBridgeFeed } from "../../app/useBridgeFeed";
 import { useIntentRouter } from "../../app/useIntentRouter";
+import { permissionsFor } from "../../app/view";
+import type { LoadedProject } from "../../config/loadProject";
+import type { GameBridge } from "../../game/bridge/GameBridge";
 import { readGameFlags } from "../../game/flags";
 import { PhaserGame } from "../game/PhaserGame";
-import { ActivityPanel } from "./ActivityPanel";
 import { MapBar } from "./MapBar";
 import { NearbyPrompt } from "./NearbyPrompt";
 
 interface Props {
   project: LoadedProject;
   state: RoomClientState;
-  controller: RoomPort;
-  canAct: boolean;
-  reason: string | null;
-  label: string;
-  /** `fit`: el laboratorio entero (proyección). `follow`: sigue a Vanessa (teléfono del controlador). */
+  port: RoomPort;
+  /** `fit`: el laboratorio entero (proyección). `follow`: sigue al personaje (celular). */
   camera: "fit" | "follow";
-  /** Mostrar el cuaderno como menú sobre el mapa (teléfono del controlador). */
-  notebookMenu?: boolean;
+  label: string;
+  /** Demostración local de Vanessa sobre la proyección de una sala real: nunca toca el estado de las personas. */
+  demo?: ParticipantState | null;
+  /** Fuente del reloj; por defecto, la sala. Durante la demostración local es la de esa demostración. */
+  clock?: Pick<RoomPort, "subscribeClock"> | null;
+  /** Lo que se dibuja sobre el escenario (proyección de la conversación, contadores…). */
+  overlay?: (bridge: GameBridge) => ReactNode;
+  /** Controles de la mesa abierta, junto al escenario. Devuelve `null` si no hay ninguna abierta. */
+  panel?: (bridge: GameBridge) => ReactNode;
 }
 
 /**
- * Mapa de la aventura. Un solo host de Phaser por vista: no se recrea por turnos, formularios ni registros. Mientras no llegue el
- * primer snapshot se muestra un aviso en lugar de un mapa vacío.
+ * Escenario de la aventura. Un solo host de Phaser por vista: no se recrea por rondas, resultados ni pantallas. Quien tiene personaje
+ * (una persona que juega, o Vanessa en la demostración) ve además la barra del mapa; los controles de la mesa abierta los pone
+ * quien llama, porque necesitan el puente para mostrar la linterna o la inclinación sin esperar al servidor.
  */
-export function AdventureHost({ project, state, controller, canAct, reason, label, camera, notebookMenu = false }: Props) {
-  const bridge = useBridgeFeed(state, controller, canAct, reason);
-  useIntentRouter(bridge, controller, project);
+export function AdventureHost({ project, state, port, camera, label, demo = null, clock, overlay, panel }: Props) {
+  const permissions = permissionsFor(state);
+  const bridge = useBridgeFeed(state, port, permissions, demo, clock === undefined ? port : clock);
+  useIntentRouter(bridge, port, project);
   const flags = useMemo(() => readGameFlags(), []);
-  const inMap = !state.snapshot || state.snapshot.state.adventure.view.kind === "map";
+  const panelNode = panel?.(bridge) ?? null;
+  const playing = state.me !== null;
+  const inMap = !state.me || state.me.participant.view.kind === "map";
   return (
-    <div className={`adventure__map${inMap ? "" : " has-activity"}`}>
+    <div className={`adventure__map${panelNode ? " has-activity" : ""}`}>
       {/* El escenario ocupa siempre el mismo lugar del árbol: abrir o cerrar una mesa NO recrea el canvas de Phaser. */}
       <div className="adventure__stage">
         <PhaserGame project={project} bridge={bridge} debug={flags.debug} hooks={flags.hooks} camera={camera} label={label} />
-        {!state.snapshot ? <div className="overlay" role="status"><p>Cargando el estado de la aventura…</p></div> : null}
-        {inMap ? <NearbyPrompt project={project} state={state} controller={controller} canAct={canAct} /> : null}
-        {inMap ? <MapBar project={project} state={state} controller={controller} canAct={canAct} notebookMenu={notebookMenu} /> : null}
-        {state.snapshot?.state.phase === "paused" ? (
+        {!state.group ? <div className="overlay" role="status"><p>Cargando el estado de la aventura…</p></div> : null}
+        {playing && inMap ? <NearbyPrompt project={project} state={state} port={port} /> : null}
+        {playing && inMap ? <MapBar project={project} state={state} port={port} /> : null}
+        {state.summary?.phase === "paused" ? (
           <div className="overlay" role="status">
             <h2>En pausa</h2>
-            <p>{state.summary?.controller ? `Cuando se reanude, explora ${state.summary.controller.displayName}.` : "Falta elegir quién tiene el turno."}</p>
+            <p>Cuando Vanessa reanude, seguimos.</p>
           </div>
         ) : null}
-        {state.snapshot?.state.phase === "finished" && state.snapshot.state.adventure.view.kind !== "final" ? (
-          <div className="banner" style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 4 }}>{project.bundle.config.inventor.finalMessage}</div>
-        ) : null}
+        {overlay?.(bridge)}
       </div>
-      <ActivityPanel project={project} state={state} controller={controller} canAct={canAct} />
+      {panelNode ? <aside className="adventure__activity">{panelNode}</aside> : null}
     </div>
   );
 }

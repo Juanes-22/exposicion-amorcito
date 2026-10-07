@@ -19,9 +19,9 @@ const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 const ease = (t: number) => 1 - (1 - t) * (1 - t);
 
 /**
- * El inventor de preguntas, escena cercana (SPECS 3.5). Tres espacios y la máquina: apagada hasta colocar las piezas; al colocarlas cada
- * pieza viaja a su espacio y se identifica con su mensaje; al elegir la pregunta final la máquina «imprime» la tarjeta. La escena solo
- * pinta lo que dice el snapshot: no decide nada ni habla con el servidor.
+ * El inventor de preguntas, escena cercana de todas las pantallas en el cierre. Tres espacios y la máquina: apagada mientras faltan
+ * piezas; las piezas se incorporan solas al abrir cada mesa y, al completar las tres, cada una viaja a su espacio y se identifica con su
+ * mensaje; al confirmar la pregunta final la máquina «imprime» la tarjeta. La escena solo pinta lo que dice el estado de grupo.
  */
 export class InventorScene extends Phaser.Scene {
   private cleanups: Array<() => void> = [];
@@ -61,16 +61,17 @@ export class InventorScene extends Phaser.Scene {
 
   override update(): void {
     const { bridge, project, reducedMotion } = getDeps(this);
-    const snap = bridge.snapshot;
-    if (!snap || snap.state.adventure.view.kind !== "final") return;
-    const adv = snap.state.adventure;
+    const visual = bridge.visual;
+    if (!visual) return;
+    const adv = visual.group;
     const { config } = project.bundle;
     const inv = config.inventor;
-    const placed = adv.inventor.piecesPlaced;
+    // Las piezas se incorporan solas: la máquina se «enciende» cuando ya están todas las que pide la configuración.
+    const placed = inv.requiredPieceIds.every((id) => adv.pieces.includes(id));
     const final = adv.notebook.find((r) => r.id === adv.inventor.finalQuestionId);
     const now = this.time.now;
 
-    // Solo se anima la TRANSICIÓN vista en esta escena; si ya estaba colocado al abrir (recarga, revisita), se muestra directo.
+    // Solo se anima la TRANSICIÓN vista en esta escena; si ya estaban todas al abrir (recarga, reconexión), se muestra directo.
     if (this.placedAt === null && placed) this.placedAt = this.seenFinal === null ? Number.NEGATIVE_INFINITY : now;
     if (this.seenFinal !== null && !this.seenFinal && final) this.jerry.trigger("¡Guau, guau!");
     this.seenFinal = !!final;
@@ -126,7 +127,7 @@ export class InventorScene extends Phaser.Scene {
 
     // Tarjeta con la pregunta elegida: sale de la máquina.
     if (final) {
-      const text = final.modality === "oral" ? inv.oralQuestionText : (final.text ?? "");
+      const text = final.text ?? "";
       if (this.labels.question.text !== text) this.labels.question.setText(text);
       const w = 560;
       const h = Math.max(70, this.labels.question.height + 44);

@@ -1,6 +1,7 @@
 import type { AudioEventId, LaboratorioConfig } from "../../../shared/contracts/config";
-import type { EffectEvent, RoomSnapshot } from "../../../shared/contracts/events";
-import type { RoomState } from "../../../shared/contracts/state";
+import type { EffectEvent, GroupSnapshot, MeSnapshot } from "../../../shared/contracts/events";
+import type { ParticipantState } from "../../../shared/contracts/state";
+import { countedSamples } from "../../../shared/domain/results";
 
 /** Una señal importante de la aventura: su evento sonoro y SIEMPRE su texto equivalente (SPECS 10.4). */
 export interface Signal {
@@ -13,16 +14,27 @@ export interface Signal {
 /** La campanita de La caja de las sorpresas suena al mirarla (SPECS 3.4: «sonido opcional»). */
 export const BELL_OBJECT_ID = "campanita";
 
+const countOf = (p: ParticipantState, id: string): number => {
+  const st = p.activities[id];
+  return st?.type === "shadows" ? countedSamples(st).length : 0;
+};
+const selectedOf = (p: ParticipantState, id: string): string | undefined => {
+  const st = p.activities[id];
+  return st?.type === "boxes" ? st.selectedObjectId : undefined;
+};
+
 /**
  * Detecta las señales sonoras y escritas POR TRANSICIÓN (SPECS 10.4): no se repite una campana o una pieza después de un snapshot, una
  * reconexión o un reinicio de la sala, y no se reproducen celebraciones históricas al abrir o reabrir el juego.
- * - El primer snapshot tras conectar (o tras un cambio de generación) solo fija la línea de base: no emite nada.
- * - Los efectos del servidor (`effects`) se deduplican por `effectId`.
- * - Lo que el servidor no marca como efecto (la campanita, la posición anotada de la linterna) se deduce comparando un snapshot con el
- *   anterior de la MISMA generación y de versión igual o mayor.
+ * - Señales de grupo (pieza conseguida, inventor encendido, aventura terminada): vienen como efectos del servidor en el estado de grupo,
+ *   se deduplican por `effectId` y los llevan todas las pantallas.
+ * - Señales personales (la posición de la linterna que se registró, la campanita): se deducen comparando MI estado con el anterior de la
+ *   misma generación y de versión igual o mayor. Solo las produce lo que hice yo.
+ * - El primer estado tras conectar (o tras un cambio de generación) solo fija la línea de base: no emite nada.
  */
 export function createSignalTracker(config: LaboratorioConfig) {
-  let prev: RoomState | null = null;
+  let prevGroup: { generation: number; version: number } | null = null;
+  let prevMe: { generation: number; version: number; participant: ParticipantState } | null = null;
   const seen = new Set<string>();
   const labels = config.ui.labels;
   const pieceLabel = (id: string | undefined) => config.inventor.pieces.find((p) => p.id === id)?.label ?? "una pieza";
@@ -31,7 +43,7 @@ export function createSignalTracker(config: LaboratorioConfig) {
     switch (e.kind) {
       case "piece.earned":
         return { id: e.effectId, event: "piece.earned", text: (labels.signalPieceEarned ?? "Pieza conseguida: {pieza}.").replace("{pieza}", pieceLabel(e.pieceId)) };
-      case "pieces.placed":
+      case "inventor.activated":
         return { id: e.effectId, event: "inventor.activated", text: labels.signalPiecesPlaced ?? "El inventor se encendió." };
       case "adventure.finished":
         return { id: e.effectId, event: "adventure.finished", text: labels.signalFinished ?? "Terminamos la aventura." };
@@ -40,49 +52,47 @@ export function createSignalTracker(config: LaboratorioConfig) {
     }
   };
 
-  const countedSamples = (s: RoomState, id: string): number => {
-    const st = s.adventure.activities[id];
-    return st?.type === "shadows" ? st.samples.filter((x) => x.counts).length : 0;
-  };
-  const selectedObject = (s: RoomState, id: string): string | undefined => {
-    const st = s.adventure.activities[id];
-    return st?.type === "boxes" ? st.selectedObjectId : undefined;
-  };
-
   return {
-    /** Tras perder la conexión: el siguiente snapshot vuelve a ser solo línea de base. */
+    /** Tras perder la conexión: el siguiente estado vuelve a ser solo línea de base. */
     reset(): void {
-      prev = null;
+      prevGroup = null;
+      prevMe = null;
     },
 
-    consume(snapshot: RoomSnapshot): Signal[] {
-      const state = snapshot.state;
-      const before = prev;
-      const baseline = before === null || before.roomGeneration !== state.roomGeneration;
-      if (before !== null && state.roomGeneration === before.roomGeneration && state.stateVersion < before.stateVersion) return []; // un snapshot viejo no cuenta
-      prev = state;
+    group(snapshot: GroupSnapshot): Signal[] {
+      const before = prevGroup;
+      const baseline = before === null || before.generation !== snapshot.roomGeneration;
+      if (before !== null && !baseline && snapshot.stateVersion < before.version) return []; // un estado viejo no cuenta
+      prevGroup = { generation: snapshot.roomGeneration, version: snapshot.stateVersion };
       if (baseline) {
         for (const e of snapshot.effects) seen.add(e.effectId);
         return [];
       }
-
       const out: Signal[] = [];
-      const push = (s: Signal | null) => {
+      for (const e of snapshot.effects) {
+        const s = fromEffect(e);
         if (s && !seen.has(s.id)) {
           seen.add(s.id);
           out.push(s);
         }
-      };
-      for (const e of snapshot.effects) push(fromEffect(e));
-      if (state.stateVersion > before!.stateVersion) {
-        const stamp = (event: AudioEventId) => `${state.roomGeneration}:${state.stateVersion}:${event}`;
-        for (const id of Object.keys(state.adventure.activities)) {
-          if (countedSamples(state, id) > countedSamples(before!, id)) push({ id: stamp("shadows.click"), event: "shadows.click", text: labels.signalClick ?? "Se anotó la posición de la linterna." });
-          const now = selectedObject(state, id);
-          if (now === BELL_OBJECT_ID && now !== selectedObject(before!, id)) push({ id: stamp("boxes.bell"), event: "boxes.bell", text: labels.signalBell ?? "Suena la campanita." });
-        }
       }
       return out;
+    },
+
+    me(snapshot: MeSnapshot): Signal[] {
+      const before = prevMe;
+      const baseline = before === null || before.generation !== snapshot.roomGeneration;
+      if (before !== null && !baseline && snapshot.stateVersion < before.version) return [];
+      prevMe = { generation: snapshot.roomGeneration, version: snapshot.stateVersion, participant: snapshot.participant };
+      if (baseline || snapshot.stateVersion <= before!.version) return [];
+      const out: Signal[] = [];
+      const stamp = (event: AudioEventId) => `${snapshot.roomGeneration}:${snapshot.stateVersion}:${event}`;
+      for (const id of Object.keys(snapshot.participant.activities)) {
+        if (countOf(snapshot.participant, id) > countOf(before!.participant, id)) out.push({ id: stamp("shadows.click"), event: "shadows.click", text: labels.signalClick ?? "Se anotó la posición de la linterna." });
+        const now = selectedOf(snapshot.participant, id);
+        if (now === BELL_OBJECT_ID && now !== selectedOf(before!.participant, id)) out.push({ id: stamp("boxes.bell"), event: "boxes.bell", text: labels.signalBell ?? "Suena la campanita." });
+      }
+      return out.filter((s, i) => out.findIndex((x) => x.id === s.id) === i);
     },
   };
 }

@@ -3,10 +3,9 @@ import { isTerminal } from "../../../shared/domain/room";
 import type { LoadedProject } from "../../config/loadProject";
 import { demoPath } from "../../app/useRoute";
 import { useRoomSession } from "../../app/useRoomSession";
-import { drafts } from "../activities/drafts";
 import { AdminConsole } from "./AdminConsole";
 import { AdminWelcome } from "./AdminWelcome";
-import { ControllerView } from "./ControllerView";
+import { ParticipantView } from "./ParticipantView";
 import { JoinView } from "./JoinView";
 import { TerminalView } from "./TerminalView";
 import { WaitingView } from "./WaitingView";
@@ -36,12 +35,6 @@ export function RoomView({ project, code, navigate }: { project: LoadedProject; 
     return () => clearTimeout(t);
   }, [connecting]);
 
-  // Una sala que terminó ya no admite más registros: no quedan borradores que conservar para ella.
-  const terminal = state.summary ? isTerminal(state.summary.phase) : false;
-  useEffect(() => {
-    if (terminal) drafts.forgetRoom(code);
-  }, [terminal, code]);
-
   if (!credential) return <JoinView code={code} onJoined={session.adopt} navigate={navigate} />;
   const goHome = () => {
     session.leave();
@@ -54,7 +47,7 @@ export function RoomView({ project, code, navigate }: { project: LoadedProject; 
   else if (summary && isTerminal(summary.phase)) body = <TerminalView reason={summary.phase as "closed" | "expired"} onHome={goHome} />;
   else if (!summary || !controller) body = <main className="screen screen--center"><p role="status">Conectando con la sala…</p></main>;
   else if (summary.self.role === "admin") body = summary.phase === "welcome" ? <AdminWelcome project={project} state={state} controller={controller} /> : <AdminConsole project={project} state={state} controller={controller} />;
-  else body = summary.self.isController ? <ControllerView project={project} state={state} controller={controller} /> : <WaitingView project={project} state={state} />;
+  else body = summary.self.observer ? <WaitingView project={project} state={state} /> : <ParticipantView project={project} state={state} controller={controller} />;
 
   return (
     <>

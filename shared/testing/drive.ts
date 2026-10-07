@@ -1,88 +1,133 @@
-// Solo pruebas: conduce el reductor de la aventura paso a paso con un reloj y una identidad controlados.
-import type { AdventureAction } from "../contracts/actions";
+// Solo pruebas: conduce la sala (rondas, participantes, Vanessa) paso a paso con un reloj controlado.
+import type { AdminAction, ParticipantAction } from "../contracts/actions";
 import type { EffectEvent } from "../contracts/events";
-import type { AdventureState } from "../contracts/state";
-import { createInitialAdventure, reduceAdventure, type Actor, type DomainContext } from "../domain/adventure";
+import type { RoomState } from "../contracts/state";
+import { ensureParticipant, applyAdminAction, applyParticipantAction, createRoomState, tickRoom, type AdminContext } from "../domain/room";
 import { realBundle } from "./project";
 
 export const bundle = realBundle();
-export const ana: Actor = { principalId: "p-ana", role: "participant", name: "Ana" };
-export const beto: Actor = { principalId: "p-beto", role: "participant", name: "Beto" };
 
 export class Driver {
-  state: AdventureState = createInitialAdventure(bundle.config, bundle.map);
+  room: RoomState;
   activeMs = 0;
   effects: EffectEvent[] = [];
-  finished = false;
   lastError: { code: string; message: string } | null = null;
+  readonly names: Record<string, string> = {};
 
-  ctx(actor: Actor): DomainContext {
-    return { config: bundle.config, map: bundle.map, nav: bundle.nav, actor, roomGeneration: 1, nowIso: new Date(1_700_000_000_000 + this.activeMs).toISOString(), activeMs: this.activeMs };
+  /** Una sala en bienvenida con las personas indicadas ya dadas de alta. */
+  constructor(people: string[] = ["ana", "beto"]) {
+    this.room = createRoomState({ roomId: "r", code: "ABC234", config: bundle.config, map: bundle.map, configHash: bundle.configHash, mapHash: bundle.mapHash, nowIso: "2026-10-06T10:00:00.000Z" });
+    for (const id of people) this.join(id);
   }
 
-  /** Aplica una acción; devuelve `true` si fue aceptada. Si se rechaza, el estado no cambia. */
-  do(action: AdventureAction, actor: Actor = ana): boolean {
-    const r = reduceAdventure(this.state, action, this.ctx(actor));
+  join(id: string, name = id): void {
+    this.names[id] = name;
+    this.room = ensureParticipant(this.room, id, bundle.config, bundle.map);
+  }
+
+  private get nowIso(): string {
+    return new Date(1_700_000_000_000 + this.activeMs).toISOString();
+  }
+
+  private adminCtx(): AdminContext {
+    return { config: bundle.config, map: bundle.map, nowIso: this.nowIso, activeMs: this.activeMs, nameOf: (id) => this.names[id] ?? id, fingerprint: { configHash: bundle.configHash, mapHash: bundle.mapHash } };
+  }
+
+  /** Acción de Vanessa; `true` si fue aceptada. Si se rechaza, la sala no cambia. */
+  admin(action: AdminAction): boolean {
+    const r = applyAdminAction(this.room, action, this.adminCtx());
     if (!r.ok) {
       this.lastError = { code: r.code, message: r.message };
       return false;
     }
     this.lastError = null;
-    this.state = r.adventure;
+    this.room = r.room;
     this.effects.push(...r.effects);
-    this.finished ||= r.finishRoom;
     return true;
   }
 
-  tick(ms: number) {
-    this.activeMs += ms;
-    // Una acción neutra asienta el reloj (movimiento y pruebas).
-    const r = reduceAdventure(this.state, { type: "adventure.returnToMap" } as AdventureAction, this.ctx(ana));
-    if (r.ok) this.state = { ...r.adventure, view: this.state.view };
+  /** Acción personal; `true` si fue aceptada. */
+  act(id: string, action: ParticipantAction): boolean {
+    const r = applyParticipantAction(this.room, id, action, { config: bundle.config, map: bundle.map, nav: bundle.nav, activeMs: this.activeMs });
+    if (!r.ok) {
+      this.lastError = { code: r.code, message: r.message };
+      return false;
+    }
+    this.lastError = null;
+    this.room = r.room;
+    return true;
   }
 
-  get act() {
-    return this.state.activities;
+  /** Avanza el reloj de simulación (solo corre con la sala en curso, como en el servidor) y asienta las pruebas que terminan. */
+  tick(ms: number): string[] {
+    if (this.room.phase === "running") this.activeMs += ms;
+    const t = tickRoom(this.room, this.activeMs);
+    this.room = t.room;
+    return t.changedIds;
   }
-}
 
-/** Mesa abierta y lista para el paso indicado. */
-export function openStation(d: Driver, id: string) {
-  d.state.view = { kind: "map" };
-  if (!d.do({ type: "station.open", stationId: id, origin: "quickNav" })) throw new Error(`No se pudo abrir ${id}: ${d.lastError?.message}`);
-}
+  get round() {
+    return this.room.adventure.round;
+  }
+  person(id: string) {
+    return this.room.participants[id]!;
+  }
+  must(ok: boolean, what: string): void {
+    if (!ok) throw new Error(`${what}: ${this.lastError?.message}`);
+  }
 
-export function finishShadows(d: Driver) {
-  openStation(d, "sombras");
-  d.do({ type: "shadows.surprise.ack" });
-  d.do({ type: "record.confirm", activityId: "sombras", field: "firstIdea", value: { modality: "written", text: "Será por la luz" } }, ana);
-  d.do({ type: "shadows.light.set", distanceCm: 20, commitSample: true });
-  d.do({ type: "shadows.light.set", distanceCm: 50, commitSample: true });
-  d.do({ type: "record.confirm", activityId: "sombras", field: "observation", value: { modality: "uncertain" } }, beto);
-  d.do({ type: "record.confirm", activityId: "sombras", field: "nextQuestion", value: { modality: "suggested", optionId: "mover-objeto" } }, beto);
-}
+  // ---- recorridos de ayuda ----
 
-export function finishRamps(d: Driver) {
-  openStation(d, "rampas");
-  d.do({ type: "ramps.question.open" });
-  d.do({ type: "record.confirm", activityId: "rampas", field: "question", value: { modality: "suggested", optionId: "mas-inclinacion" } });
-  d.do({ type: "record.confirm", activityId: "rampas", field: "prediction", value: { modality: "oral" } });
-  d.do({ type: "ramps.angle.set", angleDeg: 20 });
-  d.do({ type: "ramps.trial.start" });
-  d.tick(5000);
-  d.do({ type: "ramps.angle.set", angleDeg: 40 });
-  d.do({ type: "ramps.trial.start" });
-  d.tick(5000);
-  d.do({ type: "record.confirm", activityId: "rampas", field: "observation", value: { modality: "written", text: "Con más inclinación llegó antes" } }, beto);
-}
+  /** Comienza y deja la mesa indicada abierta en exploración. */
+  toExploration(activityIndex = 0): void {
+    if (this.room.phase === "welcome") this.must(this.admin({ type: "room.start" }), "comenzar");
+    while (this.round.index < activityIndex) {
+      this.must(this.admin({ type: "round.open" }), "abrir");
+      this.must(this.admin({ type: "round.converse", withPending: true }), "conversar");
+      this.must(this.admin({ type: "round.next" }), "avanzar");
+    }
+    this.must(this.admin({ type: "round.open" }), "abrir la mesa");
+  }
 
-export function finishBoxes(d: Driver) {
-  openStation(d, "cajas");
-  d.do({ type: "boxes.shared.open" });
-  d.do({ type: "boxes.object.inspect", objectId: "campanita" });
-  d.do({ type: "boxes.permission.ask" });
-  d.do({ type: "boxes.refusal.ack" }, beto);
-  d.do({ type: "boxes.refusal.respect" }, beto);
-  d.do({ type: "boxes.object.inspect", objectId: "lupa" });
-  d.do({ type: "record.confirm", activityId: "cajas", field: "question", value: { modality: "suggested", optionId: "aumento" } });
+  openStation(id: string, station: string): void {
+    this.must(this.act(id, { type: "station.open", stationId: station, origin: "quickNav" }), `abrir ${station}`);
+  }
+
+  /** Dos posiciones distintas de la linterna: la persona queda lista en Sombras. */
+  readyShadows(id: string): void {
+    this.openStation(id, "sombras");
+    this.must(this.act(id, { type: "shadows.sample", distanceCm: 20 }), "muestra 1");
+    this.must(this.act(id, { type: "shadows.sample", distanceCm: 50 }), "muestra 2");
+  }
+
+  /** Dos pruebas con inclinaciones distintas, terminadas: la persona queda lista en Rampas. */
+  readyRamps(id: string): void {
+    this.openStation(id, "rampas");
+    this.must(this.act(id, { type: "ramps.trial.start", angleDeg: 20 }), "prueba 1");
+    this.tick(6000);
+    this.must(this.act(id, { type: "ramps.trial.start", angleDeg: 40 }), "prueba 2");
+    this.tick(6000);
+  }
+
+  /** Un objeto compartido explorado: la persona queda lista en La caja. */
+  readyBoxes(id: string): void {
+    this.openStation(id, "cajas");
+    this.must(this.act(id, { type: "boxes.object.inspect", objectId: "lupa" }), "objeto");
+  }
+
+  /** Recorre las tres rondas completas hasta el cierre con las personas indicadas listas. */
+  playToClosing(ready: string[] = Object.keys(this.room.participants)): void {
+    this.toExploration(0);
+    for (const id of ready) this.readyShadows(id);
+    this.must(this.admin({ type: "round.converse" }), "conversar 1");
+    this.must(this.admin({ type: "round.next" }), "avanzar 1");
+    this.must(this.admin({ type: "round.open" }), "abrir 2");
+    for (const id of ready) this.readyRamps(id);
+    this.must(this.admin({ type: "round.converse" }), "conversar 2");
+    this.must(this.admin({ type: "round.next" }), "avanzar 2");
+    this.must(this.admin({ type: "round.open" }), "abrir 3");
+    for (const id of ready) this.readyBoxes(id);
+    this.must(this.admin({ type: "round.converse" }), "conversar 3");
+    this.must(this.admin({ type: "round.next" }), "avanzar 3");
+  }
 }

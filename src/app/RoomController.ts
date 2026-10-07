@@ -1,6 +1,6 @@
 import { io, type Socket } from "socket.io-client";
-import type { AdminAction, AdminCommand, AdventureAction, AdventureCommand, CommandResult } from "../../shared/contracts/actions";
-import type { ClientToServerEvents, PresenceUpdate, RoomSnapshot, RoomSummary, ServerToClientEvents, SimulationFrame } from "../../shared/contracts/events";
+import type { AdminAction, AdminCommand, CommandResult, ParticipantAction, ParticipantCommand } from "../../shared/contracts/actions";
+import type { ClientToServerEvents, ClockSample, GroupSnapshot, MeSnapshot, PresenceUpdate, PublicCharacter, RoomSummary, ServerToClientEvents } from "../../shared/contracts/events";
 import { isTerminal } from "../../shared/domain/room";
 import { newRequestId } from "./ids";
 
@@ -16,8 +16,14 @@ export interface Notice {
 export interface RoomClientState {
   status: ConnectionStatus;
   summary: RoomSummary | null;
+  /** Estado de grupo: ronda, piezas, cuaderno común y pregunta final. */
+  group: GroupSnapshot | null;
+  /** Mi estado personal: mi personaje, mi vista y mis pruebas. Solo existe para quien juega. */
+  me: MeSnapshot | null;
+  /** Los personajes de todas las personas, por identidad. */
+  characters: Record<string, PublicCharacter>;
+  /** Quién está conectado y cuántas personas están listas en la ronda: solo para Vanessa. */
   presence: PresenceUpdate | null;
-  snapshot: RoomSnapshot | null;
   /** Comandos en vuelo: con alguno pendiente la interfaz bloquea el botón correspondiente. */
   pending: number;
   notice: Notice | null;
@@ -26,14 +32,17 @@ export interface RoomClientState {
 type Listener = () => void;
 
 /**
- * Lo que las vistas de la aventura necesitan de «la sala»: el estado observable, las muestras de simulación y los dos tipos de
- * comando. `RoomController` lo cumple hablando con el servidor; `DemoController` lo cumple en local, sin red (SPECS 6.4).
+ * Lo que las vistas de la aventura necesitan de «la sala»: el estado observable, las muestras del reloj y los dos tipos de comando.
+ * `RoomController` lo cumple hablando con el servidor; `DemoController` lo cumple en local, sin red (SPECS 6.4).
  */
 export interface RoomPort {
   subscribe(listener: Listener): () => void;
   getState(): RoomClientState;
-  subscribeFrames(listener: (f: SimulationFrame) => void): () => void;
-  adventure(action: AdventureAction): Promise<CommandResult>;
+  /** Muestras del reloj de simulación: no pasan por el estado de React para no renderizar a cada una. */
+  subscribeClock(listener: (s: ClockSample) => void): () => void;
+  /** Acción personal: cada participante actúa sobre su propio personaje y sus propias pruebas. */
+  act(action: ParticipantAction): Promise<CommandResult>;
+  /** Acción de Vanessa sobre la sala y la ronda. */
   admin(action: AdminAction): Promise<CommandResult>;
   notify(kind: Notice["kind"], text: string): void;
   clearNotice(id: number): void;
@@ -42,12 +51,11 @@ export interface RoomPort {
 type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
 /**
- * ¿Un frame sigue siendo válido? Se ordena por generación, versiones y `frameSeq`, y se descartan las muestras de planes o pruebas
- * anteriores (SPECS 5.6): del recorrido previo a un reinicio, de un turno ya superado, de un estado más viejo que el snapshot que
- * ya se tiene, o repetidas / fuera de orden.
+ * ¿Una muestra del reloj sigue siendo válida? Se ordena por generación y secuencia: se descartan las del recorrido anterior a un
+ * reinicio y las repetidas o fuera de orden (SPECS 5.6).
  */
-export function shouldAcceptFrame(f: Pick<SimulationFrame, "roomGeneration" | "turnVersion" | "stateVersion" | "frameSeq">, known: { generation: number; turnVersion: number; stateVersion: number; lastSeq: number }): boolean {
-  return f.roomGeneration === known.generation && f.turnVersion >= known.turnVersion && f.stateVersion >= known.stateVersion && f.frameSeq > known.lastSeq;
+export function shouldAcceptClock(sample: Pick<ClockSample, "roomGeneration" | "seq">, known: { generation: number; lastSeq: number }): boolean {
+  return sample.roomGeneration === known.generation && sample.seq > known.lastSeq;
 }
 
 const DEFAULT_ACK_TIMEOUT_MS = 4000;
@@ -71,22 +79,20 @@ export interface RoomControllerOptions {
 export class RoomController implements RoomPort {
   private socket: AppSocket | null = null;
   private listeners = new Set<Listener>();
-  private state: RoomClientState = { status: "connecting", summary: null, presence: null, snapshot: null, pending: 0, notice: null };
+  private state: RoomClientState = { status: "connecting", summary: null, group: null, me: null, characters: {}, presence: null, pending: 0, notice: null };
   private commandSeq = 0;
-  private turnVersion = 0;
+  private roundVersion = 0;
   private noticeId = 0;
   private heartbeat: ReturnType<typeof setInterval> | null = null;
   private inflight = new Set<(r: CommandResult) => void>();
-  // Los frames NO pasan por el estado de React: se entregan a quien se suscribe (el puente de Phaser) para no renderizar por cada posición.
-  private frameListeners = new Set<(f: SimulationFrame) => void>();
-  private lastFrameSeq = -1;
+  // Las muestras del reloj NO pasan por el estado de React: se entregan a quien se suscribe (el puente de Phaser) para no renderizar a cada una.
+  private clockListeners = new Set<(s: ClockSample) => void>();
+  private lastClockSeq = -1;
   private stopped = false;
   /** Se invoca al detectar que la credencial dejó de valer, para que la aplicación la borre. */
   onUnauthorized: (() => void) | null = null;
   /** La sala se reinició (cambió la generación): lo guardado en este dispositivo para la aventura anterior ya no corresponde. */
   onGenerationChange: (() => void) | null = null;
-  /** Texto que se añade al aviso de perder el turno (p. ej. «quedó un borrador sin compartir»); lo decide la aplicación. */
-  turnLossHint: (() => string | null) | null = null;
 
   private readonly path: string;
   private readonly ackTimeoutMs: number;
@@ -132,11 +138,11 @@ export class RoomController implements RoomPort {
     socket.on("connect", () => {
       // Conexión nueva (o recuperada): contador administrativo propio y nada pendiente del intento anterior.
       this.commandSeq = 0;
-      this.lastFrameSeq = -1; // la secuencia de frames empieza de nuevo con cada conexión (y con cada reinicio del servidor)
+      this.lastClockSeq = -1; // la secuencia del reloj empieza de nuevo con cada conexión (y con cada reinicio del servidor)
       this.failInflight("STALE_CONNECTION", "Se perdió la conexión; vuelve a intentarlo.");
       // El estado de antes de la caída ya no es fiable: se descarta y NO se pasa a «conectada» hasta que llegue el resumen de
       // esta conexión (SPECS 5.4: al volver se pide el estado; los controles se habilitan desde el estado actual).
-      this.set({ status: this.state.summary ? "reconnecting" : "connecting", presence: null, snapshot: null });
+      this.set({ status: this.state.summary ? "reconnecting" : "connecting", presence: null, group: null, me: null, characters: {} });
       if (this.heartbeat) clearInterval(this.heartbeat);
       this.heartbeat = setInterval(() => {
         if (this.state.summary?.self.role === "admin" && socket.connected) socket.emit("admin.activity");
@@ -159,26 +165,29 @@ export class RoomController implements RoomPort {
     });
 
     socket.on("room.summary", (summary) => {
-      this.turnVersion = Math.max(this.turnVersion, summary.turnVersion);
+      this.roundVersion = Math.max(this.roundVersion, summary.roundVersion);
       const prev = this.state.summary;
-      if (prev && prev.roomGeneration !== summary.roomGeneration) this.onGenerationChange?.();
+      if (prev && prev.roomGeneration !== summary.roomGeneration) {
+        this.onGenerationChange?.();
+        this.lastClockSeq = -1;
+      }
       const live = this.state.status === "connecting" || this.state.status === "reconnecting";
       this.set({ summary, ...(live ? { status: "connected" as const } : {}) });
-      this.announceTurn(prev, summary);
       if (isTerminal(summary.phase)) this.stop("terminal");
     });
+    socket.on("group.state", (group) => {
+      this.roundVersion = Math.max(this.roundVersion, group.roundVersion);
+      this.set({ group });
+    });
+    socket.on("me.state", (me) => this.set({ me }));
+    socket.on("characters.state", ({ characters }) => this.set({ characters: Object.fromEntries(characters.map((c) => [c.principalId, c])) }));
+    socket.on("character.updated", (c) => this.set({ characters: { ...this.state.characters, [c.principalId]: c } }));
     socket.on("presence.updated", (presence) => this.set({ presence }));
-    socket.on("room.snapshot", (snapshot) => {
-      this.turnVersion = Math.max(this.turnVersion, snapshot.state.turnVersion);
-      this.set({ snapshot });
-    });
-    socket.on("control.changed", (change) => {
-      this.turnVersion = Math.max(this.turnVersion, change.turnVersion);
-    });
-    socket.on("simulation.frame", (f) => {
-      if (!this.acceptFrame(f)) return;
-      this.lastFrameSeq = f.frameSeq;
-      for (const listener of [...this.frameListeners]) listener(f);
+    socket.on("clock.sample", (sample) => {
+      const { summary } = this.state;
+      if (!summary || this.state.status !== "connected" || !shouldAcceptClock(sample, { generation: summary.roomGeneration, lastSeq: this.lastClockSeq })) return;
+      this.lastClockSeq = sample.seq;
+      for (const listener of [...this.clockListeners]) listener(sample);
     });
     socket.on("session.replaced", () => {
       this.stop("replaced");
@@ -186,31 +195,11 @@ export class RoomController implements RoomPort {
     });
   }
 
-  /**
-   * Ordena las muestras por generación, versiones y secuencia, y descarta las de planes o pruebas anteriores (SPECS 5.6). Un frame
-   * solo tiene sentido sobre un snapshot ya recibido: sin él no hay plan que interpolar.
-   */
-  private acceptFrame(f: SimulationFrame): boolean {
-    const { summary, snapshot } = this.state;
-    if (!summary || !snapshot || this.state.status !== "connected") return false;
-    return shouldAcceptFrame(f, { generation: summary.roomGeneration, turnVersion: this.turnVersion, stateVersion: snapshot.state.stateVersion, lastSeq: this.lastFrameSeq });
-  }
-
-  /** Suscripción a las muestras de simulación válidas. Devuelve la función que la retira. */
-  subscribeFrames = (listener: (f: SimulationFrame) => void): (() => void) => {
-    this.frameListeners.add(listener);
-    return () => void this.frameListeners.delete(listener);
+  /** Suscripción a las muestras del reloj válidas. Devuelve la función que la retira. */
+  subscribeClock = (listener: (s: ClockSample) => void): (() => void) => {
+    this.clockListeners.add(listener);
+    return () => void this.clockListeners.delete(listener);
   };
-
-  private announceTurn(prev: RoomSummary | null, next: RoomSummary): void {
-    if (!prev || next.self.role !== "participant") return;
-    if (!prev.self.isController && next.self.isController) this.notify("info", "Es tu turno.");
-    else if (prev.self.isController && !next.self.isController) {
-      const base = next.controller ? `Ahora explora ${next.controller.displayName}.` : "Ya no tienes el turno.";
-      const hint = this.turnLossHint?.();
-      this.notify("info", hint ? `${base} ${hint}` : base);
-    }
-  }
 
   /** Detiene la conexión operativa: sin reconexión ni comandos. Los datos ya recibidos se conservan para mostrar el estado final. */
   private stop(status: ConnectionStatus): void {
@@ -226,7 +215,7 @@ export class RoomController implements RoomPort {
     this.stopped = true;
     if (this.heartbeat) clearInterval(this.heartbeat);
     this.failInflight("STALE_CONNECTION", "Conexión cerrada.");
-    this.frameListeners.clear();
+    this.clockListeners.clear();
     this.socket?.removeAllListeners();
     this.socket?.disconnect();
     this.socket = null;
@@ -245,7 +234,7 @@ export class RoomController implements RoomPort {
    * Envía un comando y espera su acknowledgment. Si se pierde, reintenta el mismo comando con el mismo ID únicamente mientras la
    * conexión vigente siga siendo la misma. Una denegación se devuelve y se avisa, sin bloquear nada de forma permanente.
    */
-  private send(event: "admin.command" | "adventure.action", envelope: AdminCommand | AdventureCommand): Promise<CommandResult> {
+  private send(event: "admin.command" | "participant.action", envelope: AdminCommand | ParticipantCommand): Promise<CommandResult> {
     const socket = this.socket;
     if (!socket || !socket.connected || this.state.status !== "connected") {
       return Promise.resolve({ ok: false, requestId: envelope.requestId, code: "STALE_CONNECTION", message: "Sin conexión con la sala. Espera a que vuelva." });
@@ -272,7 +261,11 @@ export class RoomController implements RoomPort {
           .emit(event, envelope, (err, result) => {
             if (!err) return settle(result);
             if (n < MAX_RETRIES) attempt(n + 1);
-            else settle({ ok: false, requestId: envelope.requestId, code: "STALE_CONNECTION", message: "El servidor no respondió. Revisa tu conexión." });
+            else {
+              // Con la conexión viva pero sin respuesta no hay barra de estado que lo explique: se avisa, y el botón se libera.
+              this.notify("error", "El servidor no respondió. Revisa tu conexión.");
+              settle({ ok: false, requestId: envelope.requestId, code: "STALE_CONNECTION", message: "El servidor no respondió. Revisa tu conexión." });
+            }
           });
       };
       attempt(0);
@@ -285,10 +278,10 @@ export class RoomController implements RoomPort {
     return this.send("admin.command", { requestId: newRequestId(), roomGeneration: s.roomGeneration, connectionEpoch: s.self.connectionEpoch, commandSeq: ++this.commandSeq, action });
   }
 
-  adventure(action: AdventureAction): Promise<CommandResult> {
+  act(action: ParticipantAction): Promise<CommandResult> {
     const s = this.state.summary;
     if (!s) return Promise.resolve({ ok: false, requestId: "", code: "STALE_CONNECTION", message: "Todavía no hay conexión con la sala." });
-    return this.send("adventure.action", { requestId: newRequestId(), roomGeneration: s.roomGeneration, turnVersion: this.turnVersion, connectionEpoch: s.self.connectionEpoch, action });
+    return this.send("participant.action", { requestId: newRequestId(), roomGeneration: s.roomGeneration, roundVersion: this.roundVersion, connectionEpoch: s.self.connectionEpoch, action });
   }
 
   /** Pide el estado permitido para el papel (reconexión, recarga o duda). */

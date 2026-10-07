@@ -1,29 +1,23 @@
-import { INVENTOR_ID } from "../../../shared/contracts/config";
-import { allRouteCompleted, unlockedActivityIds } from "../../../shared/domain/adventure";
 import type { RoomClientState, RoomPort } from "../../app/RoomController";
 import { stationTarget } from "../../app/mapIntents";
+import { currentActivity } from "../../app/view";
 import type { LoadedProject } from "../../config/loadProject";
 
 /**
- * «Abrir [mesa]» cuando Vanessa está parada junto a una mesa disponible. Se deriva del snapshot (posición en reposo), no de cada
- * fotograma: mientras camina no se vuelve a renderizar React por su posición (CT-06).
+ * «Abrir [mesa]» cuando el personaje está parado junto a la mesa habilitada. Se deriva del estado personal (posición en reposo), no de
+ * cada fotograma: mientras camina no se vuelve a renderizar React por su posición (CT-06).
  */
-export function NearbyPrompt({ project, state, controller, canAct }: { project: LoadedProject; state: RoomClientState; controller: RoomPort; canAct: boolean }) {
-  const adv = state.snapshot?.state.adventure;
-  if (!adv || !canAct || adv.view.kind !== "map" || adv.player.plan !== null) return null;
-  const { config } = project.bundle;
-  const unlocked = unlockedActivityIds(adv, config);
-  const ids = [...config.route.filter((id) => unlocked.includes(id)), ...(allRouteCompleted(adv, config) ? [INVENTOR_ID] : [])];
-  const near = ids.find((id) => {
-    const t = stationTarget(project, id);
-    return t !== null && Math.hypot(adv.player.feet.x - t.point.x, adv.player.feet.y - t.point.y) <= t.radius;
-  });
-  if (!near) return null;
-  const title = near === INVENTOR_ID ? "al inventor" : config.activities[near]!.title;
+export function NearbyPrompt({ project, state, port }: { project: LoadedProject; state: RoomClientState; port: Pick<RoomPort, "act"> }) {
+  const adv = state.group?.adventure;
+  const me = state.me?.participant;
+  if (!adv || !me || state.summary?.phase !== "running" || adv.round.stage !== "exploration" || me.view.kind !== "map" || me.character.plan !== null) return null;
+  const current = currentActivity(adv, project.bundle.config);
+  const t = current ? stationTarget(project, current.id) : null;
+  if (!current || !t || Math.hypot(me.character.feet.x - t.point.x, me.character.feet.y - t.point.y) > t.radius) return null;
   return (
     <div className="nearby-prompt">
-      <button type="button" className="btn btn--primary" disabled={state.pending > 0} onClick={() => void controller.adventure({ type: "station.open", stationId: near, origin: "map" })}>
-        {near === INVENTOR_ID ? "Abrir al inventor" : `Abrir ${title}`}
+      <button type="button" className="btn btn--primary" disabled={state.pending > 0} onClick={() => void port.act({ type: "station.open", stationId: current.id, origin: "map" })}>
+        Abrir {current.config.title}
       </button>
     </div>
   );

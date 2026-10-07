@@ -1,8 +1,8 @@
 // Cliente ligero para el ensayo de capacidad: un socket real por persona, con el sobre de comandos de SPECS 5.2 y contabilidad de lo que
 // recibe (cuántos mensajes y bytes de cada evento, y cuándo). No renderiza nada.
 import { io, type Socket } from "socket.io-client";
-import type { AdminAction, AdventureAction, CommandResult } from "../../shared/contracts/actions";
-import type { PresenceUpdate, RoomSnapshot, RoomSummary, SimulationFrame } from "../../shared/contracts/events";
+import type { AdminAction, CommandResult, ParticipantAction } from "../../shared/contracts/actions";
+import type { ClockSample, GroupSnapshot, MeSnapshot, PresenceUpdate, RoomSummary } from "../../shared/contracts/events";
 
 export interface Received {
   event: string;
@@ -18,17 +18,16 @@ export const now = () => performance.now();
 export class LoadClient {
   readonly socket: Socket;
   summary: RoomSummary | null = null;
-  snapshot: RoomSnapshot | null = null;
+  group: GroupSnapshot | null = null;
+  me: MeSnapshot | null = null;
   presence: PresenceUpdate | null = null;
-  turnVersion = 0;
+  roundVersion = 0;
   readonly received: Received[] = [];
-  /** Momento (performance.now) en que vio por última vez que ya NO tenía el turno, tras haberlo tenido. */
-  lostControlAt: number | null = null;
-  hadControl = false;
   private commandSeq = 0;
-  private snapshotWaiters = new Set<(s: RoomSnapshot) => void>();
-  private frameListeners = new Set<(f: SimulationFrame, t: number) => void>();
-  private summaryListeners = new Set<(s: RoomSummary, t: number) => void>();
+  private groupListeners = new Set<(g: GroupSnapshot, t: number) => void>();
+  private meListeners = new Set<(m: MeSnapshot, t: number) => void>();
+  private presenceListeners = new Set<(p: PresenceUpdate, t: number) => void>();
+  private clockListeners = new Set<(c: ClockSample, t: number) => void>();
 
   constructor(
     readonly url: string,
@@ -41,22 +40,27 @@ export class LoadClient {
     });
     this.socket.on("room.summary", (s: RoomSummary) => {
       this.summary = s;
-      this.turnVersion = Math.max(this.turnVersion, s.turnVersion);
-      if (s.self.isController) this.hadControl = true;
-      else if (this.hadControl) this.lostControlAt ??= now();
-      if (s.self.isController) this.lostControlAt = null;
-      for (const l of [...this.summaryListeners]) l(s, now());
+      this.roundVersion = Math.max(this.roundVersion, s.roundVersion);
     });
-    this.socket.on("room.snapshot", (s: RoomSnapshot) => {
-      this.snapshot = s;
-      this.turnVersion = Math.max(this.turnVersion, s.state.turnVersion);
-      for (const w of [...this.snapshotWaiters]) w(s);
-    });
-    this.socket.on("presence.updated", (p: PresenceUpdate) => void (this.presence = p));
-    this.socket.on("control.changed", (c: { turnVersion: number }) => void (this.turnVersion = Math.max(this.turnVersion, c.turnVersion)));
-    this.socket.on("simulation.frame", (f: SimulationFrame) => {
+    this.socket.on("group.state", (g: GroupSnapshot) => {
+      this.group = g;
+      this.roundVersion = Math.max(this.roundVersion, g.roundVersion);
       const t = now();
-      for (const l of [...this.frameListeners]) l(f, t);
+      for (const l of [...this.groupListeners]) l(g, t);
+    });
+    this.socket.on("me.state", (m: MeSnapshot) => {
+      this.me = m;
+      const t = now();
+      for (const l of [...this.meListeners]) l(m, t);
+    });
+    this.socket.on("presence.updated", (p: PresenceUpdate) => {
+      this.presence = p;
+      const t = now();
+      for (const l of [...this.presenceListeners]) l(p, t);
+    });
+    this.socket.on("clock.sample", (c: ClockSample) => {
+      const t = now();
+      for (const l of [...this.clockListeners]) l(c, t);
     });
   }
 
@@ -67,17 +71,21 @@ export class LoadClient {
     return this.received.filter((r) => !event || r.event === event).reduce((a, r) => a + r.bytes, 0);
   }
 
-  onSnapshot(cb: (s: RoomSnapshot) => void): () => void {
-    this.snapshotWaiters.add(cb);
-    return () => void this.snapshotWaiters.delete(cb);
+  onGroup(cb: (g: GroupSnapshot, t: number) => void): () => void {
+    this.groupListeners.add(cb);
+    return () => void this.groupListeners.delete(cb);
   }
-  onFrame(cb: (f: SimulationFrame, t: number) => void): () => void {
-    this.frameListeners.add(cb);
-    return () => void this.frameListeners.delete(cb);
+  onMe(cb: (m: MeSnapshot, t: number) => void): () => void {
+    this.meListeners.add(cb);
+    return () => void this.meListeners.delete(cb);
   }
-  onSummary(cb: (s: RoomSummary, t: number) => void): () => void {
-    this.summaryListeners.add(cb);
-    return () => void this.summaryListeners.delete(cb);
+  onPresence(cb: (p: PresenceUpdate, t: number) => void): () => void {
+    this.presenceListeners.add(cb);
+    return () => void this.presenceListeners.delete(cb);
+  }
+  onClock(cb: (c: ClockSample, t: number) => void): () => void {
+    this.clockListeners.add(cb);
+    return () => void this.clockListeners.delete(cb);
   }
 
   async ready(timeoutMs = 10_000): Promise<number> {
@@ -89,12 +97,12 @@ export class LoadClient {
     return now() - start;
   }
 
-  private emit(event: "admin.command" | "adventure.action", payload: unknown): Promise<CommandResult> {
+  private emit(event: "admin.command" | "participant.action", payload: unknown): Promise<CommandResult> {
     return new Promise((resolve) => (this.socket as unknown as { emit: (e: string, p: unknown, a: (r: CommandResult) => void) => void }).emit(event, payload, resolve));
   }
-  adventure(action: AdventureAction): Promise<CommandResult> {
+  act(action: ParticipantAction): Promise<CommandResult> {
     const s = this.summary!;
-    return this.emit("adventure.action", { requestId: newId("v"), roomGeneration: s.roomGeneration, turnVersion: this.turnVersion, connectionEpoch: s.self.connectionEpoch, action });
+    return this.emit("participant.action", { requestId: newId("v"), roomGeneration: s.roomGeneration, roundVersion: this.roundVersion, connectionEpoch: s.self.connectionEpoch, action });
   }
   admin(action: AdminAction): Promise<CommandResult> {
     const s = this.summary!;

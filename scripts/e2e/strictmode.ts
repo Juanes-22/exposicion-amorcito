@@ -52,21 +52,19 @@ try {
   await page.getByRole("button", { name: /Activar sonido/ }).click();
   const soundOn = await page.getByRole("button", { name: /Silenciar/ }).waitFor({ timeout: 4000 }).then(() => true, () => false);
   check(soundOn, "bajo StrictMode, «Activar sonido» activa el sonido (el botón pasa a «Silenciar»)");
-  // …y el sonido se dispara de verdad: anotar una posición de la linterna hace «clic». El registro de pruebas solo existe con ?hooks.
+  // …y el sonido se dispara de verdad: registrarse una posición de la linterna hace «clic». El registro de pruebas solo existe con ?hooks.
   await page.evaluate("window.history.replaceState(null, '', '/demo?hooks')");
   // En desarrollo, el doble montaje hace que la demostración arranque como si se hubiera recargado: en pausa, hasta «Reanudar».
   const resume = page.getByRole("button", { name: "Reanudar", exact: true });
   if (await resume.isVisible()) await resume.click();
+  await page.getByRole("button", { name: "Abrir mesa: Sombras" }).click();
   await page.getByText("Mesas", { exact: true }).click();
-  await page.getByRole("button", { name: "Sombras", exact: true }).click();
-  await page.getByLabel("Tu respuesta").fill("la luz estira la sombra");
-  await page.getByRole("button", { name: "Compartir con el grupo" }).click();
+  await page.getByRole("button", { name: "Ir a la mesa actual" }).click();
   const slider = page.getByRole("slider", { name: "Distancia de la linterna al objeto" });
   await slider.waitFor();
-  await slider.fill("40");
-  await page.getByRole("button", { name: "Anotar esta posición" }).click();
+  await slider.fill("40"); // al terminar el ajuste la posición se registra sola
   const clicked = await page.waitForFunction(() => (((window as any).__AUDIO_LOG__ ?? []) as string[]).includes("shadows.click"), undefined, { timeout: 5000 }).then(() => true, () => false);
-  check(clicked, "bajo StrictMode, anotar una posición de la linterna hace sonar el «clic» (se lanzó de verdad)");
+  check(clicked, "bajo StrictMode, registrarse una posición de la linterna hace sonar el «clic» (se lanzó de verdad)");
   check(problems.length === 0, `sin errores de consola ni de página${problems.length ? `: ${problems.join(" | ")}` : ""}`);
   console.log("\nE2E de ciclo de vida de Phaser: OK");
 } finally {

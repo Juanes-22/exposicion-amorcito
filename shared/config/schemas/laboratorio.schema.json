@@ -18,7 +18,8 @@
     "facilitatorNotes",
     "ui",
     "audio",
-    "session"
+    "session",
+    "supportPhrases"
   ],
   "additionalProperties": false,
   "properties": {
@@ -189,12 +190,10 @@
         "activeAssetId",
         "requiredPieceIds",
         "pieces",
-        "placePrompt",
         "prompt",
-        "placeButtonLabel",
-        "oralQuestionText",
         "finalMessage",
-        "reflection"
+        "reflection",
+        "closingQuestion"
       ],
       "additionalProperties": false,
       "properties": {
@@ -233,16 +232,7 @@
             }
           }
         },
-        "placePrompt": {
-          "$ref": "#/$defs/text"
-        },
         "prompt": {
-          "$ref": "#/$defs/text"
-        },
-        "placeButtonLabel": {
-          "$ref": "#/$defs/text"
-        },
-        "oralQuestionText": {
           "$ref": "#/$defs/text"
         },
         "finalMessage": {
@@ -254,6 +244,9 @@
           "items": {
             "$ref": "#/$defs/text"
           }
+        },
+        "closingQuestion": {
+          "$ref": "#/$defs/text"
         }
       }
     },
@@ -362,6 +355,30 @@
           "maximum": 86400000
         }
       }
+    },
+    "supportPhrases": {
+      "type": "object",
+      "required": [
+        "inicio",
+        "antesDeReunir",
+        "alExplicar",
+        "cierre"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "inicio": {
+          "$ref": "#/$defs/text"
+        },
+        "antesDeReunir": {
+          "$ref": "#/$defs/text"
+        },
+        "alExplicar": {
+          "$ref": "#/$defs/text"
+        },
+        "cierre": {
+          "$ref": "#/$defs/text"
+        }
+      }
     }
   },
   "$defs": {
@@ -399,36 +416,17 @@
         }
       }
     },
-    "suggestion": {
-      "type": "object",
-      "required": [
-        "id",
-        "text"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "$ref": "#/$defs/id"
-        },
-        "text": {
-          "$ref": "#/$defs/text"
-        },
-        "objectId": {
-          "$ref": "#/$defs/id"
-        }
-      }
-    },
     "shadows": {
       "type": "object",
       "required": [
         "type",
         "title",
         "pieceId",
-        "firstPrompt",
-        "experiment",
-        "ideaSuggestions",
-        "suggestions",
-        "prompts"
+        "goal",
+        "openingQuestion",
+        "conversationQuestion",
+        "freirePhrase",
+        "experiment"
       ],
       "additionalProperties": false,
       "properties": {
@@ -441,7 +439,16 @@
         "pieceId": {
           "$ref": "#/$defs/id"
         },
-        "firstPrompt": {
+        "goal": {
+          "$ref": "#/$defs/text"
+        },
+        "openingQuestion": {
+          "$ref": "#/$defs/text"
+        },
+        "conversationQuestion": {
+          "$ref": "#/$defs/text"
+        },
+        "freirePhrase": {
           "$ref": "#/$defs/text"
         },
         "experiment": {
@@ -487,24 +494,6 @@
               "maximum": 10
             }
           }
-        },
-        "ideaSuggestions": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/suggestion"
-          }
-        },
-        "suggestions": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/suggestion"
-          }
-        },
-        "prompts": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/text"
-          }
         }
       }
     },
@@ -514,12 +503,11 @@
         "type",
         "title",
         "pieceId",
-        "firstPrompt",
-        "guideLine",
-        "inviteDialogueId",
-        "experiment",
-        "suggestions",
-        "prompts"
+        "goal",
+        "openingQuestion",
+        "conversationQuestion",
+        "freirePhrase",
+        "experiment"
       ],
       "additionalProperties": false,
       "properties": {
@@ -532,14 +520,17 @@
         "pieceId": {
           "$ref": "#/$defs/id"
         },
-        "firstPrompt": {
+        "goal": {
           "$ref": "#/$defs/text"
         },
-        "guideLine": {
+        "openingQuestion": {
           "$ref": "#/$defs/text"
         },
-        "inviteDialogueId": {
-          "$ref": "#/$defs/id"
+        "conversationQuestion": {
+          "$ref": "#/$defs/text"
+        },
+        "freirePhrase": {
+          "$ref": "#/$defs/text"
         },
         "experiment": {
           "type": "object",
@@ -594,18 +585,6 @@
               "maximum": 10
             }
           }
-        },
-        "suggestions": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/suggestion"
-          }
-        },
-        "prompts": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/text"
-          }
         }
       }
     },
@@ -615,12 +594,15 @@
         "type",
         "title",
         "pieceId",
+        "goal",
+        "openingQuestion",
+        "conversationQuestion",
+        "freirePhrase",
         "sharedObjects",
+        "requiredObjects",
         "refusalDialogueId",
         "personalTouchDialogueId",
-        "personalBox",
-        "suggestions",
-        "prompts"
+        "personalBox"
       ],
       "additionalProperties": false,
       "properties": {
@@ -632,6 +614,18 @@
         },
         "pieceId": {
           "$ref": "#/$defs/id"
+        },
+        "goal": {
+          "$ref": "#/$defs/text"
+        },
+        "openingQuestion": {
+          "$ref": "#/$defs/text"
+        },
+        "conversationQuestion": {
+          "$ref": "#/$defs/text"
+        },
+        "freirePhrase": {
+          "$ref": "#/$defs/text"
         },
         "sharedObjects": {
           "type": "array",
@@ -657,6 +651,11 @@
             }
           }
         },
+        "requiredObjects": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
         "refusalDialogueId": {
           "$ref": "#/$defs/id"
         },
@@ -677,18 +676,6 @@
             "ownerLabel": {
               "$ref": "#/$defs/text"
             }
-          }
-        },
-        "suggestions": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/suggestion"
-          }
-        },
-        "prompts": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/text"
           }
         }
       }

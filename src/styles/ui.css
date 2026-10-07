@@ -310,8 +310,12 @@
   color: var(--paper);
 }
 .adventure__bar .btn {
-  min-height: 44px;
-  padding: 6px 14px;
+  min-height: 40px;
+  padding: 4px 12px;
+  font-size: 0.95rem;
+}
+.adventure__bar .hint {
+  color: var(--cream-deep);
 }
 .adventure__who {
   font-family: var(--font-title);
@@ -340,6 +344,10 @@
   border: 2px solid var(--wood);
   border-radius: 10px;
   padding: 6px 12px;
+}
+/* Un panel abierto usa todo el ancho: la lista de participantes necesita varias columnas cuando hay decenas de personas. */
+.panel[open] {
+  grid-column: 1 / -1;
 }
 .panel summary {
   cursor: pointer;
@@ -1000,4 +1008,186 @@
 /* Al llevar el botón de compartir a la vista con el teclado abierto queda un margen debajo, para que el borde no pegue con el teclado. */
 .record-form button[type="submit"] {
   scroll-margin-bottom: 24px;
+}
+
+/* ---------- rondas: celular, proyección y conducción ---------- */
+.phone-caption {
+  margin: 0;
+  padding: 8px 14px;
+  background: var(--paper);
+  border-bottom: 3px solid var(--cream-deep);
+  font-weight: 700;
+}
+.check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  min-height: 44px;
+  font-weight: 700;
+}
+.check input {
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+  accent-color: var(--green-dark);
+}
+.personal {
+  display: grid;
+  gap: 10px;
+}
+.personal__head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.personal__head h2 {
+  margin: 0;
+  font-family: var(--font-title);
+  color: var(--wood-dark);
+}
+.personal__goal {
+  margin: 0;
+  font-weight: 700;
+}
+.results {
+  margin: 0;
+  padding-left: 1.3em;
+}
+.refusal {
+  margin: 0;
+  padding: 10px 14px;
+  background: var(--paper);
+  border-left: 5px solid var(--wood);
+  border-radius: 6px;
+}
+.btn--small {
+  min-height: 36px;
+  padding: 4px 10px;
+  font-size: 0.9rem;
+}
+
+/* Proyección: lo que se dice sobre el laboratorio según la fase de la ronda */
+.projection {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.projection-badge {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  z-index: 4;
+  padding: 8px 16px;
+  background: rgba(255, 250, 240, 0.96);
+  border: 3px solid var(--wood);
+  border-radius: 14px;
+  font-size: 1.15rem;
+}
+.projection__kicker {
+  margin: 0;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+.projection__question {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: clamp(1.25rem, 2.6vw, 2rem);
+  line-height: 1.2;
+  color: var(--wood-dark);
+}
+.projection__freire {
+  margin: 0;
+  padding: 10px 14px;
+  border-left: 6px solid var(--green);
+  background: #eef7ea;
+  font-size: clamp(1.05rem, 2vw, 1.5rem);
+  font-weight: 700;
+}
+.projection__pieces,
+.projection__reflection {
+  margin: 0;
+  padding-left: 1.2em;
+  font-size: 1.1rem;
+}
+.comparison {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.comparison figcaption {
+  font-weight: 800;
+}
+.comparison__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.comparison__rows li {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) minmax(80px, 2fr) minmax(130px, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+.comparison__bar {
+  display: block;
+  height: 18px;
+  background: var(--cream-deep);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.comparison__bar span {
+  display: block;
+  height: 100%;
+  background: var(--green-dark);
+}
+.comparison__chips {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Controles de ronda de Vanessa */
+.round-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.round-controls__counter {
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 1.15rem;
+}
+.final-question {
+  margin: 0;
+  padding: 10px 14px;
+  background: var(--paper);
+  border-left: 6px solid var(--amber);
+  border-radius: 6px;
+  font-family: var(--font-title);
+  font-size: 1.25rem;
+}
+.support-phrases {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+.support-phrases dt {
+  font-weight: 800;
+}
+.support-phrases dd {
+  margin: 0;
+}
+.note-form textarea {
+  width: 100%;
+  resize: vertical;
 }

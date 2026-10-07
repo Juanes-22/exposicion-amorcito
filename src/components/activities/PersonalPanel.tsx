@@ -1,0 +1,64 @@
+import type { CommandResult, ParticipantAction } from "../../../shared/contracts/actions";
+import type { LaboratorioConfig } from "../../../shared/contracts/config";
+import type { AdventureState, ParticipantState } from "../../../shared/contracts/state";
+import { readiness } from "../../../shared/domain/results";
+import type { LocalExperiment } from "../../game/bridge/events";
+import { BoxesControls } from "./BoxesControls";
+import { RampsControls } from "./RampsControls";
+import { ShadowsControls } from "./ShadowsControls";
+import type { PersonalActions } from "./types";
+
+export interface PersonalPanelProps {
+  config: LaboratorioConfig;
+  adv: AdventureState;
+  participant: ParticipantState;
+  act: (action: ParticipantAction) => Promise<CommandResult>;
+  setLocal: (patch: Partial<LocalExperiment>) => void;
+  busy: boolean;
+  /** La mesa está abierta para explorar: fuera de la exploración los controles se detienen. */
+  interactive: boolean;
+  /** Demostración de Vanessa: en lugar de «Volver al mapa», termina la demostración. */
+  onClose?: () => void;
+}
+
+/**
+ * Lo que cada persona usa en su celular mientras explora la mesa habilitada (propuesta de rondas, secciones 5–7): el objetivo corto, los
+ * controles del experimento y si ya quedó lista para conversar. Los resultados se registran solos; no hay formularios, modalidades de
+ * respuesta ni botones de «anotar» o «entendido».
+ */
+export function PersonalPanel({ config, adv, participant, act, setLocal, busy, interactive, onClose }: PersonalPanelProps) {
+  if (participant.view.kind !== "activity") return null;
+  const id = participant.view.activityId;
+  const cfg = config.activities[id];
+  const st = participant.activities[id];
+  if (!cfg || !st) return null;
+  const r = readiness(st, cfg);
+  const labels = config.ui.labels;
+  const actions: PersonalActions = { act, setLocal, busy, interactive, config };
+
+  return (
+    <section className="personal" aria-labelledby="personal-title">
+      <header className="personal__head">
+        <h2 id="personal-title">{cfg.title}</h2>
+        {onClose ? (
+          <button type="button" className="btn btn--ghost" onClick={onClose}>
+            Terminar la demostración
+          </button>
+        ) : (
+          <button type="button" className="btn btn--ghost" disabled={busy} onClick={() => void act({ type: "adventure.returnToMap" })}>
+            Volver al mapa
+          </button>
+        )}
+      </header>
+      <p className="personal__goal">{cfg.goal}</p>
+      <p className={`chip ${r.ready ? "chip--ok" : ""}`} role="status">
+        {r.ready ? "✓ Listo para conversar" : `Explorando · ${r.done} de ${r.needed}`}
+      </p>
+      <p className="hint">{r.ready ? labels.readyYou : labels.notReadyYou}</p>
+      {!interactive ? <p className="hint" role="status">{adv.round.stage === "exploration" ? "La mesa está en pausa." : labels.roundConversationPhone}</p> : null}
+      {cfg.type === "shadows" && st.type === "shadows" ? <ShadowsControls cfg={cfg} st={st} a={actions} /> : null}
+      {cfg.type === "ramps" && st.type === "ramps" ? <RampsControls cfg={cfg} st={st} a={actions} /> : null}
+      {cfg.type === "boxes" && st.type === "boxes" ? <BoxesControls cfg={cfg} st={st} a={actions} /> : null}
+    </section>
+  );
+}

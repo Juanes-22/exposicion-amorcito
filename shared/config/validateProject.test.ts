@@ -204,9 +204,9 @@ describe("configuración de contenido", () => {
     expectIssue(issuesFor((r) => r.config.route.push("fantasma")), "route", "fantasma");
     expectIssue(issuesFor((r) => (r.config.inventor.requiredPieceIds = ["lupa", "dialogo"])), "falta la pieza «corazon»");
     expectIssue(issuesFor((r) => (r.config.activities.rampas.pieceId = "lupa")), "ya la concede");
-    expectIssue(issuesFor((r) => (r.config.activities.rampas.inviteDialogueId = "no-hay")), "diálogo inexistente");
-    expectIssue(issuesFor((r) => (r.config.activities.cajas.suggestions[0].objectId = "tesoro")), "no es un objeto compartido");
-    expectIssue(issuesFor((r) => delete r.config.activities.cajas.suggestions[0].objectId), "objectId");
+    expectIssue(issuesFor((r) => (r.config.activities.cajas.refusalDialogueId = "no-hay")), "diálogo inexistente");
+    expectIssue(issuesFor((r) => (r.config.activities.cajas.personalTouchDialogueId = "no-hay")), "diálogo inexistente");
+    expectIssue(issuesFor((r) => (r.config.activities.cajas.requiredObjects = 9)), "no puede pedir más objetos");
   });
   it("rechaza rangos que impiden completar: dos posiciones o dos pruebas distintas", () => {
     expectIssue(issuesFor((r) => (r.config.activities.sombras.experiment.minDistinctDistanceCm = 80)), "muestras separadas");
@@ -217,11 +217,18 @@ describe("configuración de contenido", () => {
     expectIssue(issuesFor((r) => (r.config.adminToken = "secreto")), "adminToken", "no permitida");
     expectIssue(issuesFor((r) => (r.config.activities.cajas.contenidoCajaPersonal = ["x"])), "contenidoCajaPersonal", "no permitida");
   });
-  it("exige la indicación de cada paso de cada mesa y rechaza pasos que no existen en ese tipo", () => {
-    expectIssue(issuesFor((r) => delete r.config.activities.sombras.prompts.explore), "activities.sombras.prompts.explore", "falta la indicación");
-    expectIssue(issuesFor((r) => (r.config.activities.rampas.prompts.trials = "   ")), "activities.rampas.prompts.trials", "falta la indicación");
-    expectIssue(issuesFor((r) => delete r.config.activities.cajas.prompts), "prompts", "obligatoria");
-    expectIssue(issuesFor((r) => (r.config.activities.cajas.prompts.explore = "no es un paso de cajas")), "prompts.explore", "no es un paso con indicación");
+  it("exige el objetivo, las preguntas y la frase de cada mesa, y los textos de las fases comunes", () => {
+    expectIssue(issuesFor((r) => delete r.config.activities.sombras.goal), "goal", "obligatoria");
+    expectIssue(issuesFor((r) => delete r.config.activities.rampas.openingQuestion), "openingQuestion", "obligatoria");
+    expectIssue(issuesFor((r) => delete r.config.activities.cajas.freirePhrase), "freirePhrase", "obligatoria");
+    expectIssue(issuesFor((r) => delete r.config.supportPhrases.inicio), "supportPhrases", "inicio");
+    expectIssue(issuesFor((r) => delete r.config.ui.labels.roundConversationPhone), "ui.labels.roundConversationPhone", "falta este texto");
+    expectIssue(issuesFor((r) => (r.config.ui.labels.readyYou = "   ")), "ui.labels.readyYou", "falta este texto");
+  });
+  it("ya no admite formularios, sugerencias ni indicaciones por paso (propuesta de rondas)", () => {
+    expectIssue(issuesFor((r) => (r.config.activities.sombras.prompts = { firstIdea: "x" })), "prompts", "no permitida");
+    expectIssue(issuesFor((r) => (r.config.activities.rampas.suggestions = [])), "suggestions", "no permitida");
+    expectIssue(issuesFor((r) => (r.config.inventor.placePrompt = "Colócalas")), "placePrompt", "no permitida");
   });
   it("los eventos de audio: solo los conocidos, con un recurso de sonido que exista, y los sonidos provisionales no pasan a presentación (SPECS 10.4)", () => {
     expect(issuesFor(() => undefined)).toEqual([]); // el paquete real asigna sonido a cada evento

@@ -1,6 +1,6 @@
 import type { Server as HttpServer } from "node:http";
 import { Server, type Socket } from "socket.io";
-import { parseAdminCommand, parseAdventureCommand } from "../../shared/contracts/schemas";
+import { parseAdminCommand, parseParticipantCommand } from "../../shared/contracts/schemas";
 import type { CommandResult } from "../../shared/contracts/actions";
 import type { ClientToServerEvents, ServerToClientEvents } from "../../shared/contracts/events";
 import type { CommandErrorCode } from "../../shared/contracts/limits";
@@ -26,11 +26,10 @@ export class SocketHub {
     send: (principalId, event, ...args) => {
       (this.connections.get(principalId) as { emit: (e: string, ...a: unknown[]) => void } | undefined)?.emit(event, ...args);
     },
-    sendToView: (roomId, event, ...args) => {
-      (this.io?.to(viewChannel(roomId)) as unknown as { emit: (e: string, ...a: unknown[]) => void } | undefined)?.emit(event, ...args);
+    broadcast: (roomId, event, ...args) => {
+      (this.io?.to(roomChannel(roomId)) as unknown as { emit: (e: string, ...a: unknown[]) => void } | undefined)?.emit(event, ...args);
     },
-    joinView: (principalId, roomId) => void this.connections.get(principalId)?.join(viewChannel(roomId)),
-    leaveView: (principalId, roomId) => void this.connections.get(principalId)?.leave(viewChannel(roomId)),
+    join: (principalId, roomId) => void this.connections.get(principalId)?.join(roomChannel(roomId)),
     close: (principalId) => {
       const socket = this.connections.get(principalId);
       if (socket) setTimeout(() => socket.disconnect(true), CLOSE_GRACE_MS).unref();
@@ -71,11 +70,11 @@ export class SocketHub {
         if (!parsed.ok) return ack(invalid(raw));
         guard(() => service.adminCommand(identity, socket.id, parsed.value), parsed.value.requestId, ack, logger);
       });
-      socket.on("adventure.action", (raw, ack) => {
+      socket.on("participant.action", (raw, ack) => {
         if (typeof ack !== "function") return;
-        const parsed = parseAdventureCommand(raw);
+        const parsed = parseParticipantCommand(raw);
         if (!parsed.ok) return ack(invalid(raw));
-        guard(() => service.adventureCommand(identity, socket.id, parsed.value), parsed.value.requestId, ack, logger);
+        guard(() => service.participantCommand(identity, socket.id, parsed.value), parsed.value.requestId, ack, logger);
       });
       socket.on("room.sync", (ack) => {
         if (typeof ack !== "function") return;
@@ -112,7 +111,8 @@ export class SocketHub {
   }
 }
 
-const viewChannel = (roomId: string) => `view:${roomId}`;
+/** Canal de toda la sala: administradora, participantes y observadores. Cada evento decide si va a todas o a una sola persona. */
+const roomChannel = (roomId: string) => `room:${roomId}`;
 
 function invalid(raw: unknown): CommandResult {
   const requestId = typeof (raw as { requestId?: unknown })?.requestId === "string" ? ((raw as { requestId: string }).requestId.slice(0, 64)) : "";

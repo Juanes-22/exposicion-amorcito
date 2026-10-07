@@ -35,5 +35,5 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const createRoom = (contentSetId: string) => request<CreateRoomResponse>("/api/rooms", { method: "POST", body: JSON.stringify({ contentSetId }) });
-export const joinRoom = (code: string, name: string, color: string) => request<JoinRoomResponse>(`/api/rooms/${encodeURIComponent(code)}/join`, { method: "POST", body: JSON.stringify({ name, color }) });
+export const joinRoom = (code: string, name: string, color: string, observer = false) => request<JoinRoomResponse>(`/api/rooms/${encodeURIComponent(code)}/join`, { method: "POST", body: JSON.stringify({ name, color, ...(observer ? { observer: true } : {}) }) });
 export const getRoomInfo = (code: string) => request<RoomPublicInfo>(`/api/rooms/${encodeURIComponent(code)}`);

@@ -1,22 +1,20 @@
-import type { BridgeEventName, BridgeEvents, BridgePermissions, VisualSnapshot } from "./events";
-import type { SimulationFrame } from "../../../shared/contracts/events";
-import { isPlayable } from "../../../shared/domain/room";
+import type { BridgeEventName, BridgeEvents, BridgePermissions, LocalExperiment, VisualState } from "./events";
 import { ClientClock } from "./ClientClock";
 
 type Handler<K extends BridgeEventName> = (payload: BridgeEvents[K]) => void;
 
 /**
  * Puente tipado, acotado al ciclo de vida del host (una instancia por Phaser.Game). Los eventos son avisos, no la fuente de
- * verdad: por eso conserva el último snapshot, permisos y frame para quien arranque después del emisor (SPECS 10.2).
+ * verdad: por eso conserva el último estado visual y los permisos para quien arranque después del emisor (SPECS 10.2).
  */
 export class GameBridge {
   private handlers = new Map<BridgeEventName, Set<(payload: never) => void>>();
   private tokenCounter = 0;
   private activeToken = 0;
-  private lastSnapshot: VisualSnapshot | null = null;
+  private lastVisual: VisualState | null = null;
   private lastPermissions: BridgePermissions | null = null;
-  private lastFrame: SimulationFrame | null = null;
-  /** Reloj de simulación del cliente: lo ajustan snapshots y frames; la escena dibuja desde él. */
+  private lastLocal: LocalExperiment = { lanternCm: null, angleDeg: null };
+  /** Reloj de simulación del cliente: lo ajustan el estado y las muestras del servidor; la escena dibuja desde él. */
   readonly clock: ClientClock;
 
   constructor(clock: ClientClock = new ClientClock()) {
@@ -32,20 +30,24 @@ export class GameBridge {
   }
 
   emit<K extends BridgeEventName>(event: K, payload: BridgeEvents[K]): void {
-    if (event === "app:snapshot") {
-      const snap = payload as VisualSnapshot;
-      this.lastSnapshot = snap;
-      this.lastFrame = null; // un snapshot nuevo invalida muestras de planes o pruebas anteriores
-      // En pausa o sin propietario el reloj queda quieto exactamente en el valor del servidor: reanudar no suma la conversación.
-      this.clock.setSnapshot(snap.state.adventure.timeline.activeMs, isPlayable(snap.state));
-    }
+    // El reloj lo ajustan SOLO las muestras del servidor (`app:clock`): el estado de grupo lleva el tiempo del último guardado y, si
+    // se usara aquí, el reloj retrocedería cada vez que llega un cambio personal. Con la sala fuera de curso la muestra llega con
+    // `running: false` y el reloj queda quieto: reanudar no suma la conversación.
+    if (event === "app:visual") this.lastVisual = payload as VisualState;
     if (event === "app:permissions") this.lastPermissions = payload as BridgePermissions;
-    if (event === "app:frame") {
-      this.lastFrame = payload as SimulationFrame;
-      this.clock.setFrame((payload as SimulationFrame).activeMs);
+    if (event === "app:local") this.lastLocal = payload as LocalExperiment;
+    if (event === "app:clock") {
+      const c = payload as BridgeEvents["app:clock"];
+      if (c.running) this.clock.setFrame(c.activeMs);
+      else this.clock.setSnapshot(c.activeMs, false);
     }
     // Copia: un manejador puede darse de baja mientras se emite.
     for (const handler of [...(this.handlers.get(event) ?? [])]) (handler as Handler<K>)(payload);
+  }
+
+  /** Ajusta lo local de un experimento (linterna, inclinación): lo leen las escenas en cada fotograma. */
+  setLocal(patch: Partial<LocalExperiment>): void {
+    this.emit("app:local", { ...this.lastLocal, ...patch });
   }
 
   /** Nueva instancia de escena: invalida los mensajes de la anterior. */
@@ -58,14 +60,14 @@ export class GameBridge {
     return token === this.activeToken;
   }
 
-  get snapshot(): VisualSnapshot | null {
-    return this.lastSnapshot;
+  get visual(): VisualState | null {
+    return this.lastVisual;
   }
   get permissions(): BridgePermissions | null {
     return this.lastPermissions;
   }
-  get frame(): SimulationFrame | null {
-    return this.lastFrame;
+  get local(): LocalExperiment {
+    return this.lastLocal;
   }
 
   listenerCount(event?: BridgeEventName): number {
@@ -78,9 +80,9 @@ export class GameBridge {
   /** Al destruir el host: libera las suscripciones de este puente, no las de otros componentes. */
   dispose(): void {
     this.handlers.clear();
-    this.lastSnapshot = null;
+    this.lastVisual = null;
     this.lastPermissions = null;
-    this.lastFrame = null;
+    this.lastLocal = { lanternCm: null, angleDeg: null };
     this.activeToken = 0;
     this.clock.freeze();
   }
