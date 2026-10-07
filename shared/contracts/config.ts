@@ -141,9 +141,13 @@ export interface UiConfig {
   labels: Record<string, string>;
 }
 
+/** Eventos sonoros que la aplicación sabe emitir (SPECS 10.4). `laboratorio.json → audio.events` asigna un recurso a cada uno. */
+export const AUDIO_EVENT_IDS = ["shadows.click", "boxes.bell", "piece.earned", "inventor.activated", "adventure.finished"] as const;
+export type AudioEventId = (typeof AUDIO_EVENT_IDS)[number];
+
 export interface AudioConfig {
   phoneInitiallyMuted: boolean;
-  /** evento → assetId. Vacío mientras no existan sonidos finales (SPECS 13.2). */
+  /** evento → assetId (solo eventos de `AUDIO_EVENT_IDS`). Sin entrada, ese evento no suena (pero sigue teniendo su texto). */
   events: Record<string, string>;
 }
 

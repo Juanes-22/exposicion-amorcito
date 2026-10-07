@@ -545,6 +545,8 @@ Una sala terminal no admite entradas o acciones. Propuesta inicial de limpieza: 
 
 Una credencial está ligada a una sola sala. Probar que códigos y IDs de otra sala no permiten suscribir ni modificar sus datos.
 
+*(Añadido al implementar la fase 6.)* Un barrido del servidor (`SWEEP_INTERVAL_MS`, 30 s) vence las salas cuya administradora lleva más de `ADMIN_IDLE_TTL_MS` sin comandos ni señal periódica, y elimina en cascada (sala, identidades y comandos procesados) las salas terminales pasadas `TERMINAL_RETENTION_MS`. El plazo se calcula con la hora guardada, de modo que un reinicio no «perdona» el tiempo con el servicio apagado.
+
 ### 6.4. Demostración local
 
 `DemoController` utiliza el mismo dominio y modelos, sustituyendo solo transporte y persistencia. Mantiene un snapshot local con un espacio de almacenamiento distinto, sin tokens ni IDs de sala compartida.
@@ -554,6 +556,8 @@ Vanessa decide entrar al respaldo. Mostrar «Demostración», conservar el últi
 Preparar el respaldo antes de exponer: cargar recursos mínimos de las tres mesas y guiones, y disponer de una compilación servida localmente en la computadora. Si solo falla el backend, el frontend ya abierto debe poder cambiar a demo. Si falla toda la red o se recarga la página, usar la copia local preparada; una web nunca descargada no puede abrirse mágicamente sin conexión.
 
 No hacer obligatorio un service worker. Documentar y ensayar ambas situaciones: backend caído con frontend cargado; computadora sin red usando el build local.
+
+*(Añadido al implementar la fase 6.)* `DemoController` cumple el mismo contrato que `RoomController` (`RoomPort`) y usa las mismas funciones puras de `shared/domain`; Vanessa es administradora y quien explora, empieza en el mapa y, al recargar, vuelve en pausa con lo confirmado. Su espacio de almacenamiento es `laboratorio-cosas-cotidianas:v1:demo:estado`. La ruta es `/demo`; `/demo?from=CÓDIGO` solo sirve para ofrecer «Volver a la sala». Con la conexión caída más de 5 s, la consola de Vanessa le ofrece pasar a la demostración (nunca lo hace sola) y, con la sala funcionando, ya dejó descargado el módulo y los recursos. `npm run preview:demo` sirve el build local sin servidor.
 
 <a id="spec-7"></a>
 
@@ -1053,6 +1057,8 @@ La proyección es la salida principal. Identificar efectos por transición para 
 
 Cada señal importante tiene texto equivalente. Un fallo de audio no bloquea la mesa. No copiar los tonos `audio.sfx.test-*` del repositorio como sonidos finales.
 
+**Nota de implementación (P7-02).** Los eventos de `audio.events` son un conjunto cerrado: `shadows.click`, `boxes.bell`, `piece.earned`, `inventor.activated` y `adventure.finished` (el «cierre» de la dirección visual); un evento desconocido o que apunte a un recurso que no es sonido es un error de validación. Cada señal tiene su texto en `ui.labels` (`signalPieceEarned`, `signalPiecesPlaced`, `signalFinished`, `signalBell`, `signalClick`) y se muestra y anuncia (`aria-live`) con o sin sonido. El audio lo reproduce la propia aplicación (Web Audio, un único contexto creado dentro del gesto que activa el sonido), no el audio de Phaser. La proyección recupera «activado» con el primer gesto de la página; el celular nunca. Mientras los sonidos sean provisionales (`placeholder: true`), `mode: presentation` los rechaza.
+
 Los efectos de interfaz/eventos pertenecen a `laboratorio.json → audio`. Si posteriormente se necesitan sonidos espaciales, sus emisores se colocan en la capa `sounds` del TMJ y se leen directamente; archivos y metadata permanecen en `assets.json`. Un laboratorio de sonidos con escritura de archivos no es dependencia de esta primera versión.
 
 <a id="spec-11"></a>
@@ -1063,7 +1069,7 @@ Los efectos de interfaz/eventos pertenecen a `laboratorio.json → audio`. Si po
 
 - Vista activa usable en vertical desde **360 px**; probar también 390 y 430 px.
 - Texto base de al menos **16 px**; zonas táctiles de al menos **44 × 44 px**.
-- Formularios desplazables con teclado abierto; botón de confirmación alcanzable.
+- Formularios desplazables con teclado abierto; botón de confirmación alcanzable. *(Nota P7-06: Chrome de Android, por defecto, no reduce la página al abrir el teclado y lo deja encima del formulario; `index.html` declara `interactive-widget=resizes-content` para que sí la reduzca. Además, al enfocar el campo se trae a la vista el botón de compartir. Verificado en el emulador de Android; no se sabe si Safari de iOS respeta esa declaración y el teclado de iOS con el campo de texto de las mesas no se pudo probar.)*
 - Cambios de turno anunciados con texto y nombre; espera sin mapa.
 - Botones −/+ equivalentes a arrastrar; lista de mesas equivalente a navegar.
 - Navegación por teclado en HTML y foco visible; no capturar flechas mientras se escribe.

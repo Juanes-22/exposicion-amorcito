@@ -50,6 +50,7 @@ export function RecordForm(props: RecordFormProps) {
   const [objectId, setObjectId] = useState(props.initialObjectId ?? "");
   const [sending, setSending] = useState(false);
   const area = useRef<HTMLTextAreaElement | null>(null);
+  const submitRef = useRef<HTMLButtonElement | null>(null);
 
   // Si el paso cambia de campo, se recupera el borrador de ese campo (y solo de ese).
   useEffect(() => setText(drafts.get({ room, activityId, field: props.draftField ?? field }) || initial?.text || ""), [room, activityId, field, props.draftField]);
@@ -89,7 +90,9 @@ export function RecordForm(props: RecordFormProps) {
   };
 
   // Con el teclado del celular abierto el botón de compartir debe seguir al alcance.
-  const reveal = (el: HTMLElement | null) => window.setTimeout(() => el?.scrollIntoView({ block: "center", behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }), 300);
+  // Al enfocar el campo se lleva a la vista el BOTÓN de compartir alineado al borde de abajo: así se ven a la vez el campo (que queda
+  // encima) y el botón, en vez de centrar solo el campo y dejar el botón tapado por el teclado (visto en Chrome para Android).
+  const reveal = (el: HTMLElement | null, block: ScrollLogicalPosition = "center") => window.setTimeout(() => el?.scrollIntoView({ block, behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }), 400);
 
   return (
     <form className="record-form" onSubmit={submit} noValidate>
@@ -121,7 +124,7 @@ export function RecordForm(props: RecordFormProps) {
               setText(e.target.value);
               drafts.set(key, e.target.value);
             }}
-            onFocus={(e) => reveal(e.currentTarget)}
+            onFocus={() => reveal(submitRef.current, "end")}
             aria-describedby={`${uid}-count`}
             aria-invalid={tooLong}
             autoComplete="off"
@@ -160,7 +163,7 @@ export function RecordForm(props: RecordFormProps) {
       ) : null}
 
       <div className="record-form__actions">
-        <button type="submit" className="btn btn--primary" disabled={disabled} onFocus={(e) => reveal(e.currentTarget)}>
+        <button ref={submitRef} type="submit" className="btn btn--primary" disabled={disabled} onFocus={(e) => reveal(e.currentTarget)}>
           {sending || busy ? "Compartiendo…" : (props.submitLabel ?? "Compartir con el grupo")}
         </button>
         {props.onCancel ? (

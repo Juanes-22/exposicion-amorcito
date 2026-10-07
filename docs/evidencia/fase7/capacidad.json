@@ -1,0 +1,106 @@
+{
+  "fecha": "2026-10-06T20:39:03.353Z",
+  "equipo": {
+    "sistema": "Darwin 25.1.0 (darwin/arm64)",
+    "procesador": "Apple M3 Pro",
+    "nucleos": 11,
+    "memoriaGiB": 18,
+    "node": "v24.20.0"
+  },
+  "red": "bucle local (127.0.0.1): clientes y servidor en la misma computadora; no hay red inalámbrica ni celulares reales",
+  "escenario": {
+    "participantes": 50,
+    "administradoras": 1,
+    "controladores": 1,
+    "entradasTardias": 6,
+    "cambiosDeTurno": 30,
+    "sliderHz": 12,
+    "sliderSegundos": 12
+  },
+  "metas": {
+    "entryMs": 5000,
+    "turnMs": 1000,
+    "reflectMs": 250,
+    "frameGapP95Ms": 200
+  },
+  "entradaMs": {
+    "n": 44,
+    "min": 7.3637919999999895,
+    "p50": 9.490167000000042,
+    "p95": 15.870584000000008,
+    "p99": 16.536833,
+    "max": 16.536833
+  },
+  "cambioDeTurnoNuevoControladorMs": {
+    "n": 30,
+    "min": 2.545792000000006,
+    "p50": 8.864584000000377,
+    "p95": 12.662208000000192,
+    "p99": 13.401666999999975,
+    "max": 13.401666999999975
+  },
+  "cambioDeTurnoTodasLasPantallasMs": {
+    "n": 30,
+    "min": 2.5535830000000033,
+    "p50": 8.89691700000003,
+    "p95": 12.705332999999882,
+    "p99": 13.456916999999976,
+    "max": 13.456916999999976
+  },
+  "acuseServidorMs": {
+    "n": 144,
+    "min": 0.6622919999999795,
+    "p50": 3.436083999999937,
+    "p95": 4.509749999999258,
+    "p99": 5.043917000000874,
+    "max": 31.60187500000029
+  },
+  "reflejoProyeccionMs": {
+    "n": 143,
+    "min": 0.9704579999997804,
+    "p50": 3.2113750000007713,
+    "p95": 4.247917000000598,
+    "p99": 4.9114580000004935,
+    "max": 31.41529100000116
+  },
+  "reflejoTelefonoControladorMs": {
+    "n": 143,
+    "min": 1.0261660000014672,
+    "p50": 3.4492090000003373,
+    "p95": 4.504290999999284,
+    "p99": 5.027124999999614,
+    "max": 31.59204099999988
+  },
+  "entradasTardiasMs": {
+    "n": 6,
+    "min": 17.02479200000016,
+    "p50": 19.29675000000134,
+    "p95": 21.680124999998952,
+    "p99": 21.680124999998952,
+    "max": 21.680124999998952
+  },
+  "separacionFramesMs": {
+    "n": 34,
+    "min": 99.41370800000004,
+    "p50": 101.34904199999801,
+    "p95": 102.97170900000128,
+    "p99": 104.19779199999903,
+    "max": 104.19779199999903
+  },
+  "framesEnLaProyeccion": 35,
+  "detencionPorCaidaDelControladorMs": 3,
+  "servidor": {
+    "cpuMaxPct": 28.5,
+    "cpuP95Pct": 14.1,
+    "memoriaMaxMiB": 129.59375
+  },
+  "espera": {
+    "personasQueSoloEsperaron": 40,
+    "snapshots": 0,
+    "frames": 0,
+    "bytesMaxPorPersona": 15180,
+    "bytesPromedioPorPersona": 12082,
+    "bytesAdministradora": 1113240
+  },
+  "incumplidas": []
+}

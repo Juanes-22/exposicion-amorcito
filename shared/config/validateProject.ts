@@ -150,7 +150,9 @@ export function validateProject(input: ProjectInputs): ProjectResult {
   }
 
   // ---- avisos (no son errores) ----
-  const usedPlaceholders = [...new Set(mapAssets.map(([, id]) => id))].filter((id) => manifest.assets[id]?.placeholder);
+  // Los sonidos asignados a eventos también cuentan: un sonido provisional en uso se avisa igual que un dibujo provisional.
+  const audioAssets = Object.values(cfg.audio.events);
+  const usedPlaceholders = [...new Set([...mapAssets.map(([, id]) => id), ...audioAssets])].filter((id) => manifest.assets[id]?.placeholder);
   if (usedPlaceholders.length > 0) notes.push(`${usedPlaceholders.length} recurso(s) provisional(es) en uso (permitido en mode «${cfg.mode}»): ${usedPlaceholders.join(", ")}`);
 
   if (issues.length > 0) return { ok: false, issues, notes };

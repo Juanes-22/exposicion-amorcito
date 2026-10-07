@@ -95,6 +95,9 @@ export function createHttpApp({ service, settings, logger }: HttpDeps): Express 
         index: false,
         setHeaders(res, path) {
           if (path.includes(`${sep}bundle${sep}`)) res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          // Imágenes y sonidos del catálogo: no cambian durante una sesión. Una hora de caché permite que la demostración, abierta
+          // desde una página ya cargada, vuelva a pintar la escena aunque el servidor haya dejado de responder (SPECS 6.4).
+          else if (/\.(png|jpe?g|webp|gif|svg|woff2?|mp3|ogg|wav)$/i.test(path)) res.setHeader("Cache-Control", "public, max-age=3600");
           else res.setHeader("Cache-Control", "no-cache");
         },
       }),

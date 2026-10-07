@@ -1,13 +1,13 @@
 import { useEffect, useMemo } from "react";
 import { GameBridge } from "../game/bridge/GameBridge";
-import type { RoomClientState, RoomController } from "./RoomController";
+import type { RoomClientState, RoomPort } from "./RoomController";
 
 /**
  * Entrega al puente el último snapshot autorizado, los permisos y las muestras de simulación. La aplicación decide; Phaser solo
  * pinta. El puente retiene el último valor para escenas que arrancan después de que se emitió (SPECS 10.2).
  * Los frames llegan por suscripción directa y no por el estado de React: no se renderiza el árbol por cada posición (CT-06).
  */
-export function useBridgeFeed(state: RoomClientState, controller: RoomController | null, canAct: boolean, reason: string | null): GameBridge {
+export function useBridgeFeed(state: RoomClientState, controller: RoomPort | null, canAct: boolean, reason: string | null): GameBridge {
   const bridge = useMemo(() => new GameBridge(), []);
   useEffect(() => () => bridge.dispose(), [bridge]);
 

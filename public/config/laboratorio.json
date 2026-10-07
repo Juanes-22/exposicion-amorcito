@@ -235,12 +235,23 @@
       "oralRecord": "Lo compartiremos en voz alta",
       "uncertainRecord": "Todavía no tenemos una explicación",
       "waiting": "Estás en la sala. Sigue la aventura en la proyección",
-      "loadingMap": "Cargando el laboratorio…"
+      "loadingMap": "Cargando el laboratorio…",
+    "signalPieceEarned": "Pieza conseguida: {pieza}.",
+    "signalPiecesPlaced": "El inventor se encendió: ya tiene sus tres piezas.",
+    "signalFinished": "Terminamos la aventura.",
+    "signalBell": "Suena la campanita.",
+    "signalClick": "Se anotó la posición de la linterna."
     }
   },
   "audio": {
     "phoneInitiallyMuted": true,
-    "events": {}
+    "events": {
+      "shadows.click": "lab.audio.click",
+      "boxes.bell": "lab.audio.bell",
+      "piece.earned": "lab.audio.piece",
+      "inventor.activated": "lab.audio.inventor",
+      "adventure.finished": "lab.audio.finished"
+    }
   },
   "session": {
     "maxParticipants": 50,

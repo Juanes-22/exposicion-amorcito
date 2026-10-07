@@ -17,6 +17,15 @@ export function roomPath(code: string, base = import.meta.env.BASE_URL): string 
   return `${base.replace(/\/$/, "")}/sala/${code}`;
 }
 
+/** Dirección de la demostración; `from` es la sala de la que se viene (para ofrecer el regreso). Respeta el prefijo del despliegue. */
+export function demoPath(from?: string, base = import.meta.env.BASE_URL): string {
+  return `${base.replace(/\/$/, "")}/demo${from ? `?from=${encodeURIComponent(from)}` : ""}`;
+}
+
+export function homePath(base = import.meta.env.BASE_URL): string {
+  return `${base.replace(/\/$/, "")}/` || "/";
+}
+
 export function useRoute(): [Route, (to: string) => void] {
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.pathname));
   useEffect(() => {

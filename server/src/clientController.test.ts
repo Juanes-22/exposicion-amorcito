@@ -183,6 +183,24 @@ describe("RoomController: conexión (SPECS 5.4, 6.2)", () => {
     expect((await people[0]!.c.adventure({ type: "adventure.returnToMap" })).ok).toBe(false);
   });
 
+  it("cuando la sala VENCE por inactividad también deja de reconectar y muestra el estado terminal (SPECS 6.2)", async () => {
+    await server.stop();
+    let wall = Date.parse("2026-10-06T10:00:00.000Z");
+    server = await startServer({ now: () => new Date(wall), settings: { adminIdleTtlMs: 60_000, sweepIntervalMs: 0 } });
+    const { admin, people } = await adminAndParticipants();
+    wall += 61_000;
+    await server.app.service.sweep();
+    await until(() => people[0]!.c.getState().status === "terminal", "participante en estado terminal");
+    await until(() => admin.getState().status === "terminal", "administradora en estado terminal");
+    expect(people[0]!.c.getState().summary?.phase).toBe("expired");
+    // Sin reconexión operativa: pasado un rato no vuelve a conectar ni a pedir nada.
+    const connections = server.app.httpServer.listenerCount("connection");
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(people[0]!.c.getState().status).toBe("terminal");
+    expect(await people[0]!.c.adventure({ type: "adventure.returnToMap" })).toMatchObject({ ok: false, code: "STALE_CONNECTION" });
+    expect(server.app.httpServer.listenerCount("connection")).toBe(connections);
+  });
+
   it("una pestaña sustituida se detiene y no reconecta", async () => {
     const { people } = await adminAndParticipants(["Ana"]);
     const second = make(people[0]!.token);

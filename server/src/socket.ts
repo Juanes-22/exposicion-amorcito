@@ -120,7 +120,13 @@ function invalid(raw: unknown): CommandResult {
 }
 
 function guard(run: () => Promise<CommandResult>, requestId: string, ack: (r: CommandResult) => void, logger: Logger): void {
-  run().then(ack, (e) => {
+  let promise: Promise<CommandResult>;
+  try {
+    promise = run();
+  } catch (e) {
+    promise = Promise.reject(e); // un fallo síncrono tampoco debe dejar el botón bloqueado
+  }
+  promise.then(ack, (e) => {
     // Un fallo inesperado nunca debe dejar un botón bloqueado ni mostrar detalles internos.
     logger.error("error inesperado procesando un comando", { error: e instanceof Error ? e.message : String(e) });
     ack({ ok: false, requestId, code: "ROOM_UNAVAILABLE" satisfies CommandErrorCode, message: "Ocurrió un error inesperado. Intenta de nuevo." });

@@ -1,19 +1,18 @@
 import { useMemo } from "react";
 import type { LoadedProject } from "../../config/loadProject";
-import type { RoomClientState, RoomController } from "../../app/RoomController";
+import type { RoomClientState, RoomPort } from "../../app/RoomController";
 import { useBridgeFeed } from "../../app/useBridgeFeed";
 import { useIntentRouter } from "../../app/useIntentRouter";
 import { readGameFlags } from "../../game/flags";
 import { PhaserGame } from "../game/PhaserGame";
 import { ActivityPanel } from "./ActivityPanel";
-import { MapHud } from "./MapHud";
+import { MapBar } from "./MapBar";
 import { NearbyPrompt } from "./NearbyPrompt";
-import { StationsMenu } from "./StationsMenu";
 
 interface Props {
   project: LoadedProject;
   state: RoomClientState;
-  controller: RoomController;
+  controller: RoomPort;
   canAct: boolean;
   reason: string | null;
   label: string;
@@ -38,9 +37,8 @@ export function AdventureHost({ project, state, controller, canAct, reason, labe
       <div className="adventure__stage">
         <PhaserGame project={project} bridge={bridge} debug={flags.debug} hooks={flags.hooks} camera={camera} label={label} />
         {!state.snapshot ? <div className="overlay" role="status"><p>Cargando el estado de la aventura…</p></div> : null}
-        {inMap ? <StationsMenu project={project} state={state} controller={controller} canAct={canAct} /> : null}
         {inMap ? <NearbyPrompt project={project} state={state} controller={controller} canAct={canAct} /> : null}
-        {inMap ? <MapHud project={project} state={state} controller={controller} canAct={canAct} notebookMenu={notebookMenu} /> : null}
+        {inMap ? <MapBar project={project} state={state} controller={controller} canAct={canAct} notebookMenu={notebookMenu} /> : null}
         {state.snapshot?.state.phase === "paused" ? (
           <div className="overlay" role="status">
             <h2>En pausa</h2>

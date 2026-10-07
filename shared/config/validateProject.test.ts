@@ -223,6 +223,16 @@ describe("configuración de contenido", () => {
     expectIssue(issuesFor((r) => delete r.config.activities.cajas.prompts), "prompts", "obligatoria");
     expectIssue(issuesFor((r) => (r.config.activities.cajas.prompts.explore = "no es un paso de cajas")), "prompts.explore", "no es un paso con indicación");
   });
+  it("los eventos de audio: solo los conocidos, con un recurso de sonido que exista, y los sonidos provisionales no pasan a presentación (SPECS 10.4)", () => {
+    expect(issuesFor(() => undefined)).toEqual([]); // el paquete real asigna sonido a cada evento
+    expectIssue(issuesFor((r) => (r.config.audio.events["evento.inventado"] = "lab.audio.bell")), "audio.events.evento.inventado", "evento de audio desconocido");
+    expectIssue(issuesFor((r) => (r.config.audio.events["piece.earned"] = "lab.audio.no-existe")), "audio.events.piece.earned", "asset ID no encontrado");
+    expectIssue(issuesFor((r) => (r.config.audio.events["piece.earned"] = "ui.icon.open-book")), "audio.events.piece.earned", "kind");
+    expectIssue(issuesFor((r) => (r.config.mode = "presentation")), "audio.events.piece.earned", "lab.audio.piece", "provisional");
+    // Sin sonido asignado el evento simplemente no suena: no es un error.
+    expect(issuesFor((r) => (r.config.audio.events = {}))).toEqual([]);
+  });
+
   it("mode presentation no admite recursos provisionales ni guiones vacíos; prototype sí", () => {
     expect(issuesFor((r) => (r.config.mode = "prototype"))).toEqual([]);
     expectIssue(issuesFor((r) => (r.config.mode = "presentation")), "laboratorio.tmj", "lab.station.shadows", "provisional");

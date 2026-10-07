@@ -3,13 +3,14 @@
   "project": "El laboratorio de las cosas cotidianas",
   "basePath": ".",
   "pathConvention": "Paths are relative to the directory containing this assets.json.",
-  "assetCount": 14,
+  "assetCount": 19,
   "categoryCounts": {
     "characters": 1,
     "ui": 6,
     "decorations": 1,
     "backgrounds": 1,
-    "stations": 5
+    "stations": 5,
+    "audio": 5
   },
   "assets": {
     "character.vanessa-jerry.walk.poses-v4": {
@@ -294,6 +295,71 @@
         "x": 0.5,
         "y": 1
       }
+    },
+    "lab.audio.click": {
+      "path": "audio/click.wav",
+      "type": "audio",
+      "format": "wav",
+      "category": "audio",
+      "label": "Clic suave de la linterna (provisional)",
+      "kind": "sfx",
+      "sizeBytes": 3130,
+      "sha256": "0e135a854f0d67086741521bd91e8e7def8588066318aa5c8859b70d86bd283c",
+      "durationMs": 70,
+      "placeholder": true,
+      "provenance": "Generado para el prototipo con síntesis simple (tools/audio/generate_sfx.py), sin licencia externa. Sustituir por sonidos finales antes de mode: presentation."
+    },
+    "lab.audio.bell": {
+      "path": "audio/bell.wav",
+      "type": "audio",
+      "format": "wav",
+      "category": "audio",
+      "label": "Campanita (provisional)",
+      "kind": "sfx",
+      "sizeBytes": 48554,
+      "sha256": "399bbab2fcccdc4ec596495a5cc0eb5e142d422cf02f549efdf5a99ee623dd2f",
+      "durationMs": 1100,
+      "placeholder": true,
+      "provenance": "Generado para el prototipo con síntesis simple (tools/audio/generate_sfx.py), sin licencia externa. Sustituir por sonidos finales antes de mode: presentation."
+    },
+    "lab.audio.piece": {
+      "path": "audio/piece.wav",
+      "type": "audio",
+      "format": "wav",
+      "category": "audio",
+      "label": "Pieza conseguida (provisional)",
+      "kind": "sfx",
+      "sizeBytes": 42380,
+      "sha256": "02aa43a68048689c1e5c0620e7a5fdf237b1390f67901b8b6e58d773bbc0ed71",
+      "durationMs": 960,
+      "placeholder": true,
+      "provenance": "Generado para el prototipo con síntesis simple (tools/audio/generate_sfx.py), sin licencia externa. Sustituir por sonidos finales antes de mode: presentation."
+    },
+    "lab.audio.inventor": {
+      "path": "audio/inventor.wav",
+      "type": "audio",
+      "format": "wav",
+      "category": "audio",
+      "label": "Inventor encendido (provisional)",
+      "kind": "sfx",
+      "sizeBytes": 59578,
+      "sha256": "4637ff6b2628be1a4c4a44b8437ae97b7645482b9cad856b0935261208da36c7",
+      "durationMs": 1350,
+      "placeholder": true,
+      "provenance": "Generado para el prototipo con síntesis simple (tools/audio/generate_sfx.py), sin licencia externa. Sustituir por sonidos finales antes de mode: presentation."
+    },
+    "lab.audio.finished": {
+      "path": "audio/finished.wav",
+      "type": "audio",
+      "format": "wav",
+      "category": "audio",
+      "label": "Final de la aventura (provisional)",
+      "kind": "sfx",
+      "sizeBytes": 88244,
+      "sha256": "ba5fb59141a1c87b36aeae50514ab1fe03dd333eaaf9d633963c49c41077d412",
+      "durationMs": 2000,
+      "placeholder": true,
+      "provenance": "Generado para el prototipo con síntesis simple (tools/audio/generate_sfx.py), sin licencia externa. Sustituir por sonidos finales antes de mode: presentation."
     }
   },
   "sourceDocuments": [],

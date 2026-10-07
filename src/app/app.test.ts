@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearCredential, loadCredential, saveCredential, type StoredCredential } from "./credentials";
 import { newRequestId } from "./ids";
-import { parseRoute, roomPath } from "./useRoute";
+import { demoPath, homePath, parseRoute, roomPath } from "./useRoute";
 
 const cred: StoredCredential = { token: "t".repeat(43), role: "participant", principalId: "p1", displayName: "Ana", color: "azul", savedAt: "2026-10-05T00:00:00.000Z" };
 
@@ -21,6 +21,15 @@ describe("rutas (CT-16)", () => {
     expect(parseRoute("/laboratorio/demo", "/laboratorio/")).toEqual({ name: "demo" });
     expect(roomPath("ABC234", "/")).toBe("/sala/ABC234");
     expect(roomPath("ABC234", "/laboratorio/")).toBe("/laboratorio/sala/ABC234");
+  });
+  it("la ruta de la demostración respeta la base y recuerda de qué sala se vino, sin romper el reconocimiento de la ruta", () => {
+    expect(demoPath(undefined, "/")).toBe("/demo");
+    expect(demoPath("ABC234", "/")).toBe("/demo?from=ABC234");
+    expect(demoPath("ABC234", "/laboratorio/")).toBe("/laboratorio/demo?from=ABC234");
+    expect(homePath("/")).toBe("/");
+    expect(homePath("/laboratorio/")).toBe("/laboratorio/");
+    // La consulta no forma parte de la ruta que se interpreta.
+    expect(parseRoute(new URL("http://x/laboratorio/demo?from=ABC234").pathname, "/laboratorio/")).toEqual({ name: "demo" });
   });
 });
 

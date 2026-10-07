@@ -1,14 +1,16 @@
-import { useRef } from "react";
 import { INVENTOR_ID } from "../../../shared/contracts/config";
 import { allRouteCompleted, isCompleted, unlockedActivityIds } from "../../../shared/domain/adventure";
-import type { RoomClientState, RoomController } from "../../app/RoomController";
+import type { RoomClientState, RoomPort } from "../../app/RoomController";
 import type { LoadedProject } from "../../config/loadProject";
 
 interface Props {
   project: LoadedProject;
   state: RoomClientState;
-  controller: RoomController;
+  controller: RoomPort;
   canAct: boolean;
+  /** Lo gobierna `MapBar`: solo un menú del mapa abierto a la vez, para que ninguno tape a otro. */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 type Row = { id: string; title: string; status: "locked" | "available" | "completed" };
@@ -17,8 +19,7 @@ type Row = { id: string; title: string; status: "locked" | "available" | "comple
  * Lista de mesas accesible (SPECS 2.4, 11.1): llegar y abrir una mesa sin manejar el personaje. Conserva el orden del recorrido y
  * los permisos, pero no exige proximidad. Equivalente de teclado y lectores de pantalla del mapa táctil.
  */
-export function StationsMenu({ project, state, controller, canAct }: Props) {
-  const menu = useRef<HTMLDetailsElement | null>(null);
+export function StationsMenu({ project, state, controller, canAct, open, onOpenChange }: Props) {
   const adv = state.snapshot?.state.adventure;
   if (!adv) return null;
   const { config } = project.bundle;
@@ -29,8 +30,9 @@ export function StationsMenu({ project, state, controller, canAct }: Props) {
   const STATUS = { locked: "Bloqueada: primero la anterior", available: "Disponible", completed: "Completada" } as const;
 
   return (
-    <details className="stations-menu" ref={menu}>
+    <details className="stations-menu" open={open} onToggle={(e) => onOpenChange(e.currentTarget.open)}>
       <summary>Mesas</summary>
+      <div className="map-panel map-panel--left">
       <ul className="stations-menu__list" aria-label="Mesas del laboratorio">
         {rows.map((r) => (
           <li key={r.id}>
@@ -40,7 +42,7 @@ export function StationsMenu({ project, state, controller, canAct }: Props) {
               disabled={!canAct || !onMap || r.status === "locked" || state.pending > 0}
               onClick={() => {
                 // El panel flota sobre el mapa: se cierra al elegir para no tapar lo que se va a tocar después.
-                menu.current?.removeAttribute("open");
+                onOpenChange(false);
                 void controller.adventure({ type: "station.open", stationId: r.id, origin: "quickNav" });
               }}
               aria-describedby={`station-status-${r.id}`}
@@ -53,6 +55,7 @@ export function StationsMenu({ project, state, controller, canAct }: Props) {
         ))}
       </ul>
       {!canAct ? <p className="hint">Para abrir una mesa hace falta tener el turno.</p> : !onMap ? <p className="hint">Vuelve al mapa para abrir otra mesa.</p> : null}
+      </div>
     </details>
   );
 }

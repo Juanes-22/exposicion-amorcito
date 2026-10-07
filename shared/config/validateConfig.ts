@@ -1,7 +1,7 @@
 import configSchema from "./schemas/laboratorio.schema.json";
 import type { AssetManifest, ConfigIssue, ValidationResult } from "../contracts/assets";
 import type { LaboratorioConfig, SuggestedOption } from "../contracts/config";
-import { INVENTOR_ID, REQUIRED_PROMPTS } from "../contracts/config";
+import { AUDIO_EVENT_IDS, INVENTOR_ID, REQUIRED_PROMPTS } from "../contracts/config";
 import { ajvIssues, compileSchema } from "./ajv";
 import type { SheetDefinition } from "./frameDefinitions";
 
@@ -142,7 +142,10 @@ export function validateConfig(data: unknown, ctx: ConfigContext): ConfigValidat
   asset("ui.assets.buttonHover", c.ui.assets.buttonHover, ["button"]);
   asset("ui.assets.panel", c.ui.assets.panel, ["panel"]);
   asset("ui.assets.notebookIcon", c.ui.assets.notebookIcon);
-  for (const [event, id] of Object.entries(c.audio.events)) asset(`audio.events.${event}`, id, ["sfx", "music"]);
+  for (const [event, id] of Object.entries(c.audio.events)) {
+    if (!(AUDIO_EVENT_IDS as readonly string[]).includes(event)) issues.push(at(`audio.events.${event}`, `evento de audio desconocido; los válidos son ${AUDIO_EVENT_IDS.join(", ")}`));
+    asset(`audio.events.${event}`, id, ["sfx", "music"]);
+  }
 
   // ---- modo presentación: sin recursos ni textos de prueba como finales (SPECS 9.5) ----
   if (c.mode === "presentation") {

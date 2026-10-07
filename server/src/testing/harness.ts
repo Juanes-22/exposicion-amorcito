@@ -23,6 +23,8 @@ export interface StartOptions {
   project?: ProjectBundle;
   settings?: Partial<ServerSettings>;
   mono?: () => number;
+  /** Reloj de pared (vencimientos y marcas de tiempo); por defecto el real. */
+  now?: () => Date;
 }
 
 export async function startServer(options: StartOptions = {}): Promise<TestServer> {
@@ -31,7 +33,7 @@ export async function startServer(options: StartOptions = {}): Promise<TestServe
   // Se enlaza a 127.0.0.1 de forma explícita: con la interfaz comodín el SO puede entregar un puerto que otro proceso local ya tiene en
   // 127.0.0.1 (visto aquí: ayudantes de VS Code que responden «Unauthorized») y las pruebas hablarían con ese proceso.
   const settings = loadSettings({}, { databasePath: dbPath, port: 0, host: "127.0.0.1", ...options.settings });
-  const app = createServerApp({ settings, project: options.project ?? realBundle(), mono: options.mono });
+  const app = createServerApp({ settings, project: options.project ?? realBundle(), mono: options.mono, now: options.now });
   const port = await app.listen(options.settings?.port ?? 0);
   return {
     app,

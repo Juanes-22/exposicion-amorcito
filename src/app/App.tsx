@@ -4,8 +4,9 @@ import { lazy, Suspense } from "react";
 import { ProjectFailure, useProjectState } from "./ProjectProvider";
 import { useRoute } from "./useRoute";
 
-// La vista con el mapa (y Phaser) se descarga solo si se visita: entrada y espera no la necesitan.
-const MapPreview = lazy(() => import("./MapPreview").then((m) => ({ default: m.MapPreview })));
+// La demostración (con el mapa y Phaser) se descarga solo si se visita: entrada y espera no la necesitan. La consola de Vanessa la
+// precarga mientras la sala funciona (`prepareBackup`) para que el respaldo no dependa de un servidor que ya no responda.
+const DemoView = lazy(() => import("../components/room/DemoView").then((m) => ({ default: m.DemoView })));
 
 export function App() {
   const [route, navigate] = useRoute();
@@ -18,7 +19,7 @@ export function App() {
     case "demo":
       return (
         <Suspense fallback={<p role="status" style={{ padding: 16 }}>Cargando el mapa…</p>}>
-          <MapPreview project={state.project} />
+          <DemoView project={state.project} navigate={navigate} />
         </Suspense>
       );
     case "home":

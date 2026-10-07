@@ -1,11 +1,14 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import type { LoadedProject } from "../../config/loadProject";
 import type { RoomController, RoomClientState } from "../../app/RoomController";
+import { useAudioSignals } from "../../app/audio/useAudioSignals";
+import { prepareBackup } from "../../app/backup";
 import { roomPath } from "../../app/useRoute";
 import { NotebookView } from "../notebook/NotebookView";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { QrCode } from "../ui/QrCode";
 import { ParticipantList } from "./ParticipantList";
+import { SignalText, SoundControl } from "./SoundControl";
 
 // El módulo del mapa (con Phaser) se carga bajo demanda: quien solo espera nunca lo descarga ni crea un canvas.
 const AdventureHost = lazy(() => import("./AdventureHost").then((m) => ({ default: m.AdventureHost })));
@@ -23,6 +26,13 @@ export function AdminConsole({ project, state, controller }: { project: LoadedPr
   const { config } = project.bundle;
   const [confirm, setConfirm] = useState<Confirm>(null);
   const [busy, setBusy] = useState(false);
+  // Con la sala funcionando se deja listo el respaldo: si el servidor deja de responder, la demostración ya está descargada.
+  useEffect(() => {
+    const idle = (window as unknown as { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+    const t = idle ? idle(() => void prepareBackup(project)) : window.setTimeout(() => void prepareBackup(project), 1500);
+    return () => (idle ? undefined : window.clearTimeout(t));
+  }, [project]);
+  const audio = useAudioSignals({ project, state, device: "computer" });
   const online = state.status === "connected";
   const owner = summary.controller;
   const isOwner = summary.self.isController;
@@ -56,7 +66,9 @@ export function AdminConsole({ project, state, controller }: { project: LoadedPr
         {owner ? <button type="button" className="btn" disabled={disabled} onClick={() => void run(() => controller.admin({ type: "control.revoke" }))}>Retirar control</button> : null}
         <button type="button" className="btn" disabled={disabled} onClick={() => setConfirm("reset")}>Reiniciar</button>
         <button type="button" className="btn btn--danger" disabled={disabled} onClick={() => setConfirm("close")}>Cerrar</button>
+        <SoundControl audio={audio} />
       </div>
+      <SignalText audio={audio} />
 
       <Suspense fallback={<div className="adventure__map"><p role="status" style={{ padding: 16 }}>Cargando el mapa…</p></div>}>
         <AdventureHost project={project} state={state} controller={controller} camera="fit" canAct={isOwner && (summary.phase === "running" || summary.phase === "finished")} reason={summary.phase === "paused" ? "La aventura está en pausa." : isOwner ? null : "Usa «Tomar control» para participar."} label="Escena de la aventura" />

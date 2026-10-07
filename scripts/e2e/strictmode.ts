@@ -47,6 +47,26 @@ try {
   s = await state();
   check(s.canvases === 1 && s.hosts === 1, "tras 5 desmontajes y montajes sigue habiendo un solo canvas");
   check(s.games.filter((g) => g.connected).length === 1 && s.games.filter((g) => g.pending).length === 0, "los juegos anteriores se destruyeron y retiraron su canvas; ninguno queda pendiente");
+  // Audio (P7-02): el reproductor también sobrevive al desmontaje y montaje de StrictMode. Con el reproductor ya «soltado» por el primer
+  // desmontaje, «Activar sonido» no hacía nada en desarrollo (el build de producción no desmonta dos veces y no lo mostraba).
+  await page.getByRole("button", { name: /Activar sonido/ }).click();
+  const soundOn = await page.getByRole("button", { name: /Silenciar/ }).waitFor({ timeout: 4000 }).then(() => true, () => false);
+  check(soundOn, "bajo StrictMode, «Activar sonido» activa el sonido (el botón pasa a «Silenciar»)");
+  // …y el sonido se dispara de verdad: anotar una posición de la linterna hace «clic». El registro de pruebas solo existe con ?hooks.
+  await page.evaluate("window.history.replaceState(null, '', '/demo?hooks')");
+  // En desarrollo, el doble montaje hace que la demostración arranque como si se hubiera recargado: en pausa, hasta «Reanudar».
+  const resume = page.getByRole("button", { name: "Reanudar", exact: true });
+  if (await resume.isVisible()) await resume.click();
+  await page.getByText("Mesas", { exact: true }).click();
+  await page.getByRole("button", { name: "Sombras", exact: true }).click();
+  await page.getByLabel("Tu respuesta").fill("la luz estira la sombra");
+  await page.getByRole("button", { name: "Compartir con el grupo" }).click();
+  const slider = page.getByRole("slider", { name: "Distancia de la linterna al objeto" });
+  await slider.waitFor();
+  await slider.fill("40");
+  await page.getByRole("button", { name: "Anotar esta posición" }).click();
+  const clicked = await page.waitForFunction(() => (((window as any).__AUDIO_LOG__ ?? []) as string[]).includes("shadows.click"), undefined, { timeout: 5000 }).then(() => true, () => false);
+  check(clicked, "bajo StrictMode, anotar una posición de la linterna hace sonar el «clic» (se lanzó de verdad)");
   check(problems.length === 0, `sin errores de consola ni de página${problems.length ? `: ${problems.join(" | ")}` : ""}`);
   console.log("\nE2E de ciclo de vida de Phaser: OK");
 } finally {
