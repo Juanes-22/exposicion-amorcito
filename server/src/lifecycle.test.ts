@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { realBundle } from "../../shared/testing/project";
-import { getRoom, joinRoom, setupRoom, startServer, TestClient, type TestServer } from "./testing/harness";
+import { beginExploration, getRoom, joinRoom, setupRoom, startServer, TestClient, type TestServer } from "./testing/harness";
 
 // P6-04: vencimiento por inactividad de la administradora y limpieza de salas terminales (SPECS 6.3), con reloj de pared controlado
 // y un barrido que se llama a mano (`sweepIntervalMs: 0`).
@@ -35,11 +35,9 @@ async function running(names = ["Ana", "Beto"]) {
   for (const c of r.clients) track(c);
   const [ana, beto] = r.people.map((p) => p.client) as [TestClient, TestClient];
   const anaId = r.people[0]!.join.principalId;
-  await r.admin.admin({ type: "control.assign", principalId: anaId });
-  await r.admin.admin({ type: "room.start" });
-  await ana.until(() => ana.summary?.self.isController === true && ana.summary.phase === "running", "Ana controla");
-  await ana.adventure({ type: "station.open", stationId: "sombras", origin: "quickNav" });
-  await ana.adventure({ type: "record.confirm", activityId: "sombras", field: "firstIdea", value: { modality: "written", text: "Por la luz" } });
+  await beginExploration(r);
+  await ana.act({ type: "station.open", stationId: "sombras", origin: "quickNav" });
+  await ana.act({ type: "shadows.sample", distanceCm: 20 });
   return { ...r, ana, beto, anaId, roomId: state(r.code)!.roomId };
 }
 
@@ -52,7 +50,7 @@ describe("vencimiento por inactividad de la administradora (CA-24..CA-29 en el c
 
     advance(MIN);
     expect(await server.app.service.sweep()).toEqual({ expired: 1, purged: 0 });
-    expect(state(r.code)).toMatchObject({ phase: "expired", controlOwner: null });
+    expect(state(r.code)).toMatchObject({ phase: "expired" });
     for (const c of [r.admin, r.ana, r.beto]) await c.until(() => c.summary?.phase === "expired", "aviso de vencimiento");
     for (const c of [r.admin, r.ana, r.beto]) await c.until(() => c.disconnected, "conexión cerrada");
     // El estado terminal quedó guardado, con su marca para la limpieza.
@@ -73,15 +71,16 @@ describe("vencimiento por inactividad de la administradora (CA-24..CA-29 en el c
     await back.until(() => back.disconnected, "desconexión terminal");
     // Y una acción de quien tenía el turno ya no se aplica (la conexión se cerró y la sala es terminal).
     const identity = server.app.service.authenticate(r.people[0]!.join.token)!;
-    expect(await server.app.service.adventureCommand(identity, "cualquiera", { requestId: "tarde", roomGeneration: 1, turnVersion: 1, connectionEpoch: 1, action: { type: "adventure.returnToMap" } })).toMatchObject({ ok: false });
-    expect(state(r.code)!.adventure.notebook).toHaveLength(1); // los registros no se tocan hasta la limpieza
+    expect(await server.app.service.participantCommand(identity, "cualquiera", { requestId: "tarde", roomGeneration: 1, roundVersion: 1, connectionEpoch: 1, action: { type: "adventure.returnToMap" } })).toMatchObject({ ok: false });
+    const samples = (state(r.code)!.participants[r.anaId]!.activities.sombras as { samples: unknown[] }).samples;
+    expect(samples).toHaveLength(1); // los resultados no se tocan hasta la limpieza
   });
 
   it("solo la administradora mantiene viva la sala: los participantes, por activos que estén, no", async () => {
     const r = await running();
     for (let i = 0; i < 11; i++) {
       advance(10 * MIN);
-      expect(await r.ana.adventure({ type: "shadows.light.set", distanceCm: 20 + i, commitSample: false })).toMatchObject({ ok: true });
+      expect(await r.ana.act({ type: "shadows.sample", distanceCm: 21 + i * 3 })).toMatchObject({ ok: true });
     }
     advance(10 * MIN); // 2 h en total desde la última señal de Vanessa
     expect(await server.app.service.sweep()).toEqual({ expired: 1, purged: 0 });
@@ -133,6 +132,7 @@ describe("vencimiento por inactividad de la administradora (CA-24..CA-29 en el c
   it("si no se puede guardar el vencimiento no se anuncia nada y se reintenta en el siguiente barrido", async () => {
     const r = await running();
     advance(2 * HOUR);
+    await r.admin.quiet(100); // que terminen de llegar los avisos del juego anterior
     const before = { admin: r.admin.log.length, ana: r.ana.log.length };
     server.app.repo.raw.pragma("query_only = ON");
     expect(await server.app.service.sweep()).toEqual({ expired: 0, purged: 0 });

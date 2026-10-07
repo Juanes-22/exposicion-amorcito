@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-// Fase 6 (P6-05, P6-06): la demostración local. Dos situaciones que SPECS 6.4 pide ensayar:
+// La demostración local (fase 6, P6-05 y P6-06; con rondas). Dos situaciones que SPECS 6.4 pide ensayar:
 //  A. «Backend caído con el frontend ya cargado»: una sala real con progreso; el servidor se apaga; Vanessa decide pasar a la demostración
 //     desde la página que ya tenía abierta, recorre TODA la aventura sin servidor y al volver el servicio la sala sigue con su estado propio.
 //  B. «Computadora sin red usando la compilación local»: solo el servidor estático (`vite preview`), sin API ni sockets.
@@ -34,78 +34,68 @@ async function open(name: string, viewport: { width: number; height: number }, u
   return { ctx, page };
 }
 
-/** Recorre las tres mesas y el inventor desde la interfaz, como lo haría Vanessa con la demostración. */
+/** Abre un panel plegable de la consola sin importar si ya estaba abierto. */
+const openPanel = (page: Page, title: RegExp) => page.locator("details.panel", { has: page.locator("summary", { hasText: title }) }).evaluate((el) => ((el as HTMLDetailsElement).open = true));
+
+/**
+ * Recorre las tres mesas y el inventor desde la interfaz, como lo haría Vanessa con la demostración: ella conduce la ronda y explora cada
+ * mesa con su propio personaje (la demostración es una sala de una sola persona).
+ */
 async function playJourney(page: Page, label: string) {
-  const share = async (text: string) => {
-    await page.getByLabel("Tu respuesta").fill(text);
-    await page.getByRole("button", { name: "Compartir con el grupo" }).click();
-  };
-  const open = async (title: string) => {
+  const explore = async (title: string, next: string, experiment: () => Promise<void>) => {
+    await page.getByRole("button", { name: `Abrir mesa: ${title}` }).click();
+    await page.getByText("0 de 1 listos").first().waitFor();
     await page.getByText("Mesas", { exact: true }).click();
-    await page.getByRole("button", { name: title, exact: true }).click();
+    await page.getByRole("button", { name: "Ir a la mesa actual" }).click();
     await page.getByRole("heading", { name: title }).waitFor();
-  };
-  const back = async () => {
+    await experiment();
+    await page.getByText("✓ Listo para conversar").waitFor();
     await page.getByRole("button", { name: "Volver al mapa" }).click();
-    await page.getByText("Mesas", { exact: true }).waitFor();
+    await page.getByText("1 de 1 listos").first().waitFor();
+    await page.getByRole("button", { name: "Conversemos" }).click(); // con todas las personas listas no hay nada que confirmar
+    await page.getByRole("button", { name: "Mostrar la frase de Freire" }).click();
+    await page.getByRole("button", { name: next }).click();
   };
-  await open("Sombras");
-  await share(`${label}: la luz estira la sombra`);
-  const slider = page.getByRole("slider", { name: "Distancia de la linterna al objeto" });
-  await slider.waitFor();
-  await slider.fill("40");
-  await page.getByRole("button", { name: "Anotar esta posición" }).click();
-  await slider.fill("20");
-  await page.getByRole("button", { name: "Anotar esta posición" }).click();
-  await page.getByText("Paso 3 de 4").waitFor();
-  await share("De cerca la sombra es más grande");
-  await page.getByRole("radio", { name: "Elegir una pregunta" }).check();
-  await page.getByRole("radio", { name: "¿Qué pasaría si movemos el objeto?" }).check();
-  await page.getByRole("button", { name: "Compartir con el grupo" }).click();
-  await page.getByText("Mesa completada").waitFor();
-  await back();
+  await explore("Sombras", "Abrir siguiente mesa: Rampas", async () => {
+    const slider = page.getByRole("slider", { name: "Distancia de la linterna al objeto" });
+    await slider.waitFor();
+    await slider.fill("40");
+    await page.locator(".results li").nth(0).waitFor();
+    await slider.fill("20");
+    await page.locator(".results li").nth(1).waitFor();
+  });
+  await openPanel(page, /Cuaderno del grupo/);
+  await page.getByLabel(/Idea del grupo \(síntesis/).fill(`${label}: la luz estira la sombra`);
+  await page.getByRole("button", { name: "Guardar la idea", exact: true }).click();
+  await page.locator(".adventure__panels .records .record__text", { hasText: `${label}: la luz estira la sombra` }).waitFor();
 
-  await open("Rampas");
-  await page.getByRole("button", { name: "Tengo una pregunta" }).click();
-  await share("¿Por qué baja más rápido?");
-  await page.getByRole("radio", { name: "Todavía no sé" }).check();
-  await page.getByRole("button", { name: "Compartir con el grupo" }).click();
-  const angle = page.getByRole("slider", { name: "Inclinación de la rampa" });
-  await angle.waitFor();
-  for (const idx of ["0", "6"]) {
-    await angle.fill(idx);
-    await page.getByRole("button", { name: "Soltar la pelota" }).click();
-    await page.getByRole("button", { name: "Soltar la pelota" }).waitFor({ timeout: 15_000 }); // vuelve a estar disponible al terminar
-  }
-  await page.getByText("Paso 5 de 5").waitFor();
-  await share("Con más inclinación la pelota llega antes");
-  await page.getByText("Mesa completada").waitFor();
-  await back();
+  await explore("Rampas", "Abrir siguiente mesa: La caja de las sorpresas", async () => {
+    const angle = page.getByRole("slider", { name: "Inclinación de la rampa" });
+    await angle.waitFor();
+    for (const idx of ["0", "6"]) {
+      await angle.fill(idx);
+      await page.getByRole("button", { name: "Soltar la pelota" }).click();
+      await page.getByRole("button", { name: "Soltar la pelota" }).waitFor({ timeout: 15_000 }); // vuelve a estar disponible al terminar
+    }
+  });
 
-  await open("La caja de las sorpresas");
-  await page.getByRole("button", { name: "Abrir la caja para explorar" }).click();
-  await page.getByRole("button", { name: "Campanita" }).click();
-  await page.getByRole("button", { name: "Pedir permiso para abrir la caja personal" }).click();
-  await page.getByRole("button", { name: "Entendido" }).click();
-  await page.getByRole("button", { name: "Respetar y seguir explorando" }).click();
-  await page.getByRole("button", { name: "Lupa" }).click();
-  await page.getByLabel("Tu respuesta").fill("¿Por qué las cosas se ven más grandes con una lupa?");
-  await page.getByRole("radio", { name: "Lupa" }).check();
-  await page.getByRole("button", { name: "Compartir con el grupo" }).click();
-  await page.getByText("Mesa completada").waitFor();
-  await back();
+  await explore("La caja de las sorpresas", "Pasar al inventor", async () => {
+    await page.getByRole("button", { name: "Campanita" }).click();
+    await page.getByRole("button", { name: "Pedir permiso para abrir la caja personal" }).click();
+    await page.getByText("Prefiero guardar esas cosas para mí").waitFor();
+  });
 
-  await open("El inventor");
-  await page.getByRole("button", { name: "Colocar las piezas" }).click();
-  await page.getByRole("radio", { name: "La diremos en voz alta" }).check();
-  await page.getByRole("button", { name: "Compartir la pregunta final" }).click();
-  await page.getByText("Aventura completa").waitFor();
+  // Cierre: la pregunta final se escribe, se revisa y se confirma antes de imprimirse en el inventor.
+  await page.getByLabel("Pregunta final del grupo").fill("¿Por qué las cosas cambian cuando las miramos de cerca?");
+  await page.getByRole("button", { name: "Revisar y confirmar" }).click();
+  await page.getByRole("button", { name: "Sí, imprimirla en el inventor" }).click();
+  await page.getByText("Cada descubrimiento puede abrir otra pregunta.").first().waitFor();
 }
 
 const demoState = (page: Page) =>
   page.evaluate(() => {
     const raw = localStorage.getItem("laboratorio-cosas-cotidianas:v1:demo:estado");
-    return raw ? (JSON.parse(raw) as { room: { phase: string; roomGeneration: number; adventure: { pieces: string[]; notebook: Array<{ text: string | null; field: string }>; inventor: { finalQuestionId?: string } } } }).room : null;
+    return raw ? (JSON.parse(raw) as { room: { phase: string; roomGeneration: number; adventure: { pieces: string[]; notebook: Array<{ text: string | null; kind: string }>; inventor: { finalQuestionId?: string } } } }).room : null;
   });
 const FAIL_NOISE = [/Failed to load resource/i, /WebSocket connection/i, /ERR_CONNECTION_REFUSED/i, /net::ERR/i];
 
@@ -134,17 +124,16 @@ try {
   const ana = await open("ana", { width: 390, height: 844 }, `${BASE}/sala/${code}`, FAIL_NOISE);
   await ana.page.getByLabel("Tu nombre").fill("Ana");
   await ana.page.getByRole("button", { name: "Entrar a la sala" }).click();
-  await ana.page.getByText("Estás en la sala. Sigue la aventura en la proyección").waitFor();
+  await ana.page.getByText("Vanessa comenzará la aventura en un momento.").waitFor();
   await admin.page.locator(".participant").first().waitFor();
-  await admin.page.getByRole("button", { name: "Dar el turno a Ana", exact: true }).click();
-  await admin.page.getByRole("button", { name: "Comenzar con Ana" }).click();
-  await ana.page.getByText("Es tu turno, Ana").waitFor();
-  await ana.page.getByText("Mesas", { exact: true }).click();
-  await ana.page.getByRole("button", { name: "Sombras", exact: true }).click();
-  await ana.page.getByLabel("Tu respuesta").fill("Mi idea REAL de la sala");
-  await ana.page.getByRole("button", { name: "Compartir con el grupo" }).click();
-  await admin.page.locator(".adventure__activity .record--first").waitFor();
-  check(true, "la sala real tiene progreso confirmado: la primera idea de Ana");
+  await admin.page.getByRole("button", { name: "Comenzar la aventura" }).click();
+  await ana.page.locator("canvas").waitFor();
+  await admin.page.getByRole("button", { name: "Abrir mesa: Sombras" }).click();
+  await openPanel(admin.page, /Cuaderno del grupo/);
+  await admin.page.getByLabel("Idea inicial del grupo").fill("Mi idea REAL de la sala");
+  await admin.page.getByRole("button", { name: "Guardar la idea inicial" }).click();
+  await admin.page.locator(".adventure__panels .records .record__text", { hasText: "Mi idea REAL de la sala" }).waitFor();
+  check(true, "la sala real tiene progreso confirmado: la idea inicial del grupo");
 
   // El respaldo se prepara mientras todo funciona: el módulo de la demostración ya está descargado.
   const t0 = Date.now();
@@ -174,7 +163,6 @@ try {
   await admin.page.screenshot({ path: join(EVIDENCE, "02-demostracion-mapa.png") });
 
   await playJourney(admin.page, "Demo");
-  await admin.page.getByText("Cada descubrimiento puede abrir otra pregunta.").first().waitFor();
   check(true, "la demostración recorre las tres mesas y el inventor hasta el final, sin servidor");
   await admin.page.screenshot({ path: join(EVIDENCE, "03-demostracion-final.png") });
   const demo = await demoState(admin.page);
@@ -188,13 +176,13 @@ try {
   app2 = createServerApp({ settings: { ...settings, port }, project });
   await app2.listen(port);
   await admin.page.getByRole("button", { name: `Volver a la sala ${code}` }).click();
-  await admin.page.getByText(/Explora:|Nadie tiene el turno/).first().waitFor({ timeout: 25_000 });
-  await admin.page.getByText(/^Cuaderno \(/).first().click();
+  await admin.page.getByText("Mesa 1 de 3: Sombras").waitFor({ timeout: 25_000 });
+  await openPanel(admin.page, /Cuaderno del grupo/);
   await sleep(600);
   const room = app2.service.inspect(code)!.state;
-  check(JSON.stringify(room.adventure.notebook) === roomBefore && room.adventure.notebook.length === 1 && room.roomGeneration === generation, "al volver, la sala sigue con SU estado: un solo registro, el de Ana; nada de la demostración se mezcló");
+  check(JSON.stringify(room.adventure.notebook) === roomBefore && room.adventure.notebook.length === 1 && room.roomGeneration === generation, "al volver, la sala sigue con SU estado: una sola nota, la del grupo; nada de la demostración se mezcló");
   check(room.adventure.pieces.length === 0 && room.phase === "paused", "sin piezas de la demostración y recuperada en pausa (reinicio del servicio): Vanessa decide cuándo continuar");
-  const roomText = await admin.page.locator(".adventure__panels .notebook").innerText();
+  const roomText = await admin.page.locator(".adventure__panels .records").innerText();
   check(roomText.includes("Mi idea REAL de la sala") && !roomText.includes("Demo:"), "la pantalla de la sala muestra solo su propio cuaderno");
   await admin.page.screenshot({ path: join(EVIDENCE, "04-sala-intacta-al-volver.png") });
   await admin.ctx.close();
@@ -230,7 +218,6 @@ try {
   const localFailures: string[] = [];
   local.page.on("requestfailed", (r) => localFailures.push(r.url()));
   await playJourney(local.page, "Local");
-  await local.page.getByText("Cada descubrimiento puede abrir otra pregunta.").first().waitFor();
   check(localFailures.length === 0, "con la red cortada del todo, la demostración completa la aventura sin una sola petición fallida");
   await local.page.screenshot({ path: join(EVIDENCE, "05-demostracion-sin-red.png") });
 
@@ -242,9 +229,9 @@ try {
   check(true, "al recargar la demostración recupera lo guardado y vuelve en pausa (Vanessa decide cuándo seguir)");
   await local.page.getByRole("button", { name: "Reiniciar la demostración" }).click();
   await local.page.getByRole("button", { name: "Sí, reiniciar" }).click();
-  await local.page.getByText("Mesas", { exact: true }).waitFor();
+  await local.page.getByRole("button", { name: "Abrir mesa: Sombras" }).waitFor();
   const reset = await demoState(local.page);
-  check(reset?.adventure.notebook.length === 0 && reset.adventure.pieces.length === 0 && reset.roomGeneration === 2, "«Reiniciar la demostración» la deja desde cero, en el mapa");
+  check(reset?.adventure.notebook.length === 0 && reset.adventure.pieces.length === 0 && reset.roomGeneration === 2, "«Reiniciar la demostración» la deja desde cero, lista para abrir la primera mesa");
 
   check(problems.length === 0, `sin errores de página ni de consola ajenos a la red caída${problems.length ? `: ${problems.join(" | ")}` : ""}`);
   console.log("\nE2E de la demostración local y el respaldo (fase 6): OK");

@@ -1,11 +1,12 @@
 /// <reference lib="dom" />
 // Herramienta de ensayo con dispositivos reales o simulados (P7-06): levanta el servidor de verdad con el build (`npm run build` antes),
 // crea una sala, abre la consola de Vanessa en un navegador de ESTA computadora (la proyección) y ofrece un panel de control HTTP
-// local para repartir turnos y sacar capturas mientras se prueban los celulares.
+// local para conducir las rondas y sacar capturas mientras se prueban los celulares.
 //
 //   npm run ensayo                      → sala nueva; imprime la dirección que deben abrir los celulares
-//   curl 'http://127.0.0.1:3412/state'  → participantes, fase, quién explora
-//   curl 'http://127.0.0.1:3412/give?name=Ana'   · /start · /pause · /resume · /reset · /shot?path=/ruta/captura.png
+//   curl 'http://127.0.0.1:3412/state'  → participantes, fase, ronda y cuántas personas están listas
+//   curl 'http://127.0.0.1:3412/start'  → comienza; luego /open (abrir la mesa) · /converse[?pending=1] · /freire · /next
+//   y también /pause · /resume · /reset · /shot?path=/ruta/captura.png
 //
 // El panel de control solo escucha en 127.0.0.1. Las credenciales nunca salen de este proceso ni aparecen en direcciones.
 import { createServer } from "node:http";
@@ -51,27 +52,48 @@ await page.getByText("Entra con tu celular").waitFor();
 
 const state = () => {
   const s = app.service.inspect(code)!.state;
-  return { code, phase: s.phase, controlOwner: s.controlOwner, view: s.adventure.view, pieces: s.adventure.pieces, records: s.adventure.notebook.length, participants: app.repo.listPrincipals(s.roomId).filter((p) => p.role === "participant").map((p) => ({ name: p.name, distinction: p.distinction, id: p.principalId })) };
+  const r = s.adventure.round;
+  const people = app.repo.listPrincipals(s.roomId).filter((p) => p.role === "participant");
+  return {
+    code,
+    phase: s.phase,
+    round: { mesa: project.config.route[r.index] ?? "inventor", etapa: r.stage, enLaRonda: r.roster.length + r.included.length, pendientesAlConversar: r.pendingAtConversation.length },
+    pieces: s.adventure.pieces,
+    notes: s.adventure.notebook.length,
+    participants: people.map((p) => ({ name: p.name, distinction: p.distinction, observer: p.observer, id: p.principalId, ...(s.participants[p.principalId] ? { view: s.participants[p.principalId]!.view.kind } : {}) })),
+  };
 };
 
-const openPanel = async () => {
-  const panel = page.getByText(/Participantes \(/);
-  if ((await page.getByRole("button", { name: /Dar el turno a|Dar turno/ }).count()) === 0) await panel.click();
-};
 const actions: Record<string, (q: URLSearchParams) => Promise<unknown>> = {
-  async give(q) {
-    const name = q.get("name")!;
-    if (state().phase === "welcome") {
-      await page.getByRole("button", { name: `Dar el turno a ${name}`, exact: true }).click();
-      return "turno asignado (bienvenida)";
-    }
-    await openPanel();
-    await page.getByRole("button", { name: `Dar el turno a ${name}` }).click();
-    return "turno asignado";
-  },
   async start() {
-    await page.getByRole("button", { name: /^Comenzar con / }).click();
+    await page.getByRole("button", { name: "Comenzar la aventura" }).click();
     return "comenzó";
+  },
+  async open() {
+    await page.getByRole("button", { name: /^Abrir mesa: / }).click();
+    return "mesa abierta: las personas ya pueden explorar";
+  },
+  async converse(q) {
+    await page.getByRole("button", { name: "Conversemos" }).click();
+    // Con personas pendientes pide confirmación: solo se confirma si se pidió expresamente (`?pending=1`).
+    const dialog = page.getByRole("alertdialog");
+    if (await dialog.isVisible({ timeout: 500 }).catch(() => false)) {
+      if (q.get("pending") !== "1") {
+        await dialog.getByRole("button", { name: "Cancelar" }).click();
+        return "faltan personas por terminar; usa /converse?pending=1 para pasar a conversación con pendientes";
+      }
+      await dialog.getByRole("button", { name: "Pasar a conversación con pendientes" }).click();
+      return "conversación, con pendientes";
+    }
+    return "conversación";
+  },
+  async freire() {
+    await page.getByRole("button", { name: "Mostrar la frase de Freire" }).click();
+    return "frase de Freire proyectada";
+  },
+  async next() {
+    await page.getByRole("button", { name: /^Abrir siguiente mesa: |^Pasar al inventor/ }).click();
+    return "siguiente mesa (o cierre)";
   },
   async pause() {
     await page.getByRole("button", { name: "Pausar" }).click();
@@ -114,7 +136,7 @@ console.log(`\nSala de ensayo ${code}`);
 console.log(`  desde esta computadora : http://127.0.0.1:${PORT}/sala/${code}`);
 for (const ip of lan) console.log(`  desde celulares reales : http://${ip}:${PORT}/sala/${code}   (misma red wifi)`);
 console.log(`  emulador de Android    : http://10.0.2.2:${PORT}/sala/${code}`);
-console.log(`  panel de control       : http://127.0.0.1:${CONTROL_PORT}/state   (/give?name=… /start /pause /resume /reset /shot?path=…)`);
+console.log(`  panel de control       : http://127.0.0.1:${CONTROL_PORT}/state   (/start /open /converse /freire /next /pause /resume /reset /shot?path=…)`);
 console.log("  Ctrl+C para terminar.\n");
 
 const stop = async () => {

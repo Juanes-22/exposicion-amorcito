@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
-// Prueba e2e de la fase 2: administradora + dos participantes en contextos de navegador independientes (credenciales propias),
-// contra el servidor real que sirve el build. Ejecutar con `npx tsx scripts/e2e/room-flow.ts` tras `npm run build`.
+// Prueba e2e de la sala (fase 2, con rondas simultáneas): administradora + dos participantes en contextos de navegador independientes
+// (credenciales propias), contra el servidor real que sirve el build. Ejecutar con `npx tsx scripts/e2e/room-flow.ts` tras `npm run build`.
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -64,69 +64,57 @@ try {
   await ana.page.setViewportSize(phone);
   await shot(ana.page, "02-entrada-ana.png");
   await ana.page.getByRole("button", { name: "Entrar a la sala" }).click();
-  await ana.page.getByText("Estás en la sala. Sigue la aventura en la proyección").waitFor();
+  await ana.page.getByText("Vanessa comenzará la aventura en un momento.").waitFor();
   const beto = await open("beto", phone, `/sala/${code}`);
   await beto.page.getByLabel("Tu nombre").fill("ana");
   await beto.page.getByRole("radio", { name: "Verde" }).check();
   await beto.page.getByRole("button", { name: "Entrar a la sala" }).click();
-  await beto.page.getByText("Estás en la sala. Sigue la aventura en la proyección").waitFor();
-  check((await beto.page.locator("h1").innerText()) === "ana · 2", "nombres repetidos conservan identidades distintas («ana · 2»)");
-  check((await canvases(ana.page)) === 0 && (await canvases(beto.page)) === 0, "quien espera no monta ningún canvas del mapa (CA-04)");
+  await beto.page.getByText("Vanessa comenzará la aventura en un momento.").waitFor();
+  check((await beto.page.locator(".banner").first().innerText()).includes("ana · 2"), "nombres repetidos conservan identidades distintas («ana · 2»)");
   await shot(ana.page, "03-espera-ana.png");
 
-  // 3. Vanessa ve a ambas conectadas, da el turno a Ana y comienza.
+  // 3. Vanessa ve a ambas conectadas y comienza: no hay turnos, las dos exploran a la vez.
   await admin.page.locator(".participant").nth(1).waitFor();
   check((await admin.page.locator(".participant").count()) === 2, "Vanessa ve las dos tarjetas de participantes");
-  check((await admin.page.getByText("2 conectadas").count()) === 1, "la cantidad conectada se muestra");
+  check((await admin.page.getByText("2 personas conectadas").count()) === 1, "la cantidad conectada se muestra");
+  check((await admin.page.getByRole("button", { name: /Dar el turno|Comenzar con/ }).count()) === 0, "ya no existen turnos ni «Dar el turno»: todas las personas participan");
   await shot(admin.page, "04-bienvenida-vanessa-con-participantes.png");
-  await admin.page.getByRole("button", { name: "Dar el turno a Ana", exact: true }).click();
-  await admin.page.getByRole("button", { name: "Comenzar con Ana" }).click();
-  await ana.page.getByText("Es tu turno, Ana").waitFor();
+  await admin.page.getByRole("button", { name: "Comenzar la aventura" }).click();
   await ana.page.locator("canvas").waitFor();
-  await admin.page.getByText("Explora: Ana").waitFor();
-  await admin.page.locator("canvas").waitFor();
-  check((await canvases(ana.page)) === 1 && (await canvases(admin.page)) === 1, "Ana (controladora) y Vanessa (proyección) montan UNA escena cada una");
-  check((await canvases(beto.page)) === 0, "la persona en espera sigue sin canvas mientras Ana juega");
-  await ana.page.waitForTimeout(800);
-  await shot(ana.page, "05-turno-ana-telefono.png");
-  await shot(admin.page, "06-proyeccion-explora-ana.png");
-
-  // 4. Cambio de turno: Ana vuelve a espera, Beto recibe el mapa.
-  // Los paneles de moderación arrancan plegados para no tapar el mapa proyectado: Vanessa abre «Participantes».
-  check((await admin.page.getByRole("button", { name: "Dar el turno a ana · 2" }).isVisible()) === false, "los paneles de moderación arrancan plegados y no cubren el mapa");
-  await admin.page.getByText("Participantes (2 conectadas)").click();
-  const t0 = Date.now();
-  await admin.page.getByRole("button", { name: "Dar el turno a ana · 2" }).click();
-  await beto.page.getByText("Es tu turno, ana · 2").waitFor();
-  const turnMs = Date.now() - t0;
   await beto.page.locator("canvas").waitFor();
-  await ana.page.getByText("Estás en la sala. Sigue la aventura en la proyección").waitFor();
-  await ana.page.waitForFunction(() => document.querySelectorAll("canvas").length === 0);
-  check((await canvases(ana.page)) === 0 && (await canvases(beto.page)) === 1, "el cambio de turno retira el mapa a Ana y lo monta para Beto");
-  check(await ana.page.getByText("Explora: ana · 2").count() === 1, "Ana ve de quién es el turno");
-  console.log(`  ℹ turno visible en el teléfono de Beto ${turnMs} ms después del clic (medición informal, un solo intento, mismo equipo)`);
-  await shot(beto.page, "07-turno-beto-telefono.png");
+  await admin.page.locator("canvas").waitFor();
+  await admin.page.getByText("Mesa 1 de 3: Sombras").waitFor();
+  check((await canvases(ana.page)) === 1 && (await canvases(beto.page)) === 1 && (await canvases(admin.page)) === 1, "las dos personas y la proyección montan UNA escena cada una");
+  await ana.page.waitForTimeout(800);
+  await shot(ana.page, "05-ana-telefono.png");
+  await shot(admin.page, "06-proyeccion.png");
 
-  // 5. Pausa: congela y se ve en las vistas con texto; reanudar.
+  // 4. Pausa: congela y se ve en las vistas con texto; reanudar.
   await admin.page.getByRole("button", { name: "Pausar" }).click();
   await admin.page.getByRole("heading", { name: "En pausa" }).waitFor();
+  await ana.page.getByRole("heading", { name: "En pausa" }).waitFor();
   await beto.page.getByRole("heading", { name: "En pausa" }).waitFor();
-  await shot(admin.page, "08-pausa-proyeccion.png");
-  check((await admin.page.getByRole("heading", { name: "En pausa" }).count()) === 1 && (await beto.page.getByRole("heading", { name: "En pausa" }).count()) === 1, "la pausa llega con texto a la proyección y al controlador");
+  await shot(admin.page, "07-pausa-proyeccion.png");
+  check((await admin.page.getByRole("heading", { name: "En pausa" }).count()) === 1 && (await ana.page.getByRole("heading", { name: "En pausa" }).count()) === 1, "la pausa llega con texto a la proyección y a los celulares");
   await admin.page.getByRole("button", { name: "Reanudar" }).click();
   await admin.page.getByRole("heading", { name: "En pausa" }).waitFor({ state: "detached" });
-  await beto.page.getByRole("heading", { name: "En pausa" }).waitFor({ state: "detached" });
-  check((await canvases(beto.page)) === 1, "reanudar devuelve el mapa al controlador sin recrear nada");
+  await ana.page.getByRole("heading", { name: "En pausa" }).waitFor({ state: "detached" });
+  check((await canvases(ana.page)) === 1, "reanudar devuelve el mapa sin recrear nada");
 
-  // 6. Recarga de Vanessa: recupera administración y la sala queda pausada.
+  // 5. Recarga de Vanessa: recupera administración y la sala queda pausada.
   await admin.page.reload();
-  await admin.page.getByText("Explora: ana · 2").waitFor();
+  await admin.page.getByText("Mesa 1 de 3: Sombras").waitFor();
   await admin.page.getByRole("heading", { name: "En pausa" }).waitFor();
   check((await admin.page.getByRole("button", { name: "Reanudar" }).count()) === 1, "al recargar, Vanessa recupera la administración con la sala pausada (CA-26)");
   await shot(admin.page, "09-vanessa-recarga-pausada.png");
 
+  // 6. Recarga de una participante: conserva su credencial, su personaje y su sitio.
+  await ana.page.reload();
+  await ana.page.locator("canvas").waitFor();
+  check((await ana.page.locator(".banner").first().innerText()).includes("Ana"), "al recargar, Ana conserva su credencial y vuelve a su sala");
+
   check(problems.length === 0, `sin errores de consola ni de página en los tres contextos${problems.length ? `: ${problems.join(" | ")}` : ""}`);
-  console.log("\nE2E de la fase 2: OK");
+  console.log("\nE2E de la sala: OK");
 } finally {
   await browser.close();
   await app.close();

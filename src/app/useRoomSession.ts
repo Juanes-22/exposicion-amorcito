@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { drafts } from "../components/activities/drafts";
 import { clearCredential, loadCredential, saveCredential, type StoredCredential } from "./credentials";
 import { RoomController, type RoomClientState } from "./RoomController";
 
-const EMPTY: RoomClientState = { status: "connecting", summary: null, presence: null, snapshot: null, pending: 0, notice: null };
+const EMPTY: RoomClientState = { status: "connecting", summary: null, group: null, me: null, characters: {}, presence: null, pending: 0, notice: null };
 const noopSubscribe = () => () => undefined;
 const emptyState = () => EMPTY;
 
@@ -36,14 +35,9 @@ export function useRoomSession(code: string): RoomSession {
     if (!credential) return;
     const c = new RoomController(socketUrl(), credential.token, { path: socketPath() });
     c.onUnauthorized = () => {
-      drafts.forgetRoom(code);
       clearCredential(code);
       setCredential(null);
     };
-    // Perder el turno con texto sin compartir en este dispositivo: el borrador se conserva localmente y se avisa (SPECS 3.1).
-    c.turnLossHint = () => (drafts.hasUnshared(code) ? "Quedó un texto sin compartir en tu borrador; no se envió al grupo." : null);
-    // Tras «Reiniciar la aventura» los borradores de la aventura anterior no deben reaparecer en los formularios nuevos.
-    c.onGenerationChange = () => drafts.forgetRoom(code);
     c.connect();
     setController(c);
     return () => {
@@ -61,7 +55,6 @@ export function useRoomSession(code: string): RoomSession {
     [code],
   );
   const leave = useCallback(() => {
-    drafts.forgetRoom(code);
     clearCredential(code);
     setCredential(null);
   }, [code]);

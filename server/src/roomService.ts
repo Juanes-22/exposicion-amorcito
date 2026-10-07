@@ -1,28 +1,44 @@
 import { contentHash } from "../../shared/config/hash";
 import type { ProjectBundle } from "../../shared/config/validateProject";
-import type { AdminCommand, AdventureCommand, CommandResult } from "../../shared/contracts/actions";
-import type { ClientToServerEvents, CreateRoomResponse, EffectEvent, JoinRoomRequest, JoinRoomResponse, ParticipantInfo, PresenceUpdate, PublicController, RoomPublicInfo, RoomSnapshot, RoomSummary, ServerToClientEvents, SyncResult } from "../../shared/contracts/events";
+import type { AdminCommand, CommandResult, ParticipantCommand } from "../../shared/contracts/actions";
+import type {
+  ClientToServerEvents,
+  ClockSample,
+  CreateRoomResponse,
+  EffectEvent,
+  GroupSnapshot,
+  JoinRoomRequest,
+  JoinRoomResponse,
+  MeSnapshot,
+  ParticipantInfo,
+  PresenceUpdate,
+  PublicCharacter,
+  RoomPublicInfo,
+  RoomSummary,
+  ServerToClientEvents,
+  SyncResult,
+} from "../../shared/contracts/events";
 import { PARTICIPANT_COLOR_IDS, type CommandErrorCode, type HttpErrorCode } from "../../shared/contracts/limits";
-import type { RoomPhase, RoomState } from "../../shared/contracts/state";
+import type { AdventureState, RoomPhase, RoomState } from "../../shared/contracts/state";
 import { displayNameFor, nameKey, normalizeName } from "../../shared/domain/text";
 import {
   applyAdminAction,
-  applyAdventureAction,
+  applyParticipantAction,
   checkGeneration,
-  checkTurn,
+  checkRound,
   createRoomState,
+  ensureParticipant,
   expireRoom,
-  isPlayable,
+  isClockRunning,
+  isSimulating,
   isTerminal,
   onAdminLost,
-  onControllerLost,
   recoverAfterRestart,
-  sameOwner,
   tickRoom,
-  type PresenceView,
   type RoomChange,
 } from "../../shared/domain/room";
-import { buildSimulationFrame, isSimulating } from "../../shared/domain/frames";
+import { personReadiness } from "../../shared/domain/results";
+import { currentActivityId, roundCounter, roundMembers } from "../../shared/domain/round";
 import { hashToken, newId, newRoomCode, newToken } from "./auth";
 import type { ServerSettings } from "./config";
 import type { PrincipalRecord, RoomRepository, StoredCommand } from "./db";
@@ -43,13 +59,12 @@ export class ServiceError extends Error {
 type EventName = keyof ServerToClientEvents;
 type EventArgs<E extends EventName> = Parameters<ServerToClientEvents[E]>;
 
-/** Lo que el servicio necesita del transporte: entrega a conexiones concretas y al canal de vista (SPECS 5.5). */
+/** Lo que el servicio necesita del transporte: entrega a conexiones concretas y al canal de toda la sala. */
 export interface Outbox {
   send<E extends EventName>(principalId: string, event: E, ...args: EventArgs<E>): void;
-  /** Canal de vista: administradora y controlador actual, nadie más. */
-  sendToView<E extends EventName>(roomId: string, event: E, ...args: EventArgs<E>): void;
-  joinView(principalId: string, roomId: string): void;
-  leaveView(principalId: string, roomId: string): void;
+  /** Canal de la sala: todas las personas conectadas (Vanessa, participantes y observadores). */
+  broadcast<E extends EventName>(roomId: string, event: E, ...args: EventArgs<E>): void;
+  join(principalId: string, roomId: string): void;
   /** Cierra la conexión vigente de una identidad (salas terminales). */
   close(principalId: string): void;
 }
@@ -87,10 +102,11 @@ interface Runtime {
   adminId: string;
   /** Último `commandSeq` aceptado de la conexión administrativa vigente. */
   lastAdminSeq: number;
-  /** Reloj monotónico en el último commit: el tiempo activo corre desde aquí mientras la sala es jugable. */
+  /** Reloj monotónico en el último commit: el tiempo activo corre desde aquí mientras la sala está en curso. */
   anchor: number;
   /** Marcas del bucle de simulación (SPECS 5.6, 6.1). */
-  frameSeq: number;
+  clockSeq: number;
+  lastClock: number;
   lastCheckpoint: number;
   tickBusy: boolean;
   queue: Promise<unknown>;
@@ -100,6 +116,8 @@ interface Runtime {
   adminActiveAt: number;
   /** Cuándo pasó a terminal (ms de reloj de pared); `null` mientras siga viva. Con él se decide la limpieza. */
   terminalAt: number | null;
+  /** Último contador enviado a Vanessa: solo se vuelve a enviar cuando algo que le importa cambió. */
+  lastPresenceKey: string;
 }
 
 export interface AuthIdentity {
@@ -109,6 +127,9 @@ export interface AuthIdentity {
 }
 
 const failure = (requestId: string, code: CommandErrorCode, message: string): CommandResult => ({ ok: false, requestId, code, message });
+
+/** Lo del estado de grupo que importa a todas las personas: si no cambia, no se vuelve a enviar. */
+const groupKey = (a: AdventureState): string => JSON.stringify([a.round, a.completed, a.pieces, a.notebook, a.presentedNoteId, a.inventor]);
 
 export class RoomService {
   private readonly repo: RoomRepository;
@@ -135,11 +156,32 @@ export class RoomService {
     this.joinLimiter = new KeyedLimiter(this.settings.rateLimits.joinPerMinute, this.settings.rateLimits.joinPerMinute / 60);
   }
 
+  private newRuntime(state: RoomState, principals: Map<string, PrincipalRecord>, adminId: string, adminActiveAt: number, terminalAt: number | null): Runtime {
+    return {
+      state,
+      principals,
+      presence: new Map(),
+      adminId,
+      lastAdminSeq: 0,
+      anchor: this.mono(),
+      clockSeq: 0,
+      lastClock: this.mono(),
+      lastCheckpoint: this.mono(),
+      tickBusy: false,
+      queue: Promise.resolve(),
+      configMismatch: this.mismatch(state),
+      buckets: new Map(),
+      adminActiveAt,
+      terminalAt,
+      lastPresenceKey: "",
+    };
+  }
+
   // ---- arranque y recuperación ------------------------------------------------------------------------
 
   /**
-   * Recupera las salas durables. Las salas en curso quedan pausadas, sin propietario y con `turnVersion` nuevo; la presencia se
-   * reconstruye como desconectada y no se suma el tiempo que el servidor estuvo apagado (SPECS 6.1).
+   * Recupera las salas durables. Las salas en curso quedan pausadas y con `roundVersion` nuevo; la presencia se reconstruye como
+   * desconectada y no se suma el tiempo que el servidor estuvo apagado (SPECS 6.1).
    */
   start(): { recovered: number; unreadable: number } {
     const { rooms, unreadable } = this.repo.loadRooms();
@@ -158,22 +200,7 @@ export class RoomService {
         this.log.error("sala sin administradora: no se carga", { roomId: state.roomId });
         continue;
       }
-      this.rooms.set(state.roomId, {
-        state,
-        principals,
-        presence: new Map(),
-        adminId: admin.principalId,
-        lastAdminSeq: 0,
-        anchor: this.mono(),
-        frameSeq: 0,
-        lastCheckpoint: this.mono(),
-        tickBusy: false,
-        queue: Promise.resolve(),
-        configMismatch: this.mismatch(state),
-        buckets: new Map(),
-        adminActiveAt: Date.parse(stored.lastAdminActivityAt) || this.now().getTime(),
-        terminalAt: isTerminal(state.phase) ? (Date.parse(stored.terminalAt ?? "") || this.now().getTime()) : null,
-      });
+      this.rooms.set(state.roomId, this.newRuntime(state, principals, admin.principalId, Date.parse(stored.lastAdminActivityAt) || this.now().getTime(), isTerminal(state.phase) ? Date.parse(stored.terminalAt ?? "") || this.now().getTime() : null));
       this.byCode.set(state.code, state.roomId);
       if (this.mismatch(state)) this.log.warn("CONFIG_MISMATCH: la sala usa otra revisión de configuración o mapa", { roomId: state.roomId });
     }
@@ -205,14 +232,14 @@ export class RoomService {
     const roomId = newId();
     const state = createRoomState({ roomId, code, config: this.project.config, map: this.project.map, configHash: this.project.configHash, mapHash: this.project.mapHash, nowIso });
     const token = newToken();
-    const admin: PrincipalRecord = { principalId: newId(), roomId, role: "admin", name: this.adminName(), nameKey: "", color: null, distinction: 1, tokenHash: hashToken(token), createdAt: nowIso };
+    const admin: PrincipalRecord = { principalId: newId(), roomId, role: "admin", name: this.adminName(), nameKey: "", color: null, distinction: 1, observer: false, tokenHash: hashToken(token), createdAt: nowIso };
     try {
       this.repo.createRoom(state, admin, nowIso);
     } catch (e) {
       this.log.error("no se pudo crear la sala", { error: String(e) });
       throw new ServiceError(503, "INTERNAL", "No se pudo crear la sala. Intenta de nuevo.");
     }
-    this.rooms.set(roomId, { state, principals: new Map([[admin.principalId, admin]]), presence: new Map(), adminId: admin.principalId, lastAdminSeq: 0, anchor: this.mono(), frameSeq: 0, lastCheckpoint: this.mono(), tickBusy: false, queue: Promise.resolve(), configMismatch: false, buckets: new Map(), adminActiveAt: this.now().getTime(), terminalAt: null });
+    this.rooms.set(roomId, this.newRuntime(state, new Map([[admin.principalId, admin]]), admin.principalId, this.now().getTime(), null));
     this.byCode.set(code, roomId);
     // El enlace público lleva únicamente el código: nunca una credencial (CA-01).
     return { code, joinUrl: `${origin}/sala/${code}`, adminId: admin.principalId, adminToken: token };
@@ -237,16 +264,17 @@ export class RoomService {
     if (this.repo.countParticipants(rt.state.roomId) >= this.project.config.session.maxParticipants) throw new ServiceError(409, "ROOM_FULL", "La sala está llena.");
 
     const token = newToken();
+    const observer = body.observer === true;
     let record: PrincipalRecord;
     try {
-      record = this.repo.addParticipant({ principalId: newId(), roomId: rt.state.roomId, role: "participant", name: name.value, nameKey: nameKey(name.value), color: body.color, tokenHash: hashToken(token), createdAt: this.now().toISOString() });
+      record = this.repo.addParticipant({ principalId: newId(), roomId: rt.state.roomId, role: "participant", name: name.value, nameKey: nameKey(name.value), color: body.color, observer, tokenHash: hashToken(token), createdAt: this.now().toISOString() });
     } catch (e) {
       this.log.error("no se pudo registrar al participante", { error: String(e) });
       throw new ServiceError(503, "INTERNAL", "No se pudo entrar a la sala. Intenta de nuevo.");
     }
     rt.principals.set(record.principalId, record);
     this.sendPresence(rt);
-    return { principalId: record.principalId, name: record.name, displayName: displayNameFor(record.name, record.distinction), color: body.color, distinction: record.distinction, token };
+    return { principalId: record.principalId, name: record.name, displayName: displayNameFor(record.name, record.distinction), color: body.color, distinction: record.distinction, observer, token };
   }
 
   // ---- identidad de conexión ---------------------------------------------------------------------------
@@ -274,22 +302,18 @@ export class RoomService {
 
   // ---- reloj ---------------------------------------------------------------------------------------------
 
-  /** Tiempo activo actual: lo guardado en el último commit más lo corrido desde entonces, solo si la sala es jugable (invariante 6). */
+  /** Tiempo activo actual: lo guardado en el último commit más lo corrido desde entonces, solo con la sala en curso (invariante 6). */
   private liveActiveMs(rt: Runtime, at: number = this.mono()): number {
     const base = rt.state.adventure.timeline.activeMs;
-    return isPlayable(rt.state) ? base + Math.max(0, at - rt.anchor) : base;
+    return isClockRunning(rt.state) ? base + Math.max(0, at - rt.anchor) : base;
   }
 
-  /** La sala con el reloj al día. Antes de pausar, retirar control o cerrar hay que fijar el instante para no perder tiempo. */
+  /** La sala con el reloj al día y las pruebas vencidas asentadas. Antes de cualquier cambio hay que fijar el instante para no perder tiempo. */
   private settled(rt: Runtime, at: number = this.mono()): RoomState {
-    return tickRoom(rt.state, this.liveActiveMs(rt, at), this.project.config).room;
+    return tickRoom(rt.state, this.liveActiveMs(rt, at)).room;
   }
 
   // ---- presencia -----------------------------------------------------------------------------------------
-
-  private presenceView(rt: Runtime): PresenceView {
-    return { isConnected: (id) => rt.presence.get(id)?.connected === true, isParticipant: (id) => rt.principals.get(id)?.role === "participant" };
-  }
 
   private isConnected(rt: Runtime, id: string): boolean {
     return rt.presence.get(id)?.connected === true;
@@ -312,6 +336,7 @@ export class RoomService {
       const replacedSocketId = prev?.connected ? prev.socketId : null;
       const presence: Presence = { connected: true, epoch: (prev?.epoch ?? 0) + 1, socketId };
       rt.presence.set(id, presence);
+      this.out.join(id, rt.state.roomId);
 
       const before = rt.state;
       let next = before;
@@ -319,16 +344,25 @@ export class RoomService {
         if (identity.role === "admin") {
           rt.lastAdminSeq = 0;
           this.touchAdmin(rt);
-          // Quien recarga o sustituye su conexión recupera la administración con la aventura pausada (CA-26).
+          // Quien recarga o sustituye su conexión recupera la conducción con la aventura pausada (CA-26).
           next = this.applyPolicy(rt, onAdminLost);
-        } else if (replacedSocketId !== null && before.controlOwner?.principalId === id) {
-          // Un controlador sustituido pausa y pierde el control; el participante nuevo vuelve en espera (SPECS 5.1).
-          next = this.applyPolicy(rt, onControllerLost);
+        } else if (!rt.principals.get(id)?.observer) {
+          next = this.enroll(rt, id);
         }
       }
-      this.fanOut(rt, before, next, { presenceChanged: true, adminPresenceChanged: identity.role === "admin", includeSocketOf: id });
+      this.fanOut(rt, before, next, { joiner: id });
       return { epoch: presence.epoch, replacedSocketId, terminal: isTerminal(next.phase) };
     });
+  }
+
+  /** Da de alta el estado de quien juega, con su personaje en la entrada. Se guarda: forma parte de la sala. */
+  private enroll(rt: Runtime, principalId: string): RoomState {
+    if (rt.state.participants[principalId]) return rt.state;
+    const at = this.mono();
+    const next = ensureParticipant(this.settled(rt, at), principalId, this.project.config, this.project.map);
+    const failed = this.persist(rt, next, undefined, at);
+    if (failed) this.log.error("no se pudo guardar el alta de un participante; se reintenta al reconectar", { roomId: rt.state.roomId });
+    return rt.state;
   }
 
   /** Una desconexión solo cuenta si es la de la conexión vigente: se ignora la del socket sustituido. */
@@ -342,17 +376,15 @@ export class RoomService {
       rt.presence.set(id, { connected: false, epoch: p.epoch, socketId: null });
       const before = rt.state;
       let next = before;
-      if (!isTerminal(before.phase)) {
-        if (identity.role === "admin") next = this.applyPolicy(rt, onAdminLost);
-        else if (before.controlOwner?.principalId === id) next = this.applyPolicy(rt, onControllerLost);
-      }
-      this.fanOut(rt, before, next, { presenceChanged: true, adminPresenceChanged: identity.role === "admin" });
+      if (!isTerminal(before.phase) && identity.role === "admin") next = this.applyPolicy(rt, onAdminLost);
+      // Una persona que se desconecta conserva su progreso y su lugar en el contador: solo aparece «Sin conexión».
+      this.fanOut(rt, before, next, { disconnected: id });
     });
   }
 
   /**
-   * Aplica una política automática de conexión. Son transiciones de seguridad (pausar, retirar control): si la persistencia
-   * falla se aplican igualmente en memoria y se registra, porque dejar jugar a quien ya no está conectado es peor.
+   * Aplica una política automática de conexión. Son transiciones de seguridad (pausar): si la persistencia falla se aplican
+   * igualmente en memoria y se registra, porque dejar jugar sin quien conduce es peor.
    */
   private applyPolicy(rt: Runtime, policy: (room: RoomState) => RoomChange): RoomState {
     const at = this.mono();
@@ -390,21 +422,26 @@ export class RoomService {
 
   // ---- comandos ------------------------------------------------------------------------------------------
 
-  private bucket(rt: Runtime, kind: "adventure" | "admin", principalId: string): boolean {
+  private bucket(rt: Runtime, kind: "participant" | "admin", principalId: string): boolean {
     const rl = this.settings.rateLimits;
     let limiter = rt.buckets.get(kind);
     if (!limiter) {
-      limiter = kind === "admin" ? new KeyedLimiter(rl.adminBurst, rl.adminPerSecond) : new KeyedLimiter(rl.adventureBurst, rl.adventurePerSecond);
+      limiter = kind === "admin" ? new KeyedLimiter(rl.adminBurst, rl.adminPerSecond) : new KeyedLimiter(rl.participantBurst, rl.participantPerSecond);
       rt.buckets.set(kind, limiter);
     }
     return limiter.allow(principalId);
   }
 
-  private fingerprint(kind: "admin" | "adventure", action: unknown): string {
+  private fingerprint(kind: "admin" | "participant", action: unknown): string {
     return contentHash({ kind, action });
   }
 
-  /** Comando de moderación (SPECS 5.2). Orden de comprobaciones: conexión → duplicado → generación → secuencia → dominio → persistencia. */
+  private displayName(rt: Runtime, principalId: string): string {
+    const p = rt.principals.get(principalId);
+    return p ? displayNameFor(p.name, p.distinction) : principalId;
+  }
+
+  /** Comando de Vanessa (SPECS 5.2). Orden de comprobaciones: conexión → duplicado → generación → secuencia → dominio → persistencia. */
   adminCommand(identity: AuthIdentity, socketId: string, cmd: AdminCommand): Promise<CommandResult> {
     const rt = this.rooms.get(identity.roomId);
     if (!rt) return Promise.resolve(failure(cmd.requestId, "ROOM_UNAVAILABLE", "La sala ya no está disponible."));
@@ -426,18 +463,20 @@ export class RoomService {
 
       const before = rt.state;
       const at = this.mono(); // el reloj de simulación sigue corriendo mientras se guarda: el ancla es este instante, no el del commit
-      const change = applyAdminAction(this.settled(rt, at), cmd.action, {
-        adminId: rt.adminId,
-        presence: this.presenceView(rt),
+      const settled = this.settled(rt, at);
+      const change = applyAdminAction(settled, cmd.action, {
         config: this.project.config,
         map: this.project.map,
+        nowIso: this.now().toISOString(),
+        activeMs: settled.adventure.timeline.activeMs,
+        nameOf: (id) => this.displayName(rt, id),
         fingerprint: { configHash: this.project.configHash, mapHash: this.project.mapHash },
       });
       if (!change.ok) return failure(cmd.requestId, change.code, change.message);
       rt.lastAdminSeq = cmd.commandSeq;
       if (!change.changed) return this.ack(cmd.requestId, rt.state);
 
-      const response: CommandResult = { ok: true, requestId: cmd.requestId, stateVersion: change.room.stateVersion, turnVersion: change.room.turnVersion };
+      const response: CommandResult = { ok: true, requestId: cmd.requestId, stateVersion: change.room.stateVersion, roundVersion: change.room.roundVersion };
       const stored: StoredCommand = { roomId: rt.state.roomId, principalId: identity.principalId, generation: cmd.roomGeneration, requestId: cmd.requestId, fingerprint: fp, response };
       const persisted = this.persist(rt, change.room, stored, at);
       if (persisted) return failure(cmd.requestId, "PERSISTENCE_FAILED", persisted);
@@ -451,39 +490,32 @@ export class RoomService {
     });
   }
 
-  /** Acción de aventura del controlador (SPECS 5.2). */
-  adventureCommand(identity: AuthIdentity, socketId: string, cmd: AdventureCommand): Promise<CommandResult> {
+  /** Acción personal de quien juega (SPECS 5.2): cada persona actúa sobre su propio personaje y sus propias pruebas, a la vez que las demás. */
+  participantCommand(identity: AuthIdentity, socketId: string, cmd: ParticipantCommand): Promise<CommandResult> {
     const rt = this.rooms.get(identity.roomId);
     if (!rt) return Promise.resolve(failure(cmd.requestId, "ROOM_UNAVAILABLE", "La sala ya no está disponible."));
-    if (!this.bucket(rt, "adventure", identity.principalId)) return Promise.resolve(failure(cmd.requestId, "RATE_LIMITED", "Demasiadas acciones seguidas. Espera un momento."));
+    if (!this.bucket(rt, "participant", identity.principalId)) return Promise.resolve(failure(cmd.requestId, "RATE_LIMITED", "Demasiadas acciones seguidas. Espera un momento."));
     return this.run(rt, () => {
       const stale = this.checkConnection(rt, identity.principalId, socketId, cmd.connectionEpoch);
       if (stale) return failure(cmd.requestId, stale, "Esta pestaña ya no está activa en la sala.");
-      const fp = this.fingerprint("adventure", cmd.action);
+      if (identity.role !== "participant" || rt.principals.get(identity.principalId)?.observer) return failure(cmd.requestId, "NOT_AUTHORIZED", "Estás como observador: sigue la aventura en la proyección.");
+      const fp = this.fingerprint("participant", cmd.action);
       const dup = this.duplicate(rt, identity.principalId, cmd.roomGeneration, cmd.requestId, fp);
       if (dup) return dup;
       const gen = checkGeneration(rt.state, cmd.roomGeneration);
       if (gen) return failure(cmd.requestId, gen.code, gen.message);
-      if (rt.configMismatch) return failure(cmd.requestId, "CONFIG_MISMATCH", "La sala usa otra revisión del contenido; el control está bloqueado.");
-      const turn = checkTurn(rt.state, identity.principalId, cmd.turnVersion);
-      if (turn) return failure(cmd.requestId, turn.code, turn.message);
+      if (rt.configMismatch) return failure(cmd.requestId, "CONFIG_MISMATCH", "La sala usa otra revisión del contenido; el juego está bloqueado.");
+      const round = checkRound(rt.state, cmd.roundVersion);
+      if (round) return failure(cmd.requestId, round.code, round.message);
 
-      const principal = rt.principals.get(identity.principalId)!;
       const before = rt.state;
       const at = this.mono();
-      const change = applyAdventureAction(rt.state, cmd.action, {
-        config: this.project.config,
-        map: this.project.map,
-        nav: this.project.nav,
-        actor: { principalId: principal.principalId, role: principal.role, name: displayNameFor(principal.name, principal.distinction) },
-        roomGeneration: rt.state.roomGeneration,
-        nowIso: this.now().toISOString(),
-        activeMs: this.liveActiveMs(rt, at),
-      });
+      const settled = this.settled(rt, at);
+      const change = applyParticipantAction(settled, identity.principalId, cmd.action, { config: this.project.config, map: this.project.map, nav: this.project.nav, activeMs: settled.adventure.timeline.activeMs });
       if (!change.ok) return failure(cmd.requestId, change.code, change.message);
       if (!change.changed) return this.ack(cmd.requestId, rt.state);
 
-      const response: CommandResult = { ok: true, requestId: cmd.requestId, stateVersion: change.room.stateVersion, turnVersion: change.room.turnVersion };
+      const response: CommandResult = { ok: true, requestId: cmd.requestId, stateVersion: change.room.stateVersion, roundVersion: change.room.roundVersion };
       const stored: StoredCommand = { roomId: rt.state.roomId, principalId: identity.principalId, generation: cmd.roomGeneration, requestId: cmd.requestId, fingerprint: fp, response };
       const persisted = this.persist(rt, change.room, stored, at);
       if (persisted) return failure(cmd.requestId, "PERSISTENCE_FAILED", persisted);
@@ -493,7 +525,7 @@ export class RoomService {
   }
 
   private ack(requestId: string, state: RoomState): CommandResult {
-    return { ok: true, requestId, stateVersion: state.stateVersion, turnVersion: state.turnVersion };
+    return { ok: true, requestId, stateVersion: state.stateVersion, roundVersion: state.roundVersion };
   }
 
   /** Detecta un `requestId` ya procesado: misma huella → misma respuesta, sin repetir la mutación; otra huella → se rechaza. */
@@ -519,7 +551,7 @@ export class RoomService {
       this.repo.commit(next, this.now().toISOString(), command);
     } catch (e) {
       this.log.error("falló la persistencia; la transición se descarta", { roomId: rt.state.roomId, error: e instanceof Error ? e.message : String(e) });
-      return "No se pudo guardar el cambio. Tu respuesta no se perdió en tu pantalla: intenta compartirla de nuevo en unos segundos.";
+      return "No se pudo guardar el cambio. Intenta de nuevo en unos segundos.";
     }
     rt.state = next;
     rt.anchor = at;
@@ -540,10 +572,15 @@ export class RoomService {
     });
   }
 
+  /** Todo lo que esta persona puede ver, completo: su resumen, el grupo, los personajes, su estado personal y, a Vanessa, el contador. */
   private sendFullStateTo(rt: Runtime, principalId: string): void {
     this.out.send(principalId, "room.summary", this.summaryFor(rt, principalId));
+    this.out.send(principalId, "group.state", this.groupSnapshot(rt, []));
+    this.out.send(principalId, "characters.state", { roomGeneration: rt.state.roomGeneration, characters: this.characters(rt) });
+    const me = this.meSnapshot(rt, principalId);
+    if (me) this.out.send(principalId, "me.state", me);
     if (principalId === rt.adminId) this.out.send(principalId, "presence.updated", this.presenceList(rt));
-    if (principalId === rt.adminId || rt.state.controlOwner?.principalId === principalId) this.out.send(principalId, "room.snapshot", this.snapshot(rt, []));
+    this.out.send(principalId, "clock.sample", this.clockSample(rt));
   }
 
   // ---- bucle de simulación (SPECS 5.6, 6.1) ----------------------------------------------------------------------
@@ -624,13 +661,14 @@ export class RoomService {
   }
 
   /**
-   * Un paso del bucle: solo toca las salas con algo en movimiento. Cada sala se procesa dentro de su cola, así que nunca se
-   * cruza con un comando. Si un paso tarda más que el intervalo, el siguiente de esa sala se omite en lugar de apilarse.
+   * Un paso del bucle: solo toca las salas con algo en movimiento (una prueba de rampa en marcha o alguien caminando). Cada sala se
+   * procesa dentro de su cola, así que nunca se cruza con un comando. Si un paso tarda más que el intervalo, el siguiente de esa sala
+   * se omite en lugar de apilarse.
    */
   async tick(): Promise<void> {
     const jobs: Promise<void>[] = [];
     for (const rt of this.rooms.values()) {
-      if (rt.tickBusy || !isSimulating(rt.state)) continue;
+      if (rt.tickBusy || !isSimulating(rt.state, this.liveActiveMs(rt))) continue;
       rt.tickBusy = true;
       jobs.push(
         this.run(rt, () => this.simulate(rt))
@@ -643,21 +681,20 @@ export class RoomService {
 
   private simulate(rt: Runtime): void {
     const before = rt.state;
-    if (!isSimulating(before)) return;
     const at = this.mono();
     const live = this.liveActiveMs(rt, at);
-    const t = tickRoom(before, live, this.project.config);
+    if (!isSimulating(before, live)) return;
+    const t = tickRoom(before, live);
 
     if (t.changed) {
-      // Algo terminó por reloj (el movimiento o una prueba de rampa): es una transición confirmada, con su persistencia.
-      // El final lo decide el servidor, una sola vez; si no se puede guardar no se anuncia y se reintenta en el siguiente paso.
+      // Una prueba terminó por reloj: es una transición confirmada, con su persistencia. El final lo decide el servidor, una sola
+      // vez; si no se puede guardar no se anuncia y se reintenta en el siguiente paso.
       const err = this.persist(rt, t.room, undefined, at);
-      if (err) return void this.log.error("no se pudo guardar el fin de un movimiento o prueba; se reintenta", { roomId: before.roomId });
+      if (err) return void this.log.error("no se pudo guardar el fin de una prueba; se reintenta", { roomId: before.roomId });
       rt.lastCheckpoint = at;
       this.fanOut(rt, before, rt.state);
     } else if (at - rt.lastCheckpoint >= this.settings.checkpointIntervalMs) {
-      // Checkpoint de reloj y posición: no cambia de versión ni se anuncia. Tras una caída abrupta el movimiento puede
-      // retroceder hasta este intervalo; lo ya confirmado no se pierde (SPECS 6.1).
+      // Checkpoint de reloj: no cambia de versión ni se anuncia. Tras una caída abrupta lo ya confirmado no se pierde (SPECS 6.1).
       try {
         this.repo.commit(t.room, this.now().toISOString());
         rt.state = t.room;
@@ -668,106 +705,148 @@ export class RoomService {
       }
     }
 
-    // Muestra visual efímera para la proyección y el controlador; la espera nunca la recibe (canal de vista).
-    if (isSimulating(rt.state)) {
-      const frame = buildSimulationFrame(rt.state, this.liveActiveMs(rt, at), ++rt.frameSeq);
-      if (frame) this.out.sendToView(rt.state.roomId, "simulation.frame", frame);
+    // Muestra del reloj para todas las personas: cada cliente interpola entre muestras y el servidor decide (nunca el dispositivo).
+    if (at - rt.lastClock >= this.settings.clockSampleMs) {
+      rt.lastClock = at;
+      this.out.broadcast(rt.state.roomId, "clock.sample", this.clockSample(rt, at));
     }
   }
 
-  // ---- fan-out ----------------------------------------------------------------------------------------------
+  // ---- lo que ve cada audiencia -------------------------------------------------------------------------------
 
-  private publicController(rt: Runtime): PublicController | null {
-    const owner = rt.state.controlOwner;
-    if (!owner) return null;
-    const p = rt.principals.get(owner.principalId);
-    if (!p) return null;
-    return { principalId: p.principalId, role: p.role, displayName: displayNameFor(p.name, p.distinction), color: p.color };
-  }
-
-  summaryFor(rt: Runtime, principalId: string): RoomSummary {
+  private summaryFor(rt: Runtime, principalId: string): RoomSummary {
     const p = rt.principals.get(principalId)!;
     const s = rt.state;
     return {
       code: s.code,
       roomGeneration: s.roomGeneration,
       stateVersion: s.stateVersion,
-      turnVersion: s.turnVersion,
+      roundVersion: s.roundVersion,
       phase: s.phase,
       resumePhase: s.resumePhase,
-      controller: this.publicController(rt),
       adminConnected: this.isConnected(rt, rt.adminId),
       configMismatch: rt.configMismatch,
-      self: { principalId, role: p.role, displayName: displayNameFor(p.name, p.distinction), color: p.color, connectionEpoch: rt.presence.get(principalId)?.epoch ?? 0, isController: s.controlOwner?.principalId === principalId },
+      self: { principalId, role: p.role, displayName: displayNameFor(p.name, p.distinction), color: p.color, connectionEpoch: rt.presence.get(principalId)?.epoch ?? 0, observer: p.observer },
     };
   }
 
+  private groupSnapshot(rt: Runtime, effects: EffectEvent[]): GroupSnapshot {
+    const s = rt.state;
+    return { roomGeneration: s.roomGeneration, stateVersion: s.stateVersion, roundVersion: s.roundVersion, phase: s.phase, adventure: s.adventure, effects };
+  }
+
+  private meSnapshot(rt: Runtime, principalId: string): MeSnapshot | null {
+    const participant = rt.state.participants[principalId];
+    return participant ? { roomGeneration: rt.state.roomGeneration, stateVersion: rt.state.stateVersion, participant } : null;
+  }
+
+  private characterOf(rt: Runtime, principalId: string): PublicCharacter | null {
+    const p = rt.principals.get(principalId);
+    const st = rt.state.participants[principalId];
+    if (!p || !st) return null;
+    return { principalId, displayName: displayNameFor(p.name, p.distinction), color: p.color, connected: this.isConnected(rt, principalId), character: st.character };
+  }
+
+  private characters(rt: Runtime): PublicCharacter[] {
+    return Object.keys(rt.state.participants)
+      .map((id) => this.characterOf(rt, id))
+      .filter((c): c is PublicCharacter => c !== null);
+  }
+
+  private clockSample(rt: Runtime, at: number = this.mono()): ClockSample {
+    return { roomGeneration: rt.state.roomGeneration, stateVersion: rt.state.stateVersion, activeMs: this.liveActiveMs(rt, at), running: isClockRunning(rt.state), seq: ++rt.clockSeq };
+  }
+
+  /** Quién está conectado y cuántas personas están listas en la ronda: solo para Vanessa. */
   private presenceList(rt: Runtime): PresenceUpdate {
+    const config = this.project.config;
+    const stage = rt.state.adventure.round.stage;
+    const exploring = stage === "exploration" || stage === "conversation";
+    const activityId = currentActivityId(rt.state.adventure, config);
+    const members = new Set(exploring ? roundMembers(rt.state) : []);
     const participants: ParticipantInfo[] = [...rt.principals.values()]
       .filter((p) => p.role === "participant")
-      .map((p) => ({
-        principalId: p.principalId,
-        role: p.role,
-        displayName: displayNameFor(p.name, p.distinction),
-        name: p.name,
-        color: p.color,
-        distinction: p.distinction,
-        connected: this.isConnected(rt, p.principalId),
-        isController: rt.state.controlOwner?.principalId === p.principalId,
-      }));
-    return { participants, connectedCount: participants.filter((p) => p.connected).length };
+      .map((p) => {
+        const st = rt.state.participants[p.principalId];
+        const r = exploring && activityId && st ? personReadiness(st, activityId, config) : null;
+        return {
+          principalId: p.principalId,
+          role: p.role,
+          displayName: displayNameFor(p.name, p.distinction),
+          name: p.name,
+          color: p.color,
+          distinction: p.distinction,
+          connected: this.isConnected(rt, p.principalId),
+          observer: p.observer,
+          inRound: members.has(p.principalId),
+          ready: r?.ready ?? false,
+          progress: r ? { done: r.done, needed: r.needed } : null,
+        };
+      });
+    const counter = roundCounter(rt.state, config);
+    return { participants, connectedCount: participants.filter((p) => p.connected).length, round: { ready: counter.ready, total: counter.total } };
   }
 
-  private snapshot(rt: Runtime, effects: EffectEvent[]): RoomSnapshot {
-    return { state: rt.state, controller: this.publicController(rt), effects };
-  }
-
-  private sendPresence(rt: Runtime): void {
-    this.out.send(rt.adminId, "presence.updated", this.presenceList(rt));
+  private sendPresence(rt: Runtime, force = false): void {
+    const list = this.presenceList(rt);
+    const key = JSON.stringify(list);
+    if (!force && key === rt.lastPresenceKey) return;
+    rt.lastPresenceKey = key;
+    this.out.send(rt.adminId, "presence.updated", list);
   }
 
   /**
-   * Anuncia una transición ya confirmada. Orden del cambio de turno (SPECS 5.5): retirar al anterior del canal de vista, actualizar
-   * (ya hecho: el estado se guardó antes), añadir al nuevo, enviar el snapshot y anunciar el cambio. Los participantes en espera
-   * reciben solo el resumen mínimo: nunca el cuaderno ni las actualizaciones del experimento.
+   * Anuncia una transición ya confirmada, a cada audiencia lo suyo (el estado ya se guardó antes):
+   * - A todas las personas: el resumen (fase, ronda), el estado de grupo, los personajes que cambiaron y el reloj.
+   * - A cada participante, SU estado personal si cambió: nunca el de otra persona.
+   * - A Vanessa, además, quién está conectado y cuántas personas están listas, solo cuando eso cambió.
    */
-  private fanOut(rt: Runtime, before: RoomState, after: RoomState, opts: { effects?: EffectEvent[]; presenceChanged?: boolean; adminPresenceChanged?: boolean; includeSocketOf?: string } = {}): void {
+  private fanOut(rt: Runtime, before: RoomState, after: RoomState, opts: { effects?: EffectEvent[]; joiner?: string; disconnected?: string } = {}): void {
     const roomId = after.roomId;
-    const ownerChanged = !sameOwner(before.controlOwner, after.controlOwner);
-    const oldOwner = before.controlOwner;
-    const newOwner = after.controlOwner;
-    const stateChanged = before !== after;
+    const joiner = opts.joiner;
+    const generationChanged = before.roomGeneration !== after.roomGeneration;
+    const summaryChanged = before.phase !== after.phase || before.resumePhase !== after.resumePhase || before.roundVersion !== after.roundVersion || generationChanged || joiner === rt.adminId;
+    const groupChanged = summaryChanged || groupKey(before.adventure) !== groupKey(after.adventure) || (opts.effects?.length ?? 0) > 0;
 
-    // 1. Retirar al anterior del canal de vista; 2. (el estado ya está guardado); 3. añadir al nuevo.
-    if (ownerChanged && oldOwner?.role === "participant") this.out.leaveView(oldOwner.principalId, roomId);
-    if (ownerChanged && newOwner?.role === "participant" && this.isConnected(rt, newOwner.principalId)) this.out.joinView(newOwner.principalId, roomId);
-    if (opts.includeSocketOf === rt.adminId) this.out.joinView(rt.adminId, roomId);
+    if (summaryChanged) for (const [id, p] of rt.presence) if (p.connected && id !== joiner) this.out.send(id, "room.summary", this.summaryFor(rt, id));
+    if (groupChanged) this.out.broadcast(roomId, "group.state", this.groupSnapshot(rt, opts.effects ?? []));
 
-    // Resumen mínimo a todos, solo cuando cambia algo que les importa: la fase, el turno, quién controla o si está la administradora.
-    const summaryChanged = before.phase !== after.phase || before.resumePhase !== after.resumePhase || before.turnVersion !== after.turnVersion || before.roomGeneration !== after.roomGeneration || ownerChanged || opts.adminPresenceChanged === true;
-    if (summaryChanged) {
-      for (const [id, p] of rt.presence) if (p.connected) this.out.send(id, "room.summary", this.summaryFor(rt, id));
+    if (generationChanged) {
+      this.out.broadcast(roomId, "characters.state", { roomGeneration: after.roomGeneration, characters: this.characters(rt) });
+      for (const id of Object.keys(after.participants)) {
+        const me = this.meSnapshot(rt, id);
+        if (me && this.isConnected(rt, id) && id !== joiner) this.out.send(id, "me.state", me);
+      }
+    } else {
+      for (const id of Object.keys(after.participants)) {
+        const b = before.participants[id];
+        const a = after.participants[id]!;
+        if (b === a) continue;
+        if (this.isConnected(rt, id) && id !== joiner) {
+          this.out.send(id, "me.state", this.meSnapshot(rt, id)!);
+          // La prueba que empieza o termina se anima con el reloj de simulación: se le recuerda para que coincida con el del servidor.
+          this.out.send(id, "clock.sample", this.clockSample(rt));
+        }
+        if (!b || JSON.stringify(b.character) !== JSON.stringify(a.character)) {
+          const c = this.characterOf(rt, id);
+          if (c && id !== joiner) this.out.broadcast(roomId, "character.updated", c);
+        }
+      }
     }
+    if (before.phase !== after.phase) this.out.broadcast(roomId, "clock.sample", this.clockSample(rt));
 
-    // 4. Enviar el estado. Quien acaba de conectarse recibe su estado completo permitido aunque la sala no haya cambiado.
-    const joiner = opts.includeSocketOf;
+    // Quien acaba de conectarse recibe su estado completo permitido aunque la sala no haya cambiado; los demás ven que apareció.
     if (joiner) {
-      if (!summaryChanged) this.out.send(joiner, "room.summary", this.summaryFor(rt, joiner));
-      if (!stateChanged && (joiner === rt.adminId || after.controlOwner?.principalId === joiner)) this.out.send(joiner, "room.snapshot", this.snapshot(rt, []));
-      if (joiner === rt.adminId) this.out.send(joiner, "presence.updated", this.presenceList(rt));
+      this.sendFullStateTo(rt, joiner);
+      const c = this.characterOf(rt, joiner);
+      if (c) this.out.broadcast(roomId, "character.updated", c);
     }
-    if (stateChanged) this.out.sendToView(roomId, "room.snapshot", this.snapshot(rt, opts.effects ?? []));
-
-    // 5. Anunciar el cambio a los afectados.
-    if (ownerChanged || before.turnVersion !== after.turnVersion) {
-      const change = { controlOwner: after.controlOwner, controller: this.publicController(rt), turnVersion: after.turnVersion, phase: after.phase, resumePhase: after.resumePhase, view: after.adventure.view };
-      const affected = new Set<string>([rt.adminId]);
-      if (oldOwner) affected.add(oldOwner.principalId);
-      if (newOwner) affected.add(newOwner.principalId);
-      for (const id of affected) if (this.isConnected(rt, id)) this.out.send(id, "control.changed", change);
+    if (opts.disconnected) {
+      const c = this.characterOf(rt, opts.disconnected);
+      if (c) this.out.broadcast(roomId, "character.updated", c);
     }
 
-    if ((opts.presenceChanged || ownerChanged) && joiner !== rt.adminId) this.sendPresence(rt);
+    this.sendPresence(rt, joiner === rt.adminId);
   }
 
   private closeAll(rt: Runtime): void {

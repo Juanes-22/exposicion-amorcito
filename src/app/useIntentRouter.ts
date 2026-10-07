@@ -5,9 +5,9 @@ import { startIntentRouter } from "./mapIntents";
 import type { RoomPort } from "./RoomController";
 
 /** Mantiene vivo el enrutador de intenciones del mapa mientras la vista del juego esté montada. */
-export function useIntentRouter(bridge: GameBridge, controller: RoomPort | null, project: LoadedProject): void {
+export function useIntentRouter(bridge: GameBridge, port: RoomPort | null, project: LoadedProject): void {
   useEffect(() => {
-    if (!controller) return;
-    return startIntentRouter({ bridge, controller, project });
-  }, [bridge, controller, project]);
+    if (!port) return;
+    return startIntentRouter({ bridge, port, project });
+  }, [bridge, port, project]);
 }

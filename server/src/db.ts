@@ -1,3 +1,4 @@
+import { copyFileSync, existsSync } from "node:fs";
 import Database from "better-sqlite3";
 import type { CommandResult } from "../../shared/contracts/actions";
 import type { Role } from "../../shared/contracts/events";
@@ -18,6 +19,8 @@ export interface PrincipalRecord {
   nameKey: string;
   color: string | null;
   distinction: number;
+  /** Acompaña sin jugar: no tiene personaje ni cuenta en la ronda. */
+  observer: boolean;
   /** Hash de la credencial; nunca el token. */
   tokenHash: string;
   createdAt: string;
@@ -40,11 +43,12 @@ export interface StoredRoom {
 
 const PHASES: readonly RoomPhase[] = ["welcome", "running", "paused", "finished", "closed", "expired"];
 
-/** Comprobación estructural de lo que se lee del disco: no es un esquema completo, pero impide cargar basura como estado. */
+/** Comprobación estructural de lo que se lee del disco: no es un esquema completo, pero impide cargar basura (o salas del modelo anterior) como estado. */
 export function isPlausibleRoomState(x: unknown): x is RoomState {
   if (typeof x !== "object" || x === null) return false;
   const r = x as Record<string, unknown>;
   const adv = r.adventure as Record<string, unknown> | undefined;
+  const round = adv?.round as Record<string, unknown> | undefined;
   return (
     typeof r.roomId === "string" &&
     typeof r.code === "string" &&
@@ -53,15 +57,18 @@ export function isPlausibleRoomState(x: unknown): x is RoomState {
     typeof r.mapHash === "string" &&
     Number.isInteger(r.roomGeneration) &&
     Number.isInteger(r.stateVersion) &&
-    Number.isInteger(r.turnVersion) &&
+    Number.isInteger(r.roundVersion) &&
     typeof r.phase === "string" &&
     PHASES.includes(r.phase as RoomPhase) &&
+    typeof r.participants === "object" &&
+    r.participants !== null &&
     typeof adv === "object" &&
     adv !== null &&
     typeof adv.mapId === "string" &&
     Array.isArray(adv.notebook) &&
-    typeof adv.activities === "object" &&
-    typeof adv.player === "object"
+    typeof round === "object" &&
+    round !== null &&
+    typeof round.stage === "string"
   );
 }
 
@@ -71,7 +78,7 @@ CREATE TABLE IF NOT EXISTS rooms (
   code TEXT NOT NULL UNIQUE,
   state_json TEXT NOT NULL,
   state_version INTEGER NOT NULL,
-  turn_version INTEGER NOT NULL,
+  round_version INTEGER NOT NULL,
   generation INTEGER NOT NULL,
   phase TEXT NOT NULL,
   created_at TEXT NOT NULL,
@@ -87,6 +94,7 @@ CREATE TABLE IF NOT EXISTS principals (
   name_key TEXT NOT NULL,
   color TEXT,
   distinction INTEGER NOT NULL,
+  observer INTEGER NOT NULL DEFAULT 0,
   token_hash TEXT NOT NULL UNIQUE,
   created_at TEXT NOT NULL
 );
@@ -103,7 +111,8 @@ CREATE TABLE IF NOT EXISTS processed_commands (
 );
 `;
 
-export const SCHEMA_VERSION = 1;
+/** 2: participación simultánea (rondas). `turn_version` pasó a `round_version` y las identidades pueden ser observadoras. */
+export const SCHEMA_VERSION = 2;
 
 export class SqliteRoomRepository {
   /** Solo para pruebas (simular fallos reales de SQLite); el código de aplicación no lo usa. */
@@ -117,8 +126,25 @@ export class SqliteRoomRepository {
     this.raw.pragma("foreign_keys = ON");
     const version = this.raw.pragma("user_version", { simple: true }) as number;
     if (version > SCHEMA_VERSION) throw new Error(`La base de datos es de una versión más nueva (${version}) que la que entiende este servidor (${SCHEMA_VERSION})`);
+    if (version === 1) this.migrateFromTurns(path);
     this.raw.exec(SCHEMA);
     this.raw.pragma(`user_version = ${SCHEMA_VERSION}`);
+  }
+
+  /**
+   * Migra la base del modelo de turnos (versión 1) al de rondas (versión 2). Antes de tocar nada se copia el archivo junto al original
+   * (`.v1.bak`): las salas del modelo anterior no se pueden jugar con el nuevo (su estado tiene otra forma), así que quedan en disco sin
+   * cargarse; la copia permite recuperarlas con la versión anterior.
+   */
+  private migrateFromTurns(path: string): void {
+    if (path !== ":memory:" && existsSync(path) && !existsSync(`${path}.v1.bak`)) {
+      this.raw.pragma("wal_checkpoint(TRUNCATE)");
+      copyFileSync(path, `${path}.v1.bak`);
+    }
+    this.raw.transaction(() => {
+      this.raw.exec("ALTER TABLE rooms RENAME COLUMN turn_version TO round_version");
+      this.raw.exec("ALTER TABLE principals ADD COLUMN observer INTEGER NOT NULL DEFAULT 0");
+    })();
   }
 
   close(): void {
@@ -135,10 +161,10 @@ export class SqliteRoomRepository {
     this.raw.transaction(() => {
       this.raw
         .prepare(
-          `INSERT INTO rooms (room_id, code, state_json, state_version, turn_version, generation, phase, created_at, updated_at, last_admin_activity_at, terminal_at)
-           VALUES (@roomId, @code, @json, @sv, @tv, @gen, @phase, @now, @now, @now, NULL)`,
+          `INSERT INTO rooms (room_id, code, state_json, state_version, round_version, generation, phase, created_at, updated_at, last_admin_activity_at, terminal_at)
+           VALUES (@roomId, @code, @json, @sv, @rv, @gen, @phase, @now, @now, @now, NULL)`,
         )
-        .run({ roomId: state.roomId, code: state.code, json: JSON.stringify(state), sv: state.stateVersion, tv: state.turnVersion, gen: state.roomGeneration, phase: state.phase, now: nowIso });
+        .run({ roomId: state.roomId, code: state.code, json: JSON.stringify(state), sv: state.stateVersion, rv: state.roundVersion, gen: state.roomGeneration, phase: state.phase, now: nowIso });
       this.insertPrincipal(admin);
     })();
   }
@@ -152,11 +178,11 @@ export class SqliteRoomRepository {
       const terminal = state.phase === "closed" || state.phase === "expired";
       const info = this.raw
         .prepare(
-          `UPDATE rooms SET state_json = @json, state_version = @sv, turn_version = @tv, generation = @gen, phase = @phase, updated_at = @now,
+          `UPDATE rooms SET state_json = @json, state_version = @sv, round_version = @rv, generation = @gen, phase = @phase, updated_at = @now,
              terminal_at = CASE WHEN @terminal = 1 THEN COALESCE(terminal_at, @now) ELSE NULL END
            WHERE room_id = @roomId`,
         )
-        .run({ json: JSON.stringify(state), sv: state.stateVersion, tv: state.turnVersion, gen: state.roomGeneration, phase: state.phase, now: nowIso, terminal: terminal ? 1 : 0, roomId: state.roomId });
+        .run({ json: JSON.stringify(state), sv: state.stateVersion, rv: state.roundVersion, gen: state.roomGeneration, phase: state.phase, now: nowIso, terminal: terminal ? 1 : 0, roomId: state.roomId });
       if (info.changes !== 1) throw new Error(`La sala ${state.roomId} no existe`);
       if (command) {
         this.raw
@@ -197,8 +223,8 @@ export class SqliteRoomRepository {
 
   private insertPrincipal(p: PrincipalRecord): void {
     this.raw
-      .prepare("INSERT INTO principals (principal_id, room_id, role, name, name_key, color, distinction, token_hash, created_at) VALUES (@principalId, @roomId, @role, @name, @nameKey, @color, @distinction, @tokenHash, @createdAt)")
-      .run(p);
+      .prepare("INSERT INTO principals (principal_id, room_id, role, name, name_key, color, distinction, observer, token_hash, created_at) VALUES (@principalId, @roomId, @role, @name, @nameKey, @color, @distinction, @observer, @tokenHash, @createdAt)")
+      .run({ ...p, observer: p.observer ? 1 : 0 });
   }
 
   /** Añade un participante asignando su distinción dentro de la misma transacción (sin carreras entre dos entradas simultáneas). */
@@ -216,11 +242,11 @@ export class SqliteRoomRepository {
   }
 
   listPrincipals(roomId: string): PrincipalRecord[] {
-    return (this.raw.prepare("SELECT principal_id, room_id, role, name, name_key, color, distinction, token_hash, created_at FROM principals WHERE room_id = ? ORDER BY created_at, rowid").all(roomId) as Array<Record<string, unknown>>).map(toPrincipal);
+    return (this.raw.prepare("SELECT principal_id, room_id, role, name, name_key, color, distinction, observer, token_hash, created_at FROM principals WHERE room_id = ? ORDER BY created_at, rowid").all(roomId) as Array<Record<string, unknown>>).map(toPrincipal);
   }
 
   findPrincipalByTokenHash(tokenHash: string): PrincipalRecord | undefined {
-    const row = this.raw.prepare("SELECT principal_id, room_id, role, name, name_key, color, distinction, token_hash, created_at FROM principals WHERE token_hash = ?").get(tokenHash) as Record<string, unknown> | undefined;
+    const row = this.raw.prepare("SELECT principal_id, room_id, role, name, name_key, color, distinction, observer, token_hash, created_at FROM principals WHERE token_hash = ?").get(tokenHash) as Record<string, unknown> | undefined;
     return row ? toPrincipal(row) : undefined;
   }
 
@@ -240,6 +266,7 @@ const toPrincipal = (r: Record<string, unknown>): PrincipalRecord => ({
   nameKey: r.name_key as string,
   color: (r.color as string | null) ?? null,
   distinction: r.distinction as number,
+  observer: r.observer === 1,
   tokenHash: r.token_hash as string,
   createdAt: r.created_at as string,
 });

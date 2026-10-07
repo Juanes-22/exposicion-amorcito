@@ -1,20 +1,16 @@
-import type { AdventureAction, CommandResult } from "../../../shared/contracts/actions";
-import type { PieceConfig } from "../../../shared/contracts/config";
-import type { AdventureState } from "../../../shared/contracts/state";
+import type { CommandResult, ParticipantAction } from "../../../shared/contracts/actions";
+import type { LaboratorioConfig } from "../../../shared/contracts/config";
+import type { LocalExperiment } from "../../game/bridge/events";
 
-/** Lo que todas las mesas necesitan para mostrarse y actuar. `interactive` = quien tiene el turno; el resto (proyección) solo lee. */
-export interface PanelCommon {
-  id: string;
-  room: string;
-  adv: AdventureState;
-  labels: Record<string, string>;
-  dialogues: Record<string, string>;
-  pieces: PieceConfig[];
-  maxChars: number;
-  interactive: boolean;
+/** Lo que los controles de una mesa necesitan: el mismo contrato en el celular de una persona y en la demostración de Vanessa. */
+export interface PersonalActions {
+  /** Acción personal: se registra en el servidor (o, en la demostración, solo en local). */
+  act: (action: ParticipantAction) => Promise<CommandResult>;
+  /** Lo que solo existe en el dispositivo mientras se ajusta (linterna, inclinación): lo dibuja la escena sin esperar al servidor. */
+  setLocal: (patch: Partial<LocalExperiment>) => void;
   /** Hay un comando en vuelo: se bloquean los botones para no duplicar. */
   busy: boolean;
-  /** Quién tiene el turno (para el texto de la proyección). */
-  ownerName: string | null;
-  send: (action: AdventureAction) => Promise<CommandResult>;
+  /** La mesa está abierta para explorar: fuera de la exploración los controles se detienen. */
+  interactive: boolean;
+  config: LaboratorioConfig;
 }

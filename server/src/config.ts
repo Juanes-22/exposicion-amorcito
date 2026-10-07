@@ -21,8 +21,10 @@ export interface ServerSettings {
   terminalRetentionMs: number;
   /** Cada cuánto se revisan vencimientos y limpieza (ms). */
   sweepIntervalMs: number;
-  /** Cada cuánto corre el bucle de simulación y se emiten frames (10 Hz). `0` lo desactiva (pruebas). */
+  /** Cada cuánto corre el bucle de simulación (pruebas de rampa y personajes en marcha). `0` lo desactiva (pruebas). */
   tickIntervalMs: number;
+  /** Cada cuánto se envía el reloj de simulación a todas las personas mientras algo se mueve. */
+  clockSampleMs: number;
   /** Cada cuánto se guarda un checkpoint de reloj y posición mientras algo se mueve. */
   checkpointIntervalMs: number;
   pingIntervalMs: number;
@@ -32,9 +34,9 @@ export interface ServerSettings {
   rateLimits: {
     createRoomPerMinute: number;
     joinPerMinute: number;
-    /** Comandos de aventura: ráfaga y reposición por segundo (el arrastre del slider llega a ~12 Hz). */
-    adventureBurst: number;
-    adventurePerSecond: number;
+    /** Acciones personales de cada participante: ráfaga y reposición por segundo (tocar el mapa, anotar una posición, soltar la pelota). */
+    participantBurst: number;
+    participantPerSecond: number;
     adminBurst: number;
     adminPerSecond: number;
   };
@@ -61,13 +63,14 @@ export function loadSettings(env: NodeJS.ProcessEnv = process.env, overrides: Pa
     terminalRetentionMs: num(env.TERMINAL_RETENTION_MS, 24 * 3600 * 1000),
     sweepIntervalMs: num(env.SWEEP_INTERVAL_MS, 30_000),
     tickIntervalMs: num(env.TICK_INTERVAL_MS, 100),
+    clockSampleMs: num(env.CLOCK_SAMPLE_MS, 500),
     checkpointIntervalMs: num(env.CHECKPOINT_INTERVAL_MS, 500),
     // Valores de arranque del SPECS 6.2 para detectar cortes en ≤ 10 s; medir falsos cortes en celulares reales (P6-02).
     pingIntervalMs: num(env.PING_INTERVAL_MS, 4000),
     pingTimeoutMs: num(env.PING_TIMEOUT_MS, 5000),
     maxMessageBytes: num(env.MAX_MESSAGE_BYTES, 64 * 1024),
     trustProxy: env.TRUST_PROXY === "1" || env.TRUST_PROXY === "true",
-    rateLimits: { createRoomPerMinute: 10, joinPerMinute: 60, adventureBurst: 40, adventurePerSecond: 25, adminBurst: 20, adminPerSecond: 8 },
+    rateLimits: { createRoomPerMinute: 10, joinPerMinute: 60, participantBurst: 20, participantPerSecond: 8, adminBurst: 20, adminPerSecond: 8 },
     ...overrides,
   };
 }

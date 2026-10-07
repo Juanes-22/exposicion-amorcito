@@ -2,13 +2,6 @@ import type { Footprint, Point } from "./geometry";
 
 export type ConfigMode = "prototype" | "presentation";
 
-export interface SuggestedOption {
-  id: string;
-  text: string;
-  /** Solo en La caja de las sorpresas: el objeto compartido al que remite la pregunta. */
-  objectId?: string;
-}
-
 export interface ShadowsExperiment {
   sourceDistanceMinCm: number;
   sourceDistanceMaxCm: number;
@@ -32,37 +25,26 @@ export interface RampsExperiment {
 
 interface ActivityBase {
   title: string;
-  /** Pieza colectiva que concede completar la mesa. */
+  /** Pieza colectiva que se incorpora al inventor cuando termina la ronda de esta mesa (al abrir la siguiente). */
   pieceId: string;
-  suggestions: SuggestedOption[];
-  /** Indicación de cada paso, por nombre de paso. Es contenido editable: no vive en el código (SPECS 9.1). */
-  prompts: Record<string, string>;
+  /** Objetivo corto que ve cada persona sobre el experimento (contenido editable, SPECS 9.1). */
+  goal: string;
+  /** Pregunta con la que Vanessa abre la mesa: se proyecta durante la preparación. */
+  openingQuestion: string;
+  /** Pregunta que conduce la conversación: se proyecta junto a la comparación seleccionada. */
+  conversationQuestion: string;
+  /** Paráfrasis breve de la idea de Freire que se trabaja en la mesa. Es una adaptación para la exposición, no una cita. */
+  freirePhrase: string;
 }
-
-/** Pasos que necesitan indicación propia en cada tipo de mesa (los demás usan `firstPrompt` o un diálogo). */
-export const REQUIRED_PROMPTS: Record<"shadows" | "ramps" | "boxes", readonly string[]> = {
-  shadows: ["firstIdea", "explore", "observation", "nextQuestion"],
-  ramps: ["question", "prediction", "trials", "observation"],
-  boxes: ["exploreShared", "askPermission", "respect", "nextQuestion"],
-};
 
 export interface ShadowsActivityConfig extends ActivityBase {
   type: "shadows";
-  /** Texto de la sorpresa inicial. */
-  firstPrompt: string;
   experiment: ShadowsExperiment;
-  /** Ideas sugeridas para el paso «primera idea». */
-  ideaSuggestions: SuggestedOption[];
 }
 
 export interface RampsActivityConfig extends ActivityBase {
   type: "ramps";
-  /** Línea del docente ficticio en la escena de respuesta cerrada. */
-  firstPrompt: string;
-  /** Línea de la guía que el docente ficticio pide copiar. */
-  guideLine: string;
   experiment: RampsExperiment;
-  inviteDialogueId: string;
 }
 
 export interface BoxesSharedObject {
@@ -75,6 +57,8 @@ export interface BoxesSharedObject {
 export interface BoxesActivityConfig extends ActivityBase {
   type: "boxes";
   sharedObjects: BoxesSharedObject[];
+  /** Cuántos objetos compartidos hay que explorar para quedar lista. Pedir permiso es posible, nunca obligatorio. */
+  requiredObjects: number;
   refusalDialogueId: string;
   /** Texto cuando se toca de nuevo la caja personal después de la negativa. */
   personalTouchDialogueId: string;
@@ -88,23 +72,22 @@ export type ActivityType = ActivityConfig["type"];
 export interface PieceConfig {
   id: string;
   label: string;
-  /** Mensaje de la animación de colocar piezas. */
+  /** Mensaje de la pieza al incorporarse al inventor. */
   message: string;
 }
 
 export interface InventorConfig {
-  /** Gráfico de la máquina encendida, una vez colocadas las piezas. El apagado es el `assetId` del objeto Inventor en el TMJ. */
+  /** Gráfico de la máquina con las piezas incorporadas. El apagado es el `assetId` del objeto Inventor en el TMJ. */
   activeAssetId: string;
   requiredPieceIds: string[];
   pieces: PieceConfig[];
-  /** Indicación antes de colocar las piezas (contenido editable). */
-  placePrompt: string;
-  /** Indicación de la pregunta final, una vez colocadas las piezas. */
+  /** Pregunta con la que Vanessa abre el cierre: se proyecta junto a la máquina. */
   prompt: string;
-  placeButtonLabel: string;
-  oralQuestionText: string;
+  /** Mensaje de cierre una vez confirmada la pregunta final. */
   finalMessage: string;
   reflection: string[];
+  /** Pregunta de reflexión con la que Vanessa puede cerrar de forma oral. */
+  closingQuestion: string;
 }
 
 export interface WorldConfig {
@@ -137,9 +120,34 @@ export interface UiConfig {
     panel: string;
     notebookIcon: string;
   };
+  /** Máximo de caracteres de una nota o síntesis de Vanessa. */
   maxRecordCharacters: number;
   labels: Record<string, string>;
 }
+
+/**
+ * Textos de las fases comunes de cada ronda, de la espera y del cierre. Son contenido editable y obligatorio: el validador rechaza
+ * los que falten. Las señales de audio (`signal*`) siguen siendo opcionales y tienen un texto de respaldo en el código.
+ */
+export const REQUIRED_LABELS = [
+  "waiting",
+  "loadingMap",
+  "roundPreparationPhone",
+  "roundExplorationPhone",
+  "roundConversationPhone",
+  "readyYou",
+  "notReadyYou",
+  "closingPhone",
+  "finishedPhone",
+  "observerPhone",
+  "welcomePhone",
+] as const;
+
+/** Momentos con guion de Vanessa además de una entrada por mesa del recorrido. */
+export const FACILITATOR_MOMENTS = ["bienvenida", "cierre"] as const;
+
+/** Frases de apoyo de Vanessa (SPECS 12): una por momento de la conducción. */
+export const SUPPORT_PHRASE_KEYS = ["inicio", "antesDeReunir", "alExplicar", "cierre"] as const;
 
 /** Eventos sonoros que la aplicación sabe emitir (SPECS 10.4). `laboratorio.json → audio.events` asigna un recurso a cada uno. */
 export const AUDIO_EVENT_IDS = ["shadows.click", "boxes.bell", "piece.earned", "inventor.activated", "adventure.finished"] as const;
@@ -170,6 +178,8 @@ export interface LaboratorioConfig {
   inventor: InventorConfig;
   dialogues: Record<string, string>;
   facilitatorNotes: Record<string, string[]>;
+  /** Frases de apoyo para conducir la exposición: claves de `SUPPORT_PHRASE_KEYS`. */
+  supportPhrases: Record<string, string>;
   ui: UiConfig;
   audio: AudioConfig;
   session: SessionConfig;

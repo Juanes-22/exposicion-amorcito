@@ -1,7 +1,7 @@
 import configSchema from "./schemas/laboratorio.schema.json";
 import type { AssetManifest, ConfigIssue, ValidationResult } from "../contracts/assets";
-import type { LaboratorioConfig, SuggestedOption } from "../contracts/config";
-import { AUDIO_EVENT_IDS, INVENTOR_ID, REQUIRED_PROMPTS } from "../contracts/config";
+import type { LaboratorioConfig } from "../contracts/config";
+import { AUDIO_EVENT_IDS, FACILITATOR_MOMENTS, INVENTOR_ID, REQUIRED_LABELS } from "../contracts/config";
 import { ajvIssues, compileSchema } from "./ajv";
 import type { SheetDefinition } from "./frameDefinitions";
 
@@ -60,31 +60,12 @@ export function validateConfig(data: unknown, ctx: ConfigContext): ConfigValidat
   for (const p of required) if (!defined.has(p)) issues.push(at("inventor.pieces", `falta el texto de la pieza «${p}»`));
 
   // ---- actividades ----
-  const checkSuggestions = (path: string, list: SuggestedOption[], objects?: Set<string>) => {
-    const seen = new Set<string>();
-    list.forEach((s, i) => {
-      if (seen.has(s.id)) issues.push(at(`${path}[${i}].id`, `la sugerencia «${s.id}» está repetida`));
-      seen.add(s.id);
-      if (objects) {
-        if (!s.objectId) issues.push(at(`${path}[${i}].objectId`, "una pregunta de Cajas debe referir un objeto compartido"));
-        else if (!objects.has(s.objectId)) issues.push(at(`${path}[${i}].objectId`, `«${s.objectId}» no es un objeto compartido de la caja`));
-      } else if (s.objectId !== undefined) {
-        issues.push(at(`${path}[${i}].objectId`, "solo las preguntas de Cajas llevan objectId"));
-      }
-    });
-  };
   const dialogue = (path: string, id: string) => {
     if (!Object.hasOwn(c.dialogues, id)) issues.push(at(path, `diálogo inexistente: «${id}»`));
   };
 
   for (const [id, a] of Object.entries(c.activities)) {
     const where = `activities.${id}`;
-    for (const step of REQUIRED_PROMPTS[a.type]) {
-      if (!a.prompts[step]?.trim()) issues.push(at(`${where}.prompts.${step}`, "falta la indicación de este paso"));
-    }
-    for (const step of Object.keys(a.prompts)) {
-      if (!REQUIRED_PROMPTS[a.type].includes(step)) issues.push(at(`${where}.prompts.${step}`, `«${step}» no es un paso con indicación en una mesa de tipo ${a.type}`));
-    }
     switch (a.type) {
       case "shadows": {
         const e = a.experiment;
@@ -92,8 +73,6 @@ export function validateConfig(data: unknown, ctx: ConfigContext): ConfigValidat
         else if (e.sourceDistanceMaxCm - e.sourceDistanceMinCm < e.minDistinctDistanceCm * (e.requiredSamples - 1)) {
           issues.push(at(`${where}.experiment`, "el rango de distancias no permite reunir requiredSamples muestras separadas por minDistinctDistanceCm"));
         }
-        checkSuggestions(`${where}.suggestions`, a.suggestions);
-        checkSuggestions(`${where}.ideaSuggestions`, a.ideaSuggestions);
         break;
       }
       case "ramps": {
@@ -105,8 +84,6 @@ export function validateConfig(data: unknown, ctx: ConfigContext): ConfigValidat
             issues.push(at(`${where}.experiment`, "el rango de inclinaciones no permite reunir requiredTrials pruebas separadas por minDistinctAngleDeg"));
           }
         }
-        dialogue(`${where}.inviteDialogueId`, a.inviteDialogueId);
-        checkSuggestions(`${where}.suggestions`, a.suggestions);
         break;
       }
       case "boxes": {
@@ -115,16 +92,19 @@ export function validateConfig(data: unknown, ctx: ConfigContext): ConfigValidat
           if (objects.has(o.id)) issues.push(at(`${where}.sharedObjects[${i}].id`, `el objeto «${o.id}» está repetido`));
           objects.add(o.id);
         });
+        if (a.requiredObjects > a.sharedObjects.length) issues.push(at(`${where}.requiredObjects`, "no puede pedir más objetos de los que hay en la caja compartida"));
         dialogue(`${where}.refusalDialogueId`, a.refusalDialogueId);
         dialogue(`${where}.personalTouchDialogueId`, a.personalTouchDialogueId);
-        checkSuggestions(`${where}.suggestions`, a.suggestions, objects);
         break;
       }
     }
   }
 
+  // ---- textos de las fases comunes: contenido obligatorio y editable (SPECS 9.1) ----
+  for (const key of REQUIRED_LABELS) if (!c.ui.labels[key]?.trim()) issues.push(at(`ui.labels.${key}`, "falta este texto de las fases comunes"));
+
   // ---- guiones: cada momento del recorrido tiene el suyo ----
-  const moments = new Set<string>(["bienvenida", "cierre", ...c.route]);
+  const moments = new Set<string>([...FACILITATOR_MOMENTS, ...c.route]);
   for (const m of moments) if (!Object.hasOwn(c.facilitatorNotes, m)) issues.push(at(`facilitatorNotes.${m}`, "falta el guion de este momento"));
 
   // ---- assets ----

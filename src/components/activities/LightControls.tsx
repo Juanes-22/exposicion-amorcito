@@ -1,52 +1,57 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { AdventureAction, CommandResult } from "../../../shared/contracts/actions";
+import { useEffect, useRef, useState } from "react";
 import type { ShadowsExperiment } from "../../../shared/contracts/config";
-import { createThrottledSender } from "./throttle";
 
 interface Props {
   experiment: ShadowsExperiment;
-  /** Distancia vigente según el servidor. */
-  distanceCm: number;
+  /** Última posición registrada; la inicial si todavía no hay ninguna. */
+  initialCm: number;
   disabled: boolean;
-  send: (action: AdventureAction) => Promise<CommandResult>;
-  /** Solo en el paso de exploración se pueden anotar posiciones. */
-  canNote: boolean;
+  /** Mientras se ajusta: lo dibuja la escena al instante, sin esperar al servidor. */
+  onMove: (distanceCm: number) => void;
+  /** Al terminar el ajuste: se registra la posición y su sombra (no hay botón de anotar). */
+  onCommit: (distanceCm: number) => void;
 }
 
 const STEP_CM = 1;
+/** Pausa tras el último cambio de los botones −/+ para considerar que el ajuste terminó. */
+const SETTLE_MS = 600;
 
 /**
  * Linterna: slider con «Más lejos del objeto» a la izquierda y «Más cerca del objeto» a la derecha, más botones −/+ equivalentes
- * (SPECS 3.2, 11.1). El arrastre se envía a ≈ 12 Hz sin contar como exploración; la posición se anota al terminar el gesto o al
- * pulsar «Anotar esta posición» (teclado y botones). El valor mostrado mientras se arrastra es local y se reconcilia con el servidor.
+ * (SPECS 3.2, 11.1). El ajuste es local; cuando termina (se suelta el slider, o los botones dejan de pulsarse un instante) la
+ * posición se registra sola con su sombra: no hace falta «Anotar esta posición».
  */
-export function LightControls({ experiment: e, distanceCm, disabled, send, canNote }: Props) {
+export function LightControls({ experiment: e, initialCm, disabled, onMove, onCommit }: Props) {
   const { sourceDistanceMinCm: min, sourceDistanceMaxCm: max } = e;
-  const [local, setLocal] = useState<number | null>(null);
-  const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const value = local ?? distanceCm;
+  const [value, setValue] = useState(initialCm);
   const latest = useRef(value);
   latest.current = value;
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dirty = useRef(false);
 
-  const sender = useMemo(() => createThrottledSender<number>((d) => void send({ type: "shadows.light.set", distanceCm: d, commitSample: false })), [send]);
-  useEffect(() => () => sender.dispose(), [sender]);
-  // Cuando el servidor ya refleja lo que se arrastró, se vuelve a mostrar su valor.
   useEffect(() => {
-    if (local !== null && Math.abs(local - distanceCm) < 1e-6) setLocal(null);
-  }, [distanceCm, local]);
-  useEffect(() => () => void (clearTimer.current && clearTimeout(clearTimer.current)), []);
+    onMove(initialCm);
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
+    // Solo al abrir: la posición inicial se muestra en la escena.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  const flush = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    if (!dirty.current) return;
+    dirty.current = false;
+    onCommit(latest.current);
+  };
   const move = (d: number) => {
     const clamped = Math.min(max, Math.max(min, d));
-    setLocal(clamped);
-    sender.push(clamped);
-  };
-  const note = (d: number) => {
-    sender.flush();
-    void send({ type: "shadows.light.set", distanceCm: d, commitSample: true });
-    // Si el servidor rechaza o no cambia nada, no se queda un valor local flotando.
-    if (clearTimer.current) clearTimeout(clearTimer.current);
-    clearTimer.current = setTimeout(() => setLocal(null), 800);
+    setValue(clamped);
+    onMove(clamped);
+    dirty.current = true;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(flush, SETTLE_MS);
   };
 
   // El slider crece hacia «más cerca»: izquierda = más lejos (distancia máxima).
@@ -66,7 +71,10 @@ export function LightControls({ experiment: e, distanceCm, disabled, send, canNo
           value={slider}
           disabled={disabled}
           onChange={(ev) => move(min + max - Number(ev.target.value))}
-          onPointerUp={() => canNote && note(latest.current)}
+          onPointerUp={flush}
+          onPointerCancel={flush}
+          onKeyUp={() => flush()}
+          onBlur={flush}
           aria-label="Distancia de la linterna al objeto"
           aria-valuetext={`${value} centímetros del objeto`}
         />
@@ -78,11 +86,6 @@ export function LightControls({ experiment: e, distanceCm, disabled, send, canNo
         <span>Más lejos del objeto</span>
         <span>Más cerca del objeto</span>
       </div>
-      {canNote ? (
-        <button type="button" className="btn" disabled={disabled} onClick={() => note(value)}>
-          Anotar esta posición
-        </button>
-      ) : null}
     </div>
   );
 }

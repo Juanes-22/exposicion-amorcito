@@ -10,21 +10,27 @@ export const FONT = "Nunito Variable, Nunito, sans-serif";
 export interface ActivityView<S extends ActivityState = ActivityState> {
   id: string;
   config: ActivityConfig;
+  /** Las pruebas de quien mira (o de la demostración de Vanessa): nunca las de otra persona. */
   state: S;
   adv: AdventureState;
   phase: RoomPhase;
 }
 
-/** Estado de la mesa abierta, leído del último snapshot del puente (la escena pinta, no decide). `null` si no corresponde. */
+/**
+ * La mesa que esta pantalla tiene abierta y las pruebas de quien mira, leídas del último estado visual del puente (la escena pinta, no
+ * decide). `null` si no corresponde: no hay mesa abierta, es de otro tipo o quien mira no es una persona ni una demostración.
+ */
 export function readActivity<T extends ActivityState["type"]>(scene: Phaser.Scene, type: T): ActivityView<Extract<ActivityState, { type: T }>> | null {
   const { bridge, project } = getDeps(scene);
-  const snap = bridge.snapshot;
-  const view = snap?.state.adventure.view;
-  if (!snap || view?.kind !== "activity") return null;
-  const state = snap.state.adventure.activities[view.activityId];
-  const config = project.bundle.config.activities[view.activityId];
+  const v = bridge.visual;
+  if (!v) return null;
+  const personal = v.viewer.kind === "participant" ? v.viewer.me : v.viewer.kind === "projection" ? v.viewer.demo : null;
+  if (personal?.view.kind !== "activity") return null;
+  const id = personal.view.activityId;
+  const state = personal.activities[id];
+  const config = project.bundle.config.activities[id];
   if (!state || !config || state.type !== type) return null;
-  return { id: view.activityId, config, state: state as Extract<ActivityState, { type: T }>, adv: snap.state.adventure, phase: snap.state.phase };
+  return { id, config, state: state as Extract<ActivityState, { type: T }>, adv: v.group, phase: v.phase };
 }
 
 /** Muestra el escenario lógico entero, centrado y a escala uniforme, y lo vuelve a ajustar si cambia el tamaño. */

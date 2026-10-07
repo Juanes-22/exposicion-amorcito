@@ -1,6 +1,7 @@
-import type { EffectEvent, PublicController, RoomSnapshot, SimulationFrame } from "../../../shared/contracts/events";
+import type { ClockSample, EffectEvent, PublicCharacter } from "../../../shared/contracts/events";
 import type { Point } from "../../../shared/contracts/geometry";
 import type { ConfigIssue } from "../../../shared/contracts/assets";
+import type { AdventureState, ParticipantState, RoomPhase } from "../../../shared/contracts/state";
 
 /**
  * Intención del jugador sobre el mapa, ya en coordenadas de MUNDO (la conversión pantalla→mundo la hace la escena con su cámara).
@@ -16,15 +17,39 @@ export interface AssetFailure {
 
 /** Qué puede hacer quien tiene delante la escena y por qué no (SPECS 10.2). */
 export interface BridgePermissions {
-  canAct: boolean;
-  /** Motivo legible cuando `canAct` es falso: pausa, sin turno, conexión perdida… */
+  /** Puede caminar por el laboratorio: preparación o exploración, con la sala en curso. */
+  canMove: boolean;
+  /** Puede abrir la mesa habilitada y explorarla: solo durante la exploración. */
+  canExplore: boolean;
+  /** Motivo legible cuando no puede: pausa, conversación, conexión perdida… */
   reason: string | null;
 }
 
+/**
+ * Quién mira la escena. Una persona ve SU estado personal (sus pruebas); la proyección ve el estado de grupo y, durante una
+ * demostración de Vanessa, su estado de demostración (que nunca toca el de las personas); un observador solo ve el grupo.
+ */
+export type Viewer =
+  | { kind: "participant"; principalId: string; me: ParticipantState }
+  | { kind: "projection"; demo: ParticipantState | null }
+  | { kind: "observer" };
+
 /** Estado visual que la aplicación entrega a Phaser: pinta, nunca decide (SPECS 7.2). */
-export interface VisualSnapshot {
-  state: RoomSnapshot["state"];
-  controller: PublicController | null;
+export interface VisualState {
+  phase: RoomPhase;
+  group: AdventureState;
+  viewer: Viewer;
+  /** Los personajes de todas las personas del laboratorio compartido. */
+  characters: PublicCharacter[];
+}
+
+/**
+ * Lo que solo existe en el dispositivo mientras alguien ajusta un experimento y todavía no se registra: la posición de la linterna y la
+ * inclinación elegida. No viaja al servidor: solo el resultado ya terminado se registra.
+ */
+export interface LocalExperiment {
+  lanternCm: number | null;
+  angleDeg: number | null;
 }
 
 /**
@@ -40,9 +65,11 @@ export interface BridgeEvents {
   "game:asset-failures": { failures: AssetFailure[]; token: number };
   "game:invalid-project": { issues: ConfigIssue[] };
 
-  "app:snapshot": VisualSnapshot;
-  /** Muestra visual y reloj; no debe renderizar el árbol de React por cada posición. */
-  "app:frame": SimulationFrame;
+  "app:visual": VisualState;
+  /** Muestra del reloj de simulación; no debe renderizar el árbol de React por cada una. */
+  "app:clock": ClockSample;
+  /** Cambio de lo que solo existe en el dispositivo (linterna, inclinación elegida). */
+  "app:local": LocalExperiment;
   "app:permissions": BridgePermissions;
   /** Una solicitud se resuelve una sola vez; una denegación también libera el bloqueo temporal. */
   "app:request-result": { requestId: string; accepted: boolean; reason?: string };

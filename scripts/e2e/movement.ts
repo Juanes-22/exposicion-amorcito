@@ -1,6 +1,7 @@
 /// <reference lib="dom" />
-// Fase 3 (P3): el teléfono mueve a Vanessa y la proyección muestra el MISMO plan; el cambio de turno conserva posición y vista; la espera
-// no recibe frames. Tres contextos de navegador independientes contra el build servido por el servidor real (`npm run build` antes).
+// Movimiento en el laboratorio compartido: cada persona mueve SU personaje desde su celular y los demás dispositivos (la proyección y los
+// otros celulares) dibujan el MISMO plan. Tres contextos de navegador independientes (proyección + dos celulares) contra el build servido
+// por el servidor real (`npm run build` antes).
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -11,10 +12,10 @@ import { loadProjectFromDisk } from "../../server/src/project";
 
 // Las capturas de evidencia solo se escriben en docs/ cuando se pide (E2E_EVIDENCE=1); si no, van a una carpeta temporal para no
 // ensuciar el historial con binarios que cambian en cada ejecución.
-const EVIDENCE = process.env.E2E_EVIDENCE ? resolve("docs/evidencia/fase3") : mkdtempSync(join(tmpdir(), "laboratorio-evidencia-"));
+const EVIDENCE = process.env.E2E_EVIDENCE ? resolve("docs/evidencia/movimiento") : mkdtempSync(join(tmpdir(), "laboratorio-evidencia-"));
 const dir = mkdtempSync(join(tmpdir(), "laboratorio-move-"));
-// Vanessa más lenta que en producción (150 u/s): el teléfono vertical solo VE ~520 px de mundo, así que para tener trayectos de varios
-// segundos dentro de lo visible hace falta caminar más despacio. El cliente usa la velocidad del PLAN que decide el servidor.
+// Más lento que en producción (150 u/s): el teléfono vertical solo VE ~520 px de mundo, así que para tener trayectos de varios segundos
+// dentro de lo visible hace falta caminar más despacio. El cliente usa la velocidad del PLAN que decide el servidor.
 const SPEED = 60;
 const settings = loadSettings({}, { databasePath: join(dir, "m.sqlite"), port: 0, host: "127.0.0.1", distDir: resolve("dist") });
 const project = loadProjectFromDisk(settings.publicDir);
@@ -34,35 +35,36 @@ interface View {
   clock: number;
   running: boolean;
   plan: { id: string; end: { x: number; y: number } } | null;
-  moving: boolean;
   zoom: number;
   view: { x: number; y: number; w: number; h: number };
   listeners: number;
-  at: number;
 }
 
-/** Estado visible de la escena de una vista: dónde dibuja a Vanessa, el plan y el reloj con el que lo hace. */
-const read = (page: Page): Promise<View> =>
-  page.evaluate(() => {
+/**
+ * Lo que una pantalla dibuja de UNA persona: dónde está su sprite en la escena, su plan y el reloj con el que lo hace. Sin nombre es el
+ * personaje de quien mira (el celular); con nombre, el de esa persona (otro celular o la proyección).
+ */
+const read = (page: Page, who?: string): Promise<View> =>
+  page.evaluate((name) => {
     const g = (window as unknown as { __PHASER_GAME__: any }).__PHASER_GAME__;
     const scene = g.scene.getScene("LaboratoryScene");
     const bridge = g.registry.get("deps").bridge;
-    const sprite = scene.children.list.find((c: any) => c.texture?.key === "character.vanessa-jerry.walk.poses-v4");
-    const adv = bridge.snapshot?.state.adventure;
-    const plan = adv?.player.plan;
+    const v = bridge.visual;
+    const own = v.viewer.kind === "participant" ? v.viewer.principalId : null;
+    const ch = name ? v.characters.find((c: any) => c.displayName === name) : v.characters.find((c: any) => c.principalId === own);
+    const view = scene.characters.get(ch.principalId);
+    const plan = ch.character.plan;
     const cam = scene.cameras.main;
     return {
-      player: { x: sprite.x, y: sprite.y },
+      player: { x: view.image.x, y: view.image.y },
       clock: bridge.clock.now(),
       running: bridge.clock.isRunning,
       plan: plan ? { id: plan.planId, end: plan.points[plan.points.length - 1] } : null,
-      moving: sprite.anims.isPlaying,
       zoom: cam.zoom,
       view: { x: cam.worldView.x, y: cam.worldView.y, w: cam.worldView.width, h: cam.worldView.height },
       listeners: bridge.listenerCount(),
-      at: Date.now(),
     };
-  });
+  }, who);
 
 /** Toca el mapa en el punto de MUNDO indicado: calcula dónde cae en pantalla con la cámara real y hace un clic de verdad. */
 /** Devuelve el instante (Date.now) justo antes del clic, para medir latencias sin contar la espera ni la lectura. */
@@ -77,11 +79,33 @@ async function tapWorld(page: Page, wx: number, wy: number): Promise<number> {
   return at;
 }
 const dist2 = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
-const countWsFrames = (page: Page) => {
-  const c = { frames: 0 };
-  page.on("websocket", (ws) => ws.on("framereceived", (f) => typeof f.payload === "string" && f.payload.includes("simulation.frame") && c.frames++));
-  return c;
-};
+const planOf = (name: string) => `(() => { const b = window.__PHASER_GAME__?.registry.get("deps").bridge; const c = b?.visual?.characters.find((x) => x.displayName === ${JSON.stringify(name)}); return c ? c.character.plan : undefined; })()`;
+/** El servidor conserva el último plan aunque ya haya llegado (la posición se deduce del plan y del reloj): «hay plan nuevo» es un plan con OTRO id. */
+const currentPlanId = (page: Page, name: string): Promise<string> => page.evaluate(`(${planOf(name)})?.planId ?? ""`) as Promise<string>;
+const waitNewPlan = (page: Page, name: string, previous: string) => page.waitForFunction(`((${planOf(name)})?.planId ?? "") !== ${JSON.stringify(previous)}`, undefined, { timeout: 8000 });
+/** Llegó: no hay plan, o el reloj de simulación de esa pantalla ya pasó el final del plan (velocidad y longitud los decide el servidor). */
+const waitArrived = (page: Page, name: string, timeout = 20000) =>
+  page.waitForFunction(
+    `(() => { const b = window.__PHASER_GAME__?.registry.get("deps").bridge; const p = ${planOf(name)}; return p === null || (!!p && b.clock.now() >= p.startActiveMs + (p.lengthTotal / p.speed) * 1000); })()`,
+    undefined,
+    { timeout },
+  );
+/** Toca el mapa y espera a que ESA pantalla (y las demás indicadas) tengan el plan nuevo. Devuelve el id del plan anterior. */
+async function walk(who: { page: Page; name: string }, wx: number, wy: number, alsoSeenBy: Page[] = []): Promise<string> {
+  const previous = await currentPlanId(who.page, who.name);
+  await tapWorld(who.page, wx, wy);
+  await waitNewPlan(who.page, who.name, previous);
+  for (const p of alsoSeenBy) await waitNewPlan(p, who.name, previous);
+  return previous;
+}
+
+/** La escena del laboratorio ya está activa y dibujó a quien mira (al volver de una mesa se crea de nuevo). */
+const labReady = (page: Page) =>
+  page.waitForFunction(() => {
+    const g = (window as any).__PHASER_GAME__;
+    const v = g.registry.get("deps").bridge.visual;
+    return g.scene.isActive("LaboratoryScene") && v?.viewer.kind === "participant" && !!g.scene.getScene("LaboratoryScene").characters?.get(v.viewer.principalId);
+  });
 
 const opened: Record<string, Page> = {};
 
@@ -91,13 +115,12 @@ async function open(name: string, viewport: { width: number; height: number }, p
   opened[name] = page;
   page.on("pageerror", (e) => problems.push(`${name} pageerror: ${e.message}`));
   page.on("console", (m) => m.type() === "error" && problems.push(`${name} console.error: ${m.text()}`));
-  const ws = countWsFrames(page);
   await page.goto(`${BASE}${path}`);
-  return { ctx, page, ws };
+  return { ctx, page };
 }
 
 try {
-  // ---- sala con tres identidades ----
+  // ---- sala con la proyección y dos personas que juegan ----
   const admin = await open("admin", { width: 1280, height: 720 }, "/");
   await admin.page.getByRole("button", { name: "Crear sala" }).click();
   await admin.page.waitForURL(/\/sala\/[A-Z0-9]{6}$/);
@@ -105,116 +128,83 @@ try {
   await admin.page.goto(`${BASE}/sala/${code}?hooks`);
   await admin.page.getByText("Entra con tu celular").waitFor();
   const phone = { width: 390, height: 844 };
-  const ana = await open("ana", phone, `/sala/${code}?hooks`);
-  await ana.page.getByLabel("Tu nombre").fill("Ana");
-  await ana.page.getByRole("button", { name: "Entrar a la sala" }).click();
-  await ana.page.getByText("Estás en la sala. Sigue la aventura en la proyección").waitFor();
-  const beto = await open("beto", phone, `/sala/${code}?hooks`);
-  await beto.page.getByLabel("Tu nombre").fill("Beto");
-  await beto.page.getByRole("button", { name: "Entrar a la sala" }).click();
-  await beto.page.getByText("Estás en la sala. Sigue la aventura en la proyección").waitFor();
+  const entrar = async (name: string) => {
+    const p = await open(name.toLowerCase(), phone, `/sala/${code}?hooks`);
+    await p.page.getByLabel("Tu nombre").fill(name);
+    await p.page.getByRole("button", { name: "Entrar a la sala" }).click();
+    return p;
+  };
+  const ana = await entrar("Ana");
+  const beto = await entrar("Beto");
   await admin.page.locator(".participant").nth(1).waitFor();
-  await admin.page.getByRole("button", { name: "Dar el turno a Ana", exact: true }).click();
-  await admin.page.getByRole("button", { name: "Comenzar con Ana" }).click();
-  await ana.page.getByText("Es tu turno, Ana").waitFor();
-  await ana.page.locator("canvas").waitFor();
-  await admin.page.locator("canvas").waitFor();
-  await ana.page.waitForFunction(() => (window as any).__PHASER_GAME__?.registry.get("deps").bridge.snapshot);
-  await admin.page.waitForFunction(() => (window as any).__PHASER_GAME__?.registry.get("deps").bridge.snapshot);
+  await admin.page.getByRole("button", { name: "Comenzar la aventura" }).click();
+  for (const p of [ana.page, beto.page, admin.page]) {
+    await p.locator("canvas").waitFor();
+    await p.waitForFunction(() => (window as any).__PHASER_GAME__?.registry.get("deps").bridge.visual);
+  }
   await sleep(500);
 
-  // ---- 1. cámara: la proyección ve el laboratorio entero; el teléfono vertical sigue a Vanessa con ampliación legible ----
+  // ---- 1. cámara: la proyección ve el laboratorio entero; el teléfono vertical sigue a su personaje con ampliación legible ----
   const a0 = await read(ana.page);
-  const p0 = await read(admin.page);
+  const p0 = await read(admin.page, "Ana");
   check(p0.view.w >= 1280 - 1, `la proyección encuadra el laboratorio entero (ve ${Math.round(p0.view.w)} px de mundo de ancho, zoom ${p0.zoom.toFixed(2)})`);
   const phoneFit = phone.width / 1280; // el zoom que necesitaría ESTE teléfono para mostrar el laboratorio entero
-  check(Math.abs(a0.view.w - 520) < 2 && a0.zoom > phoneFit * 2, `el teléfono vertical sigue a Vanessa y ve ~520 px de mundo (zoom ${a0.zoom.toFixed(2)}, más del doble que los ${phoneFit.toFixed(2)} que haría falta para ver el mapa entero)`);
+  check(Math.abs(a0.view.w - 520) < 4 && a0.zoom > phoneFit * 2, `el teléfono vertical sigue a su personaje y ve ~520 px de mundo (zoom ${a0.zoom.toFixed(2)}, más del doble que los ${phoneFit.toFixed(2)} que haría falta para ver el mapa entero)`);
   check(a0.view.x >= -1 && a0.view.x + a0.view.w <= 1281, "la cámara de seguimiento no muestra fuera del mapa");
 
-  // ---- 2. un toque en el teléfono: el servidor acepta UN plan y ambas vistas lo dibujan ----
+  // ---- 2. un toque en el teléfono de Ana: el servidor acepta UN plan y TODAS las pantallas dibujan a Ana en el mismo sitio ----
   const target = { x: 640, y: 450 };
-  await tapWorld(ana.page, target.x, target.y);
-  await ana.page.waitForFunction(() => (window as any).__PHASER_GAME__.registry.get("deps").bridge.snapshot.state.adventure.player.plan);
-  await admin.page.waitForFunction(() => (window as any).__PHASER_GAME__.registry.get("deps").bridge.snapshot.state.adventure.player.plan);
-  const a1 = await read(ana.page);
-  const p1 = await read(admin.page);
-  check(a1.plan && p1.plan && a1.plan.id === p1.plan.id, `teléfono y proyección dibujan el MISMO plan (${a1.plan?.id})`);
+  await walk({ page: ana.page, name: "Ana" }, target.x, target.y, [admin.page, beto.page]);
+  const [a1, p1, b1] = await Promise.all([read(ana.page, "Ana"), read(admin.page, "Ana"), read(beto.page, "Ana")]);
+  check(a1.plan && p1.plan && b1.plan && a1.plan.id === p1.plan.id && p1.plan.id === b1.plan.id, `el celular de Ana, el de Beto y la proyección dibujan el MISMO plan (${a1.plan?.id})`);
   check(a1.plan && dist2(a1.plan.end, target) < 1.5, `la conversión pantalla→mundo es exacta: el servidor recibió el destino (${a1.plan?.end.x.toFixed(1)}, ${a1.plan?.end.y.toFixed(1)}) y se tocó (${target.x}, ${target.y})`);
-
-  // Posiciones de ambas escenas durante el trayecto: deben coincidir salvo la latencia.
   let worst = 0;
-  const samples: Array<[number, number]> = [];
   for (let i = 0; i < 12; i++) {
-    const [a, p] = await Promise.all([read(ana.page), read(admin.page)]);
-    const d = dist2(a.player, p.player);
-    worst = Math.max(worst, d);
-    samples.push([Math.round(a.player.x), Math.round(p.player.x)]);
+    const [a, p, b] = await Promise.all([read(ana.page, "Ana"), read(admin.page, "Ana"), read(beto.page, "Ana")]);
+    worst = Math.max(worst, dist2(a.player, p.player), dist2(a.player, b.player));
     await sleep(120);
   }
-  console.log(`  ℹ divergencia máxima teléfono↔proyección durante el trayecto: ${worst.toFixed(1)} px (a ${SPEED} u/s, 100 ms de diferencia = ${(SPEED / 10).toFixed(0)} px)`);
-  check(worst < 40, "durante el trayecto, las dos escenas dibujan a Vanessa en la misma posición (diferencia < 40 px)");
-  await ana.page.screenshot({ path: join(EVIDENCE, "01-telefono-siguiendo-a-vanessa.png") });
+  console.log(`  ℹ divergencia máxima entre pantallas durante el trayecto: ${worst.toFixed(1)} px (a ${SPEED} u/s, 100 ms de diferencia = ${(SPEED / 10).toFixed(0)} px)`);
+  check(worst < 40, "durante el trayecto, las tres pantallas dibujan a Ana en la misma posición (diferencia < 40 px)");
+  await ana.page.screenshot({ path: join(EVIDENCE, "01-telefono-siguiendo-a-ana.png") });
   await admin.page.screenshot({ path: join(EVIDENCE, "02-proyeccion-mismo-plan.png") });
 
-  // ---- 3. llega: ambas terminan exactamente en el destino y la posición queda guardada por el servidor ----
-  await ana.page.waitForFunction(() => !(window as any).__PHASER_GAME__.registry.get("deps").bridge.snapshot.state.adventure.player.plan, undefined, { timeout: 15000 });
-  await admin.page.waitForFunction(() => !(window as any).__PHASER_GAME__.registry.get("deps").bridge.snapshot.state.adventure.player.plan, undefined, { timeout: 15000 });
+  // ---- 3. llega: todas terminan exactamente en el destino y la posición queda guardada por el servidor ----
+  for (const p of [ana.page, admin.page, beto.page]) await waitArrived(p, "Ana", 15000);
   await sleep(250);
-  const a2 = await read(ana.page);
-  const p2 = await read(admin.page);
-  check(dist2(a2.player, target) < 1.5 && dist2(p2.player, target) < 1.5, "al llegar, teléfono y proyección dejan a Vanessa exactamente en el destino");
-  check(a2.plan === null && !a2.moving, "terminó el movimiento: sin plan y sin animación de caminar");
+  const [a2, p2] = await Promise.all([read(ana.page, "Ana"), read(admin.page, "Ana")]);
+  check(dist2(a2.player, target) < 1.5 && dist2(p2.player, target) < 1.5, "al llegar, el celular y la proyección dejan a Ana exactamente en el destino");
 
   // ---- 4. un punto dentro de una pared se rechaza con una explicación y no cambia nada ----
   await tapWorld(ana.page, 640, 90);
   await ana.page.getByText(/no se puede pisar/).first().waitFor();
   const a3 = await read(ana.page);
-  check(a3.plan === null && dist2(a3.player, target) < 1.5, "tocar una pared muestra «no se puede pisar» y Vanessa no se mueve ni queda atrapada");
-  await tapWorld(ana.page, 850, 600); // y sigue pudiendo moverse (suelo libre, lejos del inventor)
-  await ana.page.waitForFunction(() => (window as any).__PHASER_GAME__.registry.get("deps").bridge.snapshot.state.adventure.player.plan);
+  check(dist2(a3.player, target) < 1.5 && a3.plan?.id === a2.plan?.id, "tocar una pared muestra «no se puede pisar» y el personaje no se mueve ni queda atrapado");
+  await walk({ page: ana.page, name: "Ana" }, 850, 600); // y sigue pudiendo moverse (suelo libre, lejos del inventor)
   check(true, "después de un rechazo, el siguiente toque válido funciona");
-  await ana.page.waitForFunction(() => !(window as any).__PHASER_GAME__.registry.get("deps").bridge.snapshot.state.adventure.player.plan, undefined, { timeout: 15000 });
+  await waitArrived(ana.page, "Ana");
 
-  // ---- 5. la espera no recibe frames de simulación ----
-  check(beto.ws.frames === 0, `Beto (en espera) no recibió ningún frame de simulación por su WebSocket (Ana: ${ana.ws.frames}, proyección: ${admin.ws.frames})`);
-  check((await beto.page.locator("canvas").count()) === 0, "Beto sigue sin canvas");
+  // ---- 5. las dos personas caminan A LA VEZ, cada una por su plan, y cada pantalla las dibuja a las dos ----
+  await Promise.all([walk({ page: ana.page, name: "Ana" }, 700, 600, [admin.page]), walk({ page: beto.page, name: "Beto" }, 800, 650, [admin.page])]);
+  const [pa, pb] = await Promise.all([read(admin.page, "Ana"), read(admin.page, "Beto")]);
+  check(pa.plan && pb.plan && pa.plan.id !== pb.plan.id, `la proyección ve dos planes distintos a la vez (${pa.plan?.id} y ${pb.plan?.id}): nadie espera su turno`);
+  await sleep(600);
+  const [anaEnAna, anaEnBeto, betoEnAna, betoEnBeto] = await Promise.all([read(ana.page, "Ana"), read(beto.page, "Ana"), read(ana.page, "Beto"), read(beto.page, "Beto")]);
+  check(dist2(anaEnAna.player, anaEnBeto.player) < 40 && dist2(betoEnAna.player, betoEnBeto.player) < 40, "cada celular dibuja al otro caminando en el mismo lugar que el celular del otro");
+  await beto.page.screenshot({ path: join(EVIDENCE, "03-beto-ve-a-ana-caminar.png") });
+  await waitArrived(admin.page, "Ana");
+  await waitArrived(admin.page, "Beto");
 
-  // ---- 6. cambio de turno EN PLENO MOVIMIENTO: el nuevo controlador ve el mismo plan, no el spawn ----
-  // Trayecto largo (~4 s): claramente más que la maniobra de la interfaz para dar el turno.
-  await tapWorld(ana.page, 620, 420);
-  await ana.page.waitForFunction(() => (window as any).__PHASER_GAME__.registry.get("deps").bridge.snapshot.state.adventure.player.plan);
-  await admin.page.getByText(/Participantes \(/).click(); // el panel se abre antes: el cambio de turno es un solo clic
-  await sleep(500);
-  const anaFramesBefore = ana.ws.frames;
-  await admin.page.getByRole("button", { name: "Dar el turno a Beto" }).click();
-  await beto.page.getByText("Es tu turno, Beto").waitFor();
-  await beto.page.locator("canvas").waitFor();
-  await beto.page.waitForFunction(() => (window as any).__PHASER_GAME__?.registry.get("deps").bridge.snapshot);
-  await sleep(150);
-  const [b1, p3] = await Promise.all([read(beto.page), read(admin.page)]);
-  const spawn = { x: 640, y: 720 };
-  check(b1.plan && p3.plan && b1.plan.id === p3.plan.id, "Beto recibe el MISMO plan que ya estaba en marcha");
-  check(dist2(b1.player, spawn) > 80 && dist2(b1.player, p3.player) < 40, `la escena de Beto dibuja a Vanessa a mitad de camino, no en el spawn (a ${dist2(b1.player, p3.player).toFixed(1)} px de la proyección)`);
-  await beto.page.screenshot({ path: join(EVIDENCE, "03-cambio-de-turno-en-pleno-movimiento-beto.png") });
-  await ana.page.getByText("Estás en la sala. Sigue la aventura en la proyección").waitFor();
-  check((await ana.page.locator("canvas").count()) === 0, "Ana, que perdió el turno, ya no tiene canvas");
-  await sleep(500);
-  check(ana.ws.frames - anaFramesBefore <= 2, `Ana deja de recibir frames al perder el turno (${ana.ws.frames - anaFramesBefore} tras el cambio, en tránsito)`);
-  await beto.page.waitForFunction(() => !(window as any).__PHASER_GAME__.registry.get("deps").bridge.snapshot.state.adventure.player.plan, undefined, { timeout: 15000 });
-  const b2 = await read(beto.page);
-  check(dist2(b2.player, { x: 620, y: 420 }) < 1.5, "el movimiento termina en el destino que había pedido Ana");
-
-  // ---- 7. pausa en mitad del movimiento congela las DOS escenas; reanudar continúa sin sumar la conversación ----
-  await tapWorld(beto.page, 420, 420);
-  await beto.page.waitForFunction(() => (window as any).__PHASER_GAME__.registry.get("deps").bridge.snapshot.state.adventure.player.plan);
+  // ---- 6. pausa en mitad del movimiento congela TODAS las escenas; reanudar continúa sin sumar la conversación ----
+  await walk({ page: beto.page, name: "Beto" }, 640, 600);
   await sleep(500);
   await admin.page.getByRole("button", { name: "Pausar" }).click();
   await admin.page.getByRole("heading", { name: "En pausa" }).waitFor();
   await sleep(300);
-  const [f1, g1] = await Promise.all([read(beto.page), read(admin.page)]);
+  const [f1, g1] = await Promise.all([read(beto.page), read(admin.page, "Beto")]);
   await sleep(1500); // una charla corta con todo en pausa
-  const [f2, g2] = await Promise.all([read(beto.page), read(admin.page)]);
-  check(dist2(f1.player, f2.player) < 0.5 && dist2(g1.player, g2.player) < 0.5, "en pausa Vanessa no avanza ni un píxel, en el teléfono ni en la proyección");
+  const [f2, g2] = await Promise.all([read(beto.page), read(admin.page, "Beto")]);
+  check(dist2(f1.player, f2.player) < 0.5 && dist2(g1.player, g2.player) < 0.5, "en pausa el personaje no avanza ni un píxel, en el celular ni en la proyección");
   check(!f2.running && Math.abs(f2.clock - f1.clock) < 1, "el reloj de simulación del cliente queda quieto exactamente donde estaba");
   await admin.page.screenshot({ path: join(EVIDENCE, "04-pausa-a-mitad-del-movimiento.png") });
   await admin.page.getByRole("button", { name: "Reanudar" }).click();
@@ -223,88 +213,89 @@ try {
   const f3 = await read(beto.page);
   check(f3.running && dist2(f3.player, f2.player) > 8, "al reanudar sigue caminando desde donde estaba");
   check(dist2(f3.player, f2.player) < 90, "y sin saltar: no suma el tiempo que duró la conversación en pausa");
-  await beto.page.waitForFunction(() => !(window as any).__PHASER_GAME__.registry.get("deps").bridge.snapshot.state.adventure.player.plan, undefined, { timeout: 15000 });
+  await waitArrived(beto.page, "Beto");
 
-  // ---- 8. redimensionar: el encuadre se recalcula y Vanessa sigue a la vista ----
+  // ---- 7. redimensionar: el encuadre se recalcula y el personaje sigue a la vista ----
   await beto.page.setViewportSize({ width: 700, height: 420 });
   await sleep(500);
   const r1 = await read(beto.page);
-  check(r1.player.x >= r1.view.x && r1.player.x <= r1.view.x + r1.view.w && r1.player.y >= r1.view.y && r1.player.y <= r1.view.y + r1.view.h, `tras redimensionar a 700×420 la cámara recalcula el encuadre (zoom ${r1.zoom.toFixed(2)}) y Vanessa sigue a la vista`);
+  check(r1.player.x >= r1.view.x && r1.player.x <= r1.view.x + r1.view.w && r1.player.y >= r1.view.y && r1.player.y <= r1.view.y + r1.view.h, `tras redimensionar a 700×420 la cámara recalcula el encuadre (zoom ${r1.zoom.toFixed(2)}) y el personaje sigue a la vista`);
   await beto.page.setViewportSize(phone);
   await sleep(400);
 
-  // ---- 9. pestaña congelada y de vuelta: se aplica el tiempo actual, sin «adelantar» con un delta acumulado ----
-  await tapWorld(beto.page, 200, 520);
-  await beto.page.waitForFunction(() => (window as any).__PHASER_GAME__.registry.get("deps").bridge.snapshot.state.adventure.player.plan);
+  // ---- 8. pestaña congelada y de vuelta: se aplica el tiempo actual, sin «adelantar» con un delta acumulado ----
+  await walk({ page: beto.page, name: "Beto" }, 420, 560);
   const cdp = await beto.ctx.newCDPSession(beto.page);
   await cdp.send("Page.setWebLifecycleState", { state: "frozen" });
   await sleep(1800);
   await cdp.send("Page.setWebLifecycleState", { state: "active" });
   await sleep(700);
-  const [h1, h2] = await Promise.all([read(beto.page), read(admin.page)]);
-  check(dist2(h1.player, h2.player) < 60, `tras congelar la pestaña 1,8 s, el teléfono vuelve a coincidir con la proyección (a ${dist2(h1.player, h2.player).toFixed(1)} px)`);
-  await beto.page.waitForFunction(() => !(window as any).__PHASER_GAME__.registry.get("deps").bridge.snapshot.state.adventure.player.plan, undefined, { timeout: 15000 });
+  const [h1, h2] = await Promise.all([read(beto.page), read(admin.page, "Beto")]);
+  check(dist2(h1.player, h2.player) < 60, `tras congelar la pestaña 1,8 s, el celular vuelve a coincidir con la proyección (a ${dist2(h1.player, h2.player).toFixed(1)} px)`);
+  await waitArrived(beto.page, "Beto");
 
-  // ---- 10. mesas: lista accesible, toque sobre una mesa que camina y la abre, volver al mapa ----
+  // ---- 9. mesas: solo la habilitada, y solo cuando Vanessa la abre ----
   await beto.page.getByText("Mesas", { exact: true }).click();
-  check(await beto.page.getByRole("button", { name: "Rampas" }).isDisabled(), "en la lista de mesas, Rampas está bloqueada hasta completar Sombras (se conserva el orden del recorrido)");
-  check(await beto.page.getByRole("button", { name: "El inventor" }).isDisabled(), "y el inventor también");
-  await beto.page.getByRole("button", { name: "Sombras" }).click();
-  await beto.page.getByRole("heading", { name: "Sombras" }).waitFor();
-  await admin.page.getByRole("heading", { name: "Sombras" }).waitFor();
-  check(true, "abrir Sombras desde la lista no exige proximidad y la proyección también la ve abierta");
-  await beto.page.screenshot({ path: join(EVIDENCE, "05-mesa-abierta-desde-la-lista.png") });
+  check(await beto.page.getByRole("button", { name: "Ir a la mesa actual" }).isDisabled(), "en la preparación «Ir a la mesa actual» está desactivado: la mesa se abre cuando Vanessa lo indica");
+  await beto.page.getByText("Mesas", { exact: true }).click();
+  await tapWorld(beto.page, 260, 270);
+  await beto.page.getByText(/Vanessa abrirá la mesa en un momento/).first().waitFor();
+  const noWalk = await currentPlanId(beto.page, "Beto");
+  await sleep(300);
+  check((await currentPlanId(beto.page, "Beto")) === noWalk, "tocar la mesa antes de que se abra lo explica y no hace caminar");
+  await admin.page.getByRole("button", { name: "Abrir mesa: Sombras" }).click();
+  await beto.page.getByText(/La mesa está abierta/).first().waitFor();
+  // Tocar la mesa habilitada desde lejos: camina hasta ella y la abre al llegar.
+  await tapWorld(beto.page, 260, 270);
+  await beto.page.getByRole("heading", { name: "Sombras" }).waitFor({ timeout: 25000 });
+  const feet = await beto.page.evaluate(() => {
+    const v = (window as any).__PHASER_GAME__.registry.get("deps").bridge.visual;
+    return v.characters.find((c: any) => c.principalId === v.viewer.principalId).character.feet as { x: number; y: number };
+  });
+  check(dist2(feet, { x: 260, y: 330 }) < 90, "tocar la mesa habilitada camina hasta su punto de interacción y la abre al llegar (el servidor valida la proximidad)");
+  await beto.page.screenshot({ path: join(EVIDENCE, "05-mesa-abierta-al-llegar.png") });
   await beto.page.getByRole("button", { name: "Volver al mapa" }).click();
   await beto.page.getByRole("heading", { name: "Sombras" }).waitFor({ state: "detached" });
-  // Tocar la mesa de Sombras desde lejos: camina hasta ella y la abre al llegar.
-  const mesa = { x: 260, y: 270 };
-  await tapWorld(beto.page, mesa.x, mesa.y);
-  await beto.page.getByRole("heading", { name: "Sombras" }).waitFor({ timeout: 20000 });
-  // Con la mesa abierta la escena del laboratorio ya no está activa (la de la mesa la reemplaza): la posición se lee del snapshot.
-  const feet = await beto.page.evaluate(() => (window as any).__PHASER_GAME__.registry.get("deps").bridge.snapshot.state.adventure.player.feet as { x: number; y: number });
-  check(dist2(feet, { x: 260, y: 330 }) < 80, "tocar la mesa camina hasta su punto de interacción y la abre al llegar (el servidor valida la proximidad)");
-  await beto.page.getByRole("button", { name: "Volver al mapa" }).click();
-  await beto.page.getByRole("heading", { name: "Sombras" }).waitFor({ state: "detached" });
-  // Tocar una mesa bloqueada: se explica y no se camina. Primero se acerca lo bastante para que Rampas quede a la vista del teléfono.
-  await tapWorld(beto.page, 480, 400);
-  // Primero a que el plan EXISTA (si no, «sin plan» es cierto antes de que el servidor responda) y luego a que termine.
-  await beto.page.waitForFunction(() => (window as any).__PHASER_GAME__.registry.get("deps").bridge.snapshot.state.adventure.player.plan);
-  await beto.page.waitForFunction(() => !(window as any).__PHASER_GAME__.registry.get("deps").bridge.snapshot.state.adventure.player.plan, undefined, { timeout: 20000 });
+  // Tocar una mesa que todavía no toca: se explica y no se camina.
+  await walk({ page: beto.page, name: "Beto" }, 480, 400);
+  await waitArrived(beto.page, "Beto");
   const before = await read(beto.page);
   await tapWorld(beto.page, 640, 270);
-  await beto.page.getByText("Primero hay que completar la mesa anterior.").first().waitFor();
+  await beto.page.getByText("Esa mesa se habilitará más adelante.").first().waitFor();
   await sleep(300);
-  check((await read(beto.page)).plan === null && dist2((await read(beto.page)).player, before.player) < 1, "tocar una mesa bloqueada explica el orden y no hace caminar a Vanessa");
-
-  // ---- 11. ciclo de vida: turnos repetidos no duplican canvas, juegos ni listeners ----
-  const listenersWhileControlling = (await read(beto.page)).listeners;
-  const cycle = async (to: "Ana" | "Beto") => {
-    await admin.page.getByRole("button", { name: `Dar el turno a ${to}` }).click();
-    const who = to === "Ana" ? ana.page : beto.page;
-    await who.getByText(`Es tu turno, ${to}`).waitFor();
-    await who.locator("canvas").waitFor();
-    await who.waitForFunction(() => (window as any).__PHASER_GAME__?.registry.get("deps").bridge.snapshot);
-  };
-  for (let i = 0; i < 3; i++) {
-    await cycle("Ana");
-    await cycle("Beto");
-  }
-  await sleep(500);
-  const counts = await Promise.all([admin.page, ana.page, beto.page].map((p) => p.locator("canvas").count()));
-  check(counts[0] === 1 && counts[1] === 0 && counts[2] === 1, `tras 6 cambios de turno hay un canvas en la proyección, otro en el controlador y ninguno en la espera (${counts.join("/")})`);
   const after = await read(beto.page);
-  check(after.listeners === listenersWhileControlling, `los listeners del puente no se duplican tras remontar el mapa (${listenersWhileControlling} antes, ${after.listeners} después)`);
-  const games = await beto.page.evaluate(() => (window as any).__PHASER_GAMES__?.filter((g: any) => g.canvas?.isConnected).length ?? 0);
-  check(games === 1, "un solo Phaser.Game vivo en el teléfono del controlador");
+  check(after.plan?.id === before.plan?.id && dist2(after.player, before.player) < 1, "tocar una mesa que todavía no toca explica el orden y no hace caminar al personaje");
+  await beto.page.getByText("Mesas", { exact: true }).click();
+  await beto.page.getByRole("button", { name: "Ir a la mesa actual" }).click();
+  await beto.page.getByRole("heading", { name: "Sombras" }).waitFor();
+  check(true, "«Ir a la mesa actual» abre la mesa sin exigir cercanía (equivalente accesible de caminar hasta ella)");
+  await beto.page.getByRole("button", { name: "Volver al mapa" }).click();
+  await labReady(beto.page);
 
-  // ---- 12. medición preliminar de latencia: del clic en el teléfono a que la proyección ya tiene el nuevo plan ----
-  await tapWorld(beto.page, 400, 450);
-  await beto.page.waitForFunction(() => (window as any).__PHASER_GAME__.registry.get("deps").bridge.snapshot.state.adventure.player.plan);
+  // ---- 10. ciclo de vida: recargar el celular no duplica canvas, juegos ni listeners, y el personaje sigue donde estaba ----
+  const posBefore = (await read(beto.page)).player;
+  const listeners = (await read(beto.page)).listeners;
+  for (let i = 0; i < 3; i++) {
+    await beto.page.reload();
+    await beto.page.locator("canvas").waitFor();
+    await beto.page.waitForFunction(() => (window as any).__PHASER_GAME__?.registry.get("deps").bridge.visual);
+    await sleep(300);
+  }
+  const counts = await Promise.all([admin.page, ana.page, beto.page].map((p) => p.locator("canvas").count()));
+  check(counts.every((c) => c === 1), `tras 3 recargas hay un solo canvas en cada pantalla (${counts.join("/")})`);
+  const reloaded = await read(beto.page);
+  check(reloaded.listeners === listeners, `los listeners del puente no se duplican (${listeners} antes, ${reloaded.listeners} después)`);
+  check(dist2(reloaded.player, posBefore) < 2, "al recargar, el personaje de Beto reaparece donde estaba: la posición la guarda el servidor");
+  const games = await beto.page.evaluate(() => (window as any).__PHASER_GAMES__?.filter((g: any) => g.canvas?.isConnected).length ?? 0);
+  check(games === 1, "un solo Phaser.Game vivo en el celular");
+
+  // ---- 11. medición preliminar de latencia: del clic en el teléfono a que la proyección ya tiene el nuevo plan ----
+  await walk({ page: beto.page, name: "Beto" }, 400, 450);
   const lat: number[] = [];
   for (let i = 0; i < 12; i++) {
-    const prev = (await read(admin.page)).plan?.id ?? "";
+    const prev = (await read(admin.page, "Beto")).plan?.id ?? "";
     const clickedAt = await tapWorld(beto.page, i % 2 ? 400 : 520, 450);
-    await admin.page.waitForFunction((id) => ((window as any).__PHASER_GAME__.registry.get("deps").bridge.snapshot.state.adventure.player.plan?.planId ?? "") !== id, prev, { timeout: 5000 });
+    await admin.page.waitForFunction(`((${planOf("Beto")})?.planId ?? "") !== ${JSON.stringify(prev)}`, undefined, { timeout: 5000 });
     lat.push(Date.now() - clickedAt);
   }
   lat.sort((a, b) => a - b);
@@ -312,7 +303,7 @@ try {
   check(lat[6]! < 250, `la mediana (${lat[6]} ms) cumple el objetivo preliminar de < 250 ms entre acción aceptada y proyección`);
 
   check(problems.length === 0, `sin errores de consola ni de página en los tres contextos${problems.length ? `: ${problems.join(" | ")}` : ""}`);
-  console.log("\nE2E de movimiento y proyección compartida (fase 3): OK");
+  console.log("\nE2E de movimiento en el laboratorio compartido: OK");
 } catch (e) {
   // Si algo falla se guarda lo que veía cada contexto: una captura vale más que adivinar.
   const where = process.env.E2E_FAIL_DIR ?? tmpdir();

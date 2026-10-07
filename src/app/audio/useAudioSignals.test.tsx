@@ -2,8 +2,7 @@
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { EffectEvent, RoomSnapshot } from "../../../shared/contracts/events";
-import { createRoomState } from "../../../shared/domain/room";
+import type { EffectEvent, GroupSnapshot, MeSnapshot } from "../../../shared/contracts/events";
 import { bundle, Driver } from "../../../shared/testing/drive";
 import { SignalText, SoundControl } from "../../components/room/SoundControl";
 import type { LoadedProject } from "../../config/loadProject";
@@ -25,15 +24,37 @@ function fakePlayer(result: AudioStatus = "on") {
     enable: vi.fn(async (_urls: Record<string, string>) => (set(result), status)),
     disable: vi.fn(() => set("off")),
     setVolume: vi.fn(),
-    play: vi.fn(() => status === "on"),
+    play: vi.fn((_event: string) => status === "on"),
     attach: vi.fn(),
     dispose: vi.fn(),
   };
   return p as typeof p & AudioPlayer;
 }
-const room = (version: number) => ({ ...createRoomState({ roomId: "r", code: "ABC234", config: bundle.config, map: bundle.map, configHash: bundle.configHash, mapHash: bundle.mapHash, nowIso: "2026-10-06T10:00:00.000Z" }), stateVersion: version, adventure: new Driver().state });
-const state = (version: number, effects: EffectEvent[] = [], status: RoomClientState["status"] = "connected"): RoomClientState => ({ status, summary: null, presence: null, snapshot: { state: room(version), controller: null, effects } as RoomSnapshot, pending: 0, notice: null });
-const earned = (id: string): EffectEvent => ({ effectId: `1:piece.earned:${id}`, kind: "piece.earned", pieceId: "lupa" });
+/** Una sala cualquiera: de ella salen la ronda y los participantes que viajan en los estados de la prueba. */
+const sala = new Driver(["ana"]);
+const group = (version: number, effects: EffectEvent[] = [], generation = 1): GroupSnapshot => ({ roomGeneration: generation, stateVersion: version, roundVersion: 1, phase: sala.room.phase, adventure: sala.room.adventure, effects });
+/** Mi estado personal: el de Ana en la sala del Driver que se indique. */
+const mine = (d: Driver, version: number, generation = 1): MeSnapshot => ({ roomGeneration: generation, stateVersion: version, participant: d.person("ana") });
+/** Lo que el hook lee del controlador: `group` para todas las pantallas y `me` solo para quien juega (un observador no lo tiene). */
+const state = (version: number, effects: EffectEvent[] = [], status: RoomClientState["status"] = "connected", me: MeSnapshot | null = null, generation = 1): RoomClientState => ({ status, summary: null, group: group(version, effects, generation), me, characters: {}, presence: null, pending: 0, notice: null });
+/** Lo que deja el controlador al perder la conexión: descarta el grupo y lo personal hasta recibirlos de nuevo. */
+const sinEstado = (status: RoomClientState["status"]): RoomClientState => ({ status, summary: null, group: null, me: null, characters: {}, presence: null, pending: 0, notice: null });
+const earned = (id: string): EffectEvent => ({ effectId: `1:piece:${id}`, kind: "piece.earned", pieceId: "lupa" });
+
+/** Ana en la mesa de Sombras (exploración): `muestra` anota una posición de la linterna. */
+function conSombras() {
+  const d = new Driver(["ana"]);
+  d.toExploration(0);
+  d.openStation("ana", "sombras");
+  return { d, muestra: (cm: number) => d.must(d.act("ana", { type: "shadows.sample", distanceCm: cm }), `posición ${cm}`) };
+}
+/** Ana en La caja de las sorpresas: `mirar` selecciona un objeto compartido. */
+function conCajas() {
+  const d = new Driver(["ana"]);
+  d.toExploration(2);
+  d.openStation("ana", "cajas");
+  return { d, mirar: (id: string) => d.must(d.act("ana", { type: "boxes.object.inspect", objectId: id }), `mirar ${id}`) };
+}
 
 beforeEach(() => window.localStorage.clear());
 afterEach(cleanup);
@@ -119,15 +140,90 @@ describe("useAudioSignals (SPECS 10.4)", () => {
     expect(player.play.mock.results.at(-1)!.value).toBe(true);
   });
 
-  it("una reconexión no repite señales: tras perder la conexión el siguiente snapshot es solo línea de base", () => {
+  it("una reconexión no repite señales: tras perder la conexión el siguiente estado es solo línea de base", () => {
     const player = fakePlayer();
     const { result, rerender } = renderHook(({ s }) => useAudioSignals({ project, state: s, device: "computer", player }), { initialProps: { s: state(1) } });
     rerender({ s: state(2, [earned("a")]) });
     expect(player.play).toHaveBeenCalledTimes(1);
-    rerender({ s: state(2, [earned("a")], "reconnecting") });
-    rerender({ s: state(9, [earned("a"), earned("x")]) }); // el snapshot de la reconexión
+    rerender({ s: state(2, [earned("a")], "reconnecting") }); // un estado que llega sin conexión vigente no es una transición
+    rerender({ s: state(9, [earned("a"), earned("x")]) }); // el estado de la reconexión
     expect(player.play).toHaveBeenCalledTimes(1);
-    expect(result.current.signal?.id).toBe("1:piece.earned:a");
+    expect(result.current.signal?.id).toBe("1:piece:a");
+    rerender({ s: state(10, [earned("n")]) }); // lo que ocurre ya reconectada sí suena
+    expect(player.play).toHaveBeenCalledTimes(2);
+    expect(result.current.signal?.id).toBe("1:piece:n");
+  });
+
+  it("el controlador descarta el estado al reconectar: los estados nuevos de grupo y personales son solo línea de base, y lo que sigue suena", () => {
+    const player = fakePlayer();
+    const { d, muestra } = conSombras();
+    const { result, rerender } = renderHook(({ s }) => useAudioSignals({ project, state: s, device: "phone", player }), { initialProps: { s: state(1, [], "connected", mine(d, 1)) } });
+    muestra(20);
+    rerender({ s: state(2, [], "connected", mine(d, 2)) });
+    expect(player.play).toHaveBeenCalledTimes(1);
+    rerender({ s: sinEstado("reconnecting") });
+    muestra(50); // mientras estaba desconectada su acción llegó al servidor
+    rerender({ s: state(9, [earned("x")], "connected", mine(d, 9)) });
+    expect(player.play).toHaveBeenCalledTimes(1); // ni el «clic» perdido ni la pieza de mientras: es la línea de base
+    muestra(35);
+    rerender({ s: state(10, [earned("n")], "connected", mine(d, 10)) });
+    expect(player.play.mock.calls.map(([e]) => e)).toEqual(["shadows.click", "piece.earned", "shadows.click"]); // lo nuevo, de grupo y mío
+    expect(result.current.signal).not.toBeNull();
+  });
+
+  it("un reinicio de la sala (otra generación) también es línea de base en el hook", () => {
+    const player = fakePlayer();
+    const { rerender } = renderHook(({ s }) => useAudioSignals({ project, state: s, device: "computer", player }), { initialProps: { s: state(1) } });
+    rerender({ s: state(50, [{ effectId: "2:piece:lupa", kind: "piece.earned", pieceId: "lupa" }], "connected", null, 2) }); // otra generación: aunque su versión sea mayor y traiga efectos
+    expect(player.play).not.toHaveBeenCalled();
+    rerender({ s: state(51, [{ effectId: "2:piece:dialogo", kind: "piece.earned", pieceId: "dialogo" }], "connected", null, 2) });
+    expect(player.play).toHaveBeenCalledTimes(1);
+  });
+
+  it("mis señales personales suenan por transición: anotar una posición hace «clic» y el primer estado propio solo fija la línea de base", () => {
+    const player = fakePlayer();
+    const { d, muestra } = conSombras();
+    muestra(20); // ya había una posición anotada al abrir el juego
+    const { result, rerender } = renderHook(({ s }) => useAudioSignals({ project, state: s, device: "phone", player }), { initialProps: { s: state(1, [], "connected", mine(d, 1)) } });
+    expect(player.play).not.toHaveBeenCalled();
+    expect(result.current.signal).toBeNull();
+    muestra(50);
+    rerender({ s: state(2, [], "connected", mine(d, 2)) });
+    expect(player.play).toHaveBeenCalledWith("shadows.click");
+    expect(result.current.signal?.text).toBe("Se anotó la posición de la linterna.");
+    rerender({ s: state(3, [], "connected", mine(d, 2)) }); // el mismo estado personal otra vez: no suena de nuevo
+    expect(player.play).toHaveBeenCalledTimes(1);
+  });
+
+  it("la campanita suena en el teléfono de quien la mira, una vez por mirada", () => {
+    const player = fakePlayer();
+    const { d, mirar } = conCajas();
+    const { result, rerender } = renderHook(({ s }) => useAudioSignals({ project, state: s, device: "phone", player }), { initialProps: { s: state(1, [], "connected", mine(d, 1)) } });
+    mirar("lupa");
+    rerender({ s: state(2, [], "connected", mine(d, 2)) });
+    expect(player.play).not.toHaveBeenCalled();
+    mirar("campanita");
+    rerender({ s: state(3, [], "connected", mine(d, 3)) });
+    expect(player.play).toHaveBeenCalledWith("boxes.bell");
+    expect(result.current.signal?.text).toBe("Suena la campanita.");
+    rerender({ s: state(4, [], "connected", mine(d, 4)) });
+    expect(player.play).toHaveBeenCalledTimes(1);
+  });
+
+  it("quien acompaña como observadora (sin estado personal) oye las señales de grupo y ninguna personal", () => {
+    const player = fakePlayer();
+    const { result, rerender } = renderHook(({ s }) => useAudioSignals({ project, state: s, device: "phone", player }), { initialProps: { s: state(1) } });
+    rerender({ s: state(2, [earned("a")]) });
+    expect(player.play.mock.calls).toEqual([["piece.earned"]]);
+    expect(result.current.signal?.text).toBe("Pieza conseguida: Lupa.");
+  });
+
+  it("bajo StrictMode el estado con el que se abre el juego no suena, aunque traiga efectos y posiciones ya anotadas", () => {
+    const player = fakePlayer();
+    const { d, muestra } = conSombras();
+    muestra(20);
+    renderHook(() => useAudioSignals({ project, state: state(5, [earned("a")], "connected", mine(d, 5)), device: "phone", player }), { wrapper: StrictMode });
+    expect(player.play).not.toHaveBeenCalled();
   });
 
   it("el texto de la señal se retira solo", () => {

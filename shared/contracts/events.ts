@@ -1,19 +1,15 @@
-import type { AdminCommand, AdventureCommand, CommandResult } from "./actions";
-import type { Direction, Point } from "./geometry";
-import type { AdventureView, ControlOwner, ResumePhase, RoomPhase, RoomState } from "./state";
+import type { AdminCommand, CommandResult, ParticipantCommand } from "./actions";
+import type { AdventureState, ParticipantState, PlayerState, ResumePhase, RoomPhase } from "./state";
 
-/** Eventos del transporte Socket.IO (SPECS 5.3). Los nombres son decisiones de esta especificación, no APIs nativas. */
+/**
+ * Eventos del transporte Socket.IO. Los nombres son decisiones de esta especificación, no APIs nativas.
+ * Quién recibe qué (participación simultánea):
+ * - Todas las personas: el resumen, el estado de grupo (ronda, piezas, cuaderno común), las posiciones de los personajes y el reloj.
+ * - Cada participante, además: SU estado personal (sus pruebas), nunca el de otra persona.
+ * - Solo Vanessa: quién está conectado y cuántas personas están listas en la ronda.
+ */
 
 export type Role = "admin" | "participant";
-
-/** Lo mínimo que se publica de quien controla: lo ve el público en la proyección. */
-export interface PublicController {
-  principalId: string;
-  role: Role;
-  displayName: string;
-  /** Color de paleta; la administradora no tiene. */
-  color: string | null;
-}
 
 export interface SelfInfo {
   principalId: string;
@@ -21,22 +17,63 @@ export interface SelfInfo {
   displayName: string;
   color: string | null;
   connectionEpoch: number;
-  isController: boolean;
+  /** Acompaña sin jugar: no tiene personaje ni cuenta en la ronda. */
+  observer: boolean;
 }
 
-/** `room.summary`: a todos; fase, versiones, propietario y estado propio. Sin cuaderno ni credenciales. */
+/** `room.summary`: a todos; fase, versiones y estado propio. Sin cuaderno ni credenciales. */
 export interface RoomSummary {
   code: string;
   roomGeneration: number;
   stateVersion: number;
-  turnVersion: number;
+  roundVersion: number;
   phase: RoomPhase;
   resumePhase: ResumePhase | null;
-  controller: PublicController | null;
   adminConnected: boolean;
-  /** La sala se creó con otra revisión de configuración o de mapa: se conserva el progreso pero se bloquea el control (CT-13). */
+  /** La sala se creó con otra revisión de configuración o de mapa: se conserva el progreso pero se bloquea el juego (CT-13). */
   configMismatch: boolean;
   self: SelfInfo;
+}
+
+export interface EffectEvent {
+  /** Único por transición: nunca se repite una pieza o un cierre tras un snapshot o una reconexión. */
+  effectId: string;
+  kind: "piece.earned" | "inventor.activated" | "adventure.finished";
+  pieceId?: string;
+  activityId?: string;
+}
+
+/** `group.state`: el estado de grupo, a todas las personas. Los resultados de cada persona no viajan aquí. */
+export interface GroupSnapshot {
+  roomGeneration: number;
+  stateVersion: number;
+  roundVersion: number;
+  phase: RoomPhase;
+  adventure: AdventureState;
+  /** Efectos de la transición que originó este mensaje. Vacío en una sincronización o reconexión. */
+  effects: EffectEvent[];
+}
+
+/** `me.state`: solo a su dueña. */
+export interface MeSnapshot {
+  roomGeneration: number;
+  stateVersion: number;
+  participant: ParticipantState;
+}
+
+/** Lo mínimo público de un personaje del laboratorio compartido. */
+export interface PublicCharacter {
+  principalId: string;
+  displayName: string;
+  color: string | null;
+  connected: boolean;
+  character: PlayerState;
+}
+
+/** `characters.state`: todos los personajes, al conectarse o sincronizar. `character.updated` envía solo el que cambió. */
+export interface CharactersSnapshot {
+  roomGeneration: number;
+  characters: PublicCharacter[];
 }
 
 export interface ParticipantInfo {
@@ -48,50 +85,30 @@ export interface ParticipantInfo {
   color: string | null;
   distinction: number;
   connected: boolean;
-  isController: boolean;
+  observer: boolean;
+  /** Cuenta en la ronda actual (lista fijada al abrirla, o incluida después). */
+  inRound: boolean;
+  /** Ya cumplió la exploración de la mesa actual. */
+  ready: boolean;
+  /** Avance en la mesa actual, por ejemplo 1 de 2 posiciones; `null` fuera de la exploración. */
+  progress: { done: number; needed: number } | null;
 }
 
-/** `presence.updated`: solo a la administradora. */
+/** `presence.updated`: solo a Vanessa. */
 export interface PresenceUpdate {
   participants: ParticipantInfo[];
   connectedCount: number;
+  /** El contador de la ronda: «18 de 24 listos». La lista se fija al abrir la ronda y una desconexión no reduce el total. */
+  round: { ready: number; total: number };
 }
 
-export interface EffectEvent {
-  /** Único por transición: nunca se repite una campana o pieza tras un snapshot o una reconexión. */
-  effectId: string;
-  kind: "piece.earned" | "pieces.placed" | "adventure.finished";
-  pieceId?: string;
-  activityId?: string;
-}
-
-/** `room.snapshot`: estado completo autorizado de aventura, a la administradora y al controlador. */
-export interface RoomSnapshot {
-  state: RoomState;
-  controller: PublicController | null;
-  /** Efectos de la transición que originó este snapshot. Vacío en una sincronización o reconexión. */
-  effects: EffectEvent[];
-}
-
-/** `simulation.frame`: muestra visual efímera. Se ordena por generación, versiones y `frameSeq`. */
-export interface SimulationFrame {
+/** `clock.sample`: el reloj de simulación, a todas las personas. Cada cliente interpola entre muestras; el servidor decide. */
+export interface ClockSample {
   roomGeneration: number;
-  turnVersion: number;
   stateVersion: number;
-  frameSeq: number;
   activeMs: number;
-  player: { feet: Point; facing: Direction; moving: boolean; planId: string | null };
-  trial: { trialId: string; elapsedMs: number; durationMs: number } | null;
-}
-
-/** `control.changed`: a los afectados (anterior, nuevo y administradora). */
-export interface ControlChanged {
-  controlOwner: ControlOwner;
-  controller: PublicController | null;
-  turnVersion: number;
-  phase: RoomPhase;
-  resumePhase: ResumePhase | null;
-  view: AdventureView;
+  running: boolean;
+  seq: number;
 }
 
 export type SyncResult =
@@ -100,16 +117,18 @@ export type SyncResult =
 
 export interface ServerToClientEvents {
   "room.summary": (summary: RoomSummary) => void;
+  "group.state": (group: GroupSnapshot) => void;
+  "me.state": (me: MeSnapshot) => void;
+  "characters.state": (characters: CharactersSnapshot) => void;
+  "character.updated": (character: PublicCharacter) => void;
   "presence.updated": (presence: PresenceUpdate) => void;
-  "room.snapshot": (snapshot: RoomSnapshot) => void;
-  "simulation.frame": (frame: SimulationFrame) => void;
-  "control.changed": (change: ControlChanged) => void;
+  "clock.sample": (sample: ClockSample) => void;
   "session.replaced": () => void;
 }
 
 export interface ClientToServerEvents {
   "admin.command": (command: AdminCommand, ack: (result: CommandResult) => void) => void;
-  "adventure.action": (command: AdventureCommand, ack: (result: CommandResult) => void) => void;
+  "participant.action": (command: ParticipantCommand, ack: (result: CommandResult) => void) => void;
   "room.sync": (ack: (result: SyncResult) => void) => void;
   /** Señal de actividad autenticada de la administradora: mantiene viva la sala (SPECS 6.3). */
   "admin.activity": () => void;
@@ -133,6 +152,8 @@ export interface CreateRoomResponse {
 export interface JoinRoomRequest {
   name: string;
   color: string;
+  /** Acompaña la exposición sin jugar: queda fuera del contador de la ronda. */
+  observer?: boolean;
 }
 
 export interface JoinRoomResponse {
@@ -141,6 +162,7 @@ export interface JoinRoomResponse {
   displayName: string;
   color: string;
   distinction: number;
+  observer: boolean;
   /** Credencial propia: se devuelve una sola vez. */
   token: string;
 }

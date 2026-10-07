@@ -2,7 +2,7 @@
   "$schema": "../../shared/config/schemas/laboratorio.schema.json",
   "schemaVersion": 1,
   "contentSetId": "laboratorio-cosas-cotidianas",
-  "configRevision": "2026-10-05-v1",
+  "configRevision": "2026-10-06-rondas",
   "mode": "prototype",
   "project": {
     "title": "El laboratorio de las cosas cotidianas",
@@ -40,7 +40,10 @@
       "type": "shadows",
       "title": "Sombras",
       "pieceId": "lupa",
-      "firstPrompt": "El objeto es pequeño. ¿Por qué su sombra se ve tan grande?",
+      "goal": "Compara la sombra con la linterna cerca y lejos.",
+      "openingQuestion": "¿Por qué un objeto pequeño puede producir una sombra grande?",
+      "conversationQuestion": "¿Qué cambió, qué permaneció igual y qué observación ayuda a revisar la primera idea?",
+      "freirePhrase": "Freire propone volver más rigurosa nuestra curiosidad al observar, comparar y buscar razones.",
       "experiment": {
         "sourceDistanceMinCm": 10,
         "sourceDistanceMaxCm": 60,
@@ -48,45 +51,16 @@
         "objectHeightCm": 8,
         "minDistinctDistanceCm": 5,
         "requiredSamples": 2
-      },
-      "ideaSuggestions": [
-        {
-          "id": "la-luz",
-          "text": "Creo que la luz tiene algo que ver."
-        },
-        {
-          "id": "el-objeto",
-          "text": "Creo que el objeto es más grande de lo que parece."
-        },
-        {
-          "id": "la-pantalla",
-          "text": "Creo que la pantalla hace que se vea más grande."
-        }
-      ],
-      "suggestions": [
-        {
-          "id": "mover-objeto",
-          "text": "¿Qué pasaría si movemos el objeto?"
-        },
-        {
-          "id": "otras-formas",
-          "text": "¿Todas las formas producen la misma sombra?"
-        }
-      ],
-      "prompts": {
-        "firstIdea": "¿Por qué crees que pasa? Cuéntanos tu primera idea; no hace falta acertar.",
-        "explore": "Mueve la linterna y observa la sombra. Anota al menos dos posiciones distintas.",
-        "observation": "¿Qué observaste cuando cambiaste la posición de la linterna?",
-        "nextQuestion": "Después de probar, ¿qué nueva pregunta te gustaría investigar?"
       }
     },
     "rampas": {
       "type": "ramps",
       "title": "Rampas",
       "pieceId": "dialogo",
-      "firstPrompt": "Copia el resultado de la guía. No hagas preguntas.",
-      "guideLine": "En este montaje, al aumentar la inclinación la pelota llega antes al final de la rampa.",
-      "inviteDialogueId": "rampa-invitacion",
+      "goal": "Compara dos inclinaciones y observa el tiempo de recorrido.",
+      "openingQuestion": "¿Qué creen que cambiará si aumenta la inclinación de la rampa?",
+      "conversationQuestion": "¿Qué resultado apoya la explicación del grupo y cómo lo compararían con otra prueba?",
+      "freirePhrase": "Para Freire, dialogar incluye preguntar y escuchar las explicaciones con una actitud curiosa.",
       "experiment": {
         "model": "solid-sphere-ideal-v1",
         "minAngleDeg": 15,
@@ -96,24 +70,16 @@
         "lengthMeters": 2,
         "visualTimeScale": 2.4,
         "requiredTrials": 2
-      },
-      "suggestions": [
-        {
-          "id": "mas-inclinacion",
-          "text": "¿Qué pasaría si aumentamos la inclinación?"
-        }
-      ],
-      "prompts": {
-        "question": "¿Qué quieres preguntar sobre la rampa y la pelota?",
-        "prediction": "¿Qué crees que va a pasar? También puedes decir que no estás segura o contarlo en voz alta.",
-        "trials": "Suelta la pelota desde el reposo. Cambia solo la inclinación y repite.",
-        "observation": "Compara tus pruebas. ¿Qué notas? ¿Qué resultado apoya tu explicación?"
       }
     },
     "cajas": {
       "type": "boxes",
       "title": "La caja de las sorpresas",
       "pieceId": "corazon",
+      "goal": "Explora al menos un objeto de la caja compartida. La caja personal es de una compañera.",
+      "openingQuestion": "Hay dos cajas: una para explorar y otra personal. ¿Por dónde quieren empezar?",
+      "conversationQuestion": "¿Cómo podríamos seguir investigando respetando esa decisión?",
+      "freirePhrase": "Freire señala que nuestra curiosidad debe respetar la privacidad de otras personas.",
       "sharedObjects": [
         {
           "id": "campanita",
@@ -131,34 +97,12 @@
           "description": "Una piedra de forma redondeada. De cerca se ven sus manchas y su textura."
         }
       ],
+      "requiredObjects": 1,
       "refusalDialogueId": "caja-negativa",
       "personalTouchDialogueId": "caja-personal-toque",
       "personalBox": {
         "label": "Caja personal",
         "ownerLabel": "Pertenece a una compañera"
-      },
-      "suggestions": [
-        {
-          "id": "sonido",
-          "objectId": "campanita",
-          "text": "¿Qué hace que la campanita suene?"
-        },
-        {
-          "id": "aumento",
-          "objectId": "lupa",
-          "text": "¿Por qué la lupa hace que algo se vea más grande?"
-        },
-        {
-          "id": "forma",
-          "objectId": "piedra",
-          "text": "¿Cómo habrá adquirido esta forma la piedra?"
-        }
-      ],
-      "prompts": {
-        "exploreShared": "Abre la caja para explorar y mira al menos un objeto.",
-        "askPermission": "Hay otra caja: es personal y pertenece a una compañera. Sientes curiosidad por lo que guarda. ¿Qué haces?",
-        "respect": "Ella prefiere guardar esas cosas para sí. Podemos respetar su decisión y seguir investigando.",
-        "nextQuestion": "Vuelve a elegir un objeto compartido y escribe una pregunta sobre él."
       }
     }
   },
@@ -173,7 +117,7 @@
       {
         "id": "lupa",
         "label": "Lupa",
-        "message": "Observar y probar."
+        "message": "Observar y comparar."
       },
       {
         "id": "dialogo",
@@ -186,40 +130,42 @@
         "message": "Investigar con respeto."
       }
     ],
-    "placePrompt": "Tenemos las tres piezas. Colócalas para encender el inventor de preguntas.",
     "prompt": "Después de lo que descubrimos, ¿qué nos gustaría seguir investigando?",
-    "placeButtonLabel": "Colocar las piezas",
-    "oralQuestionText": "Compartamos nuestra próxima pregunta en voz alta",
     "finalMessage": "Cada descubrimiento puede abrir otra pregunta.",
     "reflection": [
       "Aprender comienza con preguntas.",
       "Observar, probar y escuchar puede cambiar lo que pensábamos.",
       "Las preguntas de los niños importan y deben acompañarse con respeto por los demás."
-    ]
+    ],
+    "closingQuestion": "¿Cómo ayudaríamos a un niño a pasar de «me da curiosidad» a «quiero comprenderlo»?"
   },
   "dialogues": {
     "caja-negativa": "Prefiero guardar esas cosas para mí",
-    "caja-personal-toque": "Su contenido es personal. Podemos seguir explorando los objetos compartidos.",
-    "rampa-invitacion": "Exploremos esa pregunta. ¿Cómo podríamos comprobarlo?"
+    "caja-personal-toque": "Su contenido es personal. Podemos seguir explorando los objetos compartidos."
   },
   "facilitatorNotes": {
     "bienvenida": [
-      "Explicar cómo funcionan los turnos y presentar al inventor."
+      "Explicar que todas las personas exploran desde su celular y que el grupo avanza junto.",
+      "Presentar al inventor: al final reunirá las tres ideas trabajadas y una pregunta del grupo."
     ],
     "sombras": [
-      "Antes: escuchar la primera explicación y relacionar la sorpresa con la curiosidad espontánea.",
-      "Después: preguntar qué cambió al probar y conectar observación, comparación y revisión de ideas con la curiosidad epistemológica."
+      "Antes: escuchar una o dos ideas sobre por qué un objeto pequeño produce una sombra grande. Puedes guardar una síntesis breve de lo que el grupo piensa.",
+      "Durante: observar el progreso y ayudar a quien lo necesite; quienes terminan pueden seguir probando.",
+      "Después: preguntar qué cambió, qué permaneció igual y qué observación ayuda a revisar la primera idea. Antes de explicar, distinguir lo observado de lo que todavía se supone."
     ],
     "rampas": [
-      "Durante la escena inicial: conversar sobre tener una respuesta sin poder investigar.",
-      "Después: pedir razones apoyadas en los resultados y relacionar preguntar, escuchar y comprender con las ideas de Freire."
+      "Antes: escuchar dos predicciones sobre qué cambia al aumentar la inclinación y pedir una razón o una manera de comprobarlas.",
+      "Durante: observar el progreso. Los tiempos son de una simulación, no mediciones reales.",
+      "Después: preguntar qué resultado apoya la explicación del grupo y cómo lo compararían con otra prueba. Ofrecer una explicación breve del montaje y escuchar otras razones."
     ],
     "cajas": [
-      "Sentir curiosidad no da permiso para revisar algo personal: pedir permiso, respetar y seguir investigando.",
-      "Preguntar: «¿Cómo acompañaríamos a un niño que quiere revisar las cosas personales de un compañero?»"
+      "Antes: presentar las dos cajas y explicar a quién pertenece cada una.",
+      "Durante: cada persona elige por dónde empezar. Pedir permiso es posible, no obligatorio.",
+      "Después: proyectar la negativa para que todas las personas conozcan el límite. Preguntar cómo seguir investigando respetando esa decisión y por qué importa el permiso aunque haya mucha curiosidad."
     ],
     "cierre": [
-      "¿Qué les gustaría seguir descubriendo después de esta aventura?"
+      "Preguntar qué les gustaría seguir investigando y acordar una pregunta del grupo.",
+      "Cerrar la reflexión oral: ¿cómo ayudaríamos a un niño a pasar de «me da curiosidad» a «quiero comprenderlo»?"
     ]
   },
   "ui": {
@@ -231,16 +177,22 @@
     },
     "maxRecordCharacters": 280,
     "labels": {
-      "shareNotice": "Esta idea se compartirá con el grupo",
-      "oralRecord": "Lo compartiremos en voz alta",
-      "uncertainRecord": "Todavía no tenemos una explicación",
       "waiting": "Estás en la sala. Sigue la aventura en la proyección",
       "loadingMap": "Cargando el laboratorio…",
-    "signalPieceEarned": "Pieza conseguida: {pieza}.",
-    "signalPiecesPlaced": "El inventor se encendió: ya tiene sus tres piezas.",
-    "signalFinished": "Terminamos la aventura.",
-    "signalBell": "Suena la campanita.",
-    "signalClick": "Se anotó la posición de la linterna."
+      "signalPieceEarned": "Pieza conseguida: {pieza}.",
+      "signalPiecesPlaced": "El inventor se encendió: ya tiene sus tres piezas.",
+      "signalFinished": "Terminamos la aventura.",
+      "signalBell": "Suena la campanita.",
+      "signalClick": "Se anotó la posición de la linterna.",
+      "welcomePhone": "Estás en la sala. Vanessa comenzará la aventura en un momento.",
+      "roundPreparationPhone": "Escucha la pregunta de Vanessa. Pronto se abre la mesa.",
+      "roundExplorationPhone": "La mesa está abierta: explora a tu ritmo.",
+      "roundConversationPhone": "Miremos la proyección y compartamos lo que descubrimos.",
+      "readyYou": "Ya exploraste esta mesa. Puedes seguir probando mientras terminamos en grupo.",
+      "notReadyYou": "Sigue explorando: cuando termines, aquí aparecerá «Listo».",
+      "closingPhone": "Miremos la proyección: el inventor ya tiene sus tres piezas y vamos a elegir una pregunta.",
+      "finishedPhone": "Terminamos la aventura. Puedes revisar tus resultados.",
+      "observerPhone": "Estás como observador. Sigue la aventura en la proyección."
     }
   },
   "audio": {
@@ -256,5 +208,11 @@
   "session": {
     "maxParticipants": 50,
     "adminIdleTtlMs": 7200000
+  },
+  "supportPhrases": {
+    "inicio": "Todas las personas van a explorar desde su celular. Cuando terminemos una mesa, miraremos la proyección para compartir lo que encontramos y pensar juntas qué significa.",
+    "antesDeReunir": "Vamos cerrando las pruebas. Ahora quiero escuchar qué observaron y qué les hizo cambiar o sostener su primera idea.",
+    "alExplicar": "Voy a relacionar lo que acabamos de hacer con la idea de Freire. Pensemos en cómo acompañaríamos esta misma curiosidad en un aula infantil.",
+    "cierre": "Después de observar, preguntar y escuchar, ¿qué nos gustaría seguir investigando? Vamos a conservar una pregunta del grupo para continuar esta búsqueda."
   }
 }

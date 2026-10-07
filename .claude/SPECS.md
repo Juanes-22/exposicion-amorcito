@@ -4,10 +4,10 @@
 
 **Expositora:** Vanessa Estrada.  
 **Asignatura:** Práctica pedagógica 5 · Licenciatura en Educación Infantil · Universidad de Antioquia.  
-**Versión documental:** 1.0 · 5 de octubre de 2026.  
-**Fuente de producto:** PRD suministrado, versión 2.0: sala compartida y turnos.  
+**Versión documental:** 2.0 · 6 de octubre de 2026 (1.0 era del 5 de octubre).  
+**Fuente de producto:** PRD suministrado, versión 2.0, **modificado por la «Propuesta de mejora: participación simultánea y rondas guiadas por Vanessa» (v1, 6 de octubre de 2026)**, que sustituye la sala de un solo controlador por la exploración simultánea de todas las personas.  
 **Stack:** React + Vite + TypeScript + Phaser; servidor Node.js + TypeScript + Socket.IO; SQLite.  
-**Estado:** especificación para construir. Este documento no acredita código implementado ni pruebas ejecutadas.
+**Estado:** especificación **y** descripción de lo construido. Este documento no acredita por sí mismo pruebas ejecutadas: las evidencias están en [PLAN.md](PLAN.md) y en `docs/evidencia/`.
 
 <a id="spec-0"></a>
 
@@ -34,16 +34,16 @@ Ante un cambio del usuario, actualizar SPECS y después PLAN. Si una decisión t
 
 | Aspecto | Decisión |
 | --- | --- |
-| Producto inicial | Sala compartida, administradora, único controlador y progreso colectivo. La conexión por turnos es parte de la primera versión. |
+| Producto | Sala compartida con administradora y **rondas guiadas**: todas las personas exploran a la vez con su propio personaje, una mesa por ronda; Vanessa abre, reúne, conversa y avanza. Progreso colectivo y resultados personales. Reemplaza el modelo de un solo controlador por turnos. |
 | Base tecnológica | Conservar React, Vite, TypeScript y Phaser de la referencia. Agregar el servidor necesario para la sala. |
 | Tiled | Guardar directamente un mapa JSON `.tmj` dentro de `public/maps/` y consumirlo con el soporte nativo de Phaser. |
 | Datos espaciales | No generar `maps.json`, `placements` ni otra copia editable de las coordenadas. |
 | Recursos existentes | Reutilizar PNG, atlas, fuentes y componentes pertinentes mediante `assetId`; no exigir un tileset para empezar. |
 | Tiles, si se incorporan | Una imagen de tiles y definición incrustada en el TMJ; mantener el mapa dentro del perfil compatible de la sección 8. |
 | Dominio | Funciones TypeScript puras compartidas entre servidor y demostración local. |
-| Sincronización | Enviar intenciones y estados; dibujar localmente la misma escena en proyección y teléfono activo. |
+| Sincronización | Enviar intenciones y estados; cada pantalla dibuja localmente a todos los personajes desde sus planes y un reloj interpolado. Cada persona recibe solo su estado personal. |
 | Persistencia inicial | Una instancia de servidor con SQLite en volumen persistente; sin Redis, microservicios ni varias réplicas. |
-| Demostración | Misma aventura con controlador local y estado separado; no reemplaza la implementación de salas. |
+| Demostración | Misma aventura con Vanessa como única persona y estado separado; no reemplaza la implementación de salas. Además, «Probar la mesa yo misma» en una sala real. |
 | Organización | Un repositorio y un package.json/lockfile; frontend en `src/`, servidor en `server/` y dominio en `shared/`. |
 
 ### 0.2. Qué se conserva y qué se simplifica de Bitácora Amorcito
@@ -58,7 +58,7 @@ Ante un cambio del usuario, actualizar SPECS y después PLAN. Si una decisión t
 | Paneles crema, botones verdes y fuentes | Reutilizar únicamente componentes y recursos útiles para esta exposición. |
 | `tools/tiled/maps/*.tmj → importador → public/config/maps.json` | Sustituir por consumo directo del TMJ. |
 | `WorldBuilder` dependiente de `config.maps` y `placements` | Adaptar a Tilemap nativo y objetos del mapa. |
-| Progreso individual, XP y localStorage | Sustituir por progreso colectivo autorizado por servidor. |
+| Progreso individual, XP y localStorage | Sustituir por progreso colectivo y resultados personales autorizados por servidor. |
 | Seis aprendizajes, portales, insignias y animales | No trasladar esos requisitos a esta aventura. |
 
 No copiar todo el repositorio para conservar características ajenas al producto. Usarlo como referencia y reutilizar piezas identificadas. Si se parte de una copia, retirar lo innecesario en el proyecto nuevo, conservando intacta la bitácora original.
@@ -67,19 +67,21 @@ No copiar todo el repositorio para conservar características ajenas al producto
 
 ## 1. Producto, propósito y alcance pedagógico
 
-El salón recorre una aventura de aproximadamente **18 minutos**: bienvenida, Sombras, Rampas, La caja de las sorpresas e inventor de preguntas. Vanessa administra los turnos desde la computadora proyectada. Solo el jugador activo usa el mapa y los experimentos en su celular. Los demás ven su silueta, color, nombre y estado, y participan oralmente siguiendo la proyección.
+El salón recorre una aventura de aproximadamente **18 minutos**: bienvenida, Sombras, Rampas, La caja de las sorpresas e inventor de preguntas. **Todas las personas exploran a la vez desde su celular**, cada una con su propio personaje en un laboratorio compartido. Vanessa conduce el grupo desde la computadora proyectada: habilita **una mesa por ronda**, mira cuántas personas ya están listas, reúne al grupo para conversar y decide cuándo seguir. La proyección es el lugar donde se conversa; el celular es el lugar donde se explora.
 
-El personaje controlable siempre es **Vanessa con Jerry**, independientemente de quién tenga el turno. Las siluetas identifican a las personas del público; no son personajes adicionales en el mapa.
+Cada persona experimenta por su cuenta y sus pruebas son suyas: nadie manipula el experimento de otra ni espera un turno. Los resultados se **registran solos** y la persona queda «lista para conversar» cuando cumple el criterio de la mesa; no hay formularios de respuesta. Lo que se escribe es de **Vanessa**: la idea inicial del grupo, la síntesis de la conversación, las preguntas que el grupo quiere conservar y la pregunta final.
+
+Los personajes de las personas son siluetas coloreadas con su nombre encima; Vanessa y Jerry son la guía visual del laboratorio (acompañan la mesa habilitada) y no son el personaje de nadie.
 
 | Momento | Tiempo orientativo | Propósito | Pieza colectiva |
 | --- | --- | --- | --- |
-| Bienvenida | 2 min | Entrar, explicar los turnos y presentar el inventor. | — |
-| Sombras | 5 min | Pasar de una primera idea a observar, probar y comparar. | Lupa. |
-| Rampas | 5 min | Abrir una pregunta, contrastar una predicción y dialogar. | Bocadillo de conversación. |
-| Cajas | 3 min | Pedir permiso, respetar una negativa y seguir investigando. | Corazón. |
-| Inventor y reflexión | 3 min | Elegir una nueva pregunta y relacionar lo vivido con Freire. | Cierre. |
+| Bienvenida | 2 min | Entrar, explicar cómo se explora y presentar el inventor. | — |
+| Sombras | 5 min | Pasar de una primera idea del grupo a observar, probar y comparar. Preparación ≈ 1 min · exploración ≈ 2 min · conversación ≈ 2 min. | Lupa — «Observar y comparar». |
+| Rampas | 5 min | Contrastar una predicción con pruebas propias y dialogar. Mismos tiempos. | Bocadillo — «Preguntar y escuchar». |
+| Cajas | 3 min | Explorar objetos compartidos, pedir permiso (opcional), respetar una negativa. Preparación ≈ ½ min · exploración ≈ 1 min · conversación ≈ 1½ min. | Corazón — «Investigar con respeto». |
+| Inventor y reflexión | 3 min | Elegir y confirmar la pregunta final y relacionar lo vivido con Freire. | Cierre. |
 
-Las pausas para conversar están incluidas en esos tiempos. No hay límite automático por turno, puntos por rapidez, ranking ni evaluación automática de respuestas.
+Las pausas para conversar están incluidas en esos tiempos. No hay límite automático por ronda, puntos por rapidez, ranking ni evaluación automática de respuestas. Cada fase la decide Vanessa.
 
 La base es el apartado **«Enseñar exige curiosidad»** de *Pedagogía de la autonomía*, según la delimitación del PRD. Los diálogos son paráfrasis y ejemplos creados para la exposición. Mantener las precisiones del PRD:
 
@@ -89,7 +91,7 @@ La base es el apartado **«Enseñar exige curiosidad»** de *Pedagogía de la au
 - El desafío de la clase consiste en pensar y comprender.
 - La tercera mesa trata de privacidad y respeto. La relación entre autoridad y libertad queda fuera de esta versión.
 
-La aplicación organiza acciones y registra ideas; no juzga si una reflexión es correcta.
+La aplicación organiza acciones y registra resultados; no juzga si una reflexión es correcta. La frase de Freire de cada mesa es una paráfrasis breve que Vanessa decide mostrar en la proyección cuando conversa; no se muestra en los celulares.
 
 <a id="spec-2"></a>
 
@@ -102,179 +104,183 @@ Usar rutas sencillas, por ejemplo `/`, `/sala/:code` y `/demo`. La URL pública 
 | Vista | Contenido y comportamiento |
 | --- | --- |
 | Entrada | Título; Crear sala; Unirse; acceso al respaldo local para Vanessa. |
-| Entrada a sala | Nombre de 1–20 caracteres Unicode, color de una paleta definida y silueta. Sin cuenta ni fotografía. |
-| Bienvenida de Vanessa | QR, código, cantidad conectada y tarjetas de participantes. Seleccionar turno y comenzar. |
-| Espera | Silueta propia, nombre y «Estás en la sala. Sigue la aventura en la proyección». Estado de conexión. Sin canvas del mapa. |
-| Aventura de Vanessa | Escena compartida; «Explora: [nombre]»; pausa, turno, tomar control, QR, participantes y guía plegables. |
-| Jugador activo | Misma actividad y estado; «Es tu turno»; controles habilitados tras recibir snapshot y cargar recursos. |
-| Actividad | Escena cercana y controles HTML grandes; pasos y registros compartidos. |
-| Cuaderno | Ideas confirmadas y pruebas, agrupadas por mesa; autor y distinción entre primera idea y observación. |
-| Final | Inventor, piezas y pregunta elegida; reflexión; acceso al cuaderno y mesas completadas. |
+| Entrada a sala | Nombre de 1–20 caracteres Unicode, color de una paleta definida y silueta. Casilla opcional «Solo quiero acompañar» (observadora). Sin cuenta ni fotografía. |
+| Bienvenida de Vanessa | QR, código, cuántas personas están conectadas (y cuántas observan), tarjetas de participantes y **Comenzar la aventura**. No se elige quién empieza. |
+| Celular de quien juega | Laboratorio compartido con su personaje y los de las demás personas (cada nombre encima de su avatar). Barra «Mesas · piezas · Cuaderno». Un texto dice qué toca en cada fase. Al abrir la mesa habilitada aparece el panel de su experimento. |
+| Mesa abierta | Escena cercana de la mesa y panel HTML con el objetivo, los controles y «Listo para conversar». Los resultados se registran solos. «Volver al mapa». |
+| Observadora | Silueta, nombre y el texto de la fase. Sin mapa ni personaje: sigue la proyección. |
+| Aventura de Vanessa | Laboratorio compartido a pantalla completa; barra con la mesa, la fase de la ronda, el paso siguiente («Abrir mesa: …», «Conversemos», «Mostrar la frase de Freire», «Abrir siguiente mesa: …») y el contador «N de M listos». Junto al laboratorio: la pregunta de apertura, los resultados seleccionados, la frase de Freire o el inventor. Paneles plegables: participantes, cuaderno del grupo, guía y QR. |
+| Cuaderno (celular) | «Mis resultados» (los que el juego registró) y «Lo que anotó el grupo» (solo lectura). Sin formularios. |
+| Cierre | Inventor con sus tres piezas y la pregunta final del grupo; reflexión. |
 | Cerrada o vencida | Mensaje de finalización o sala no disponible; sin controles ni reconexión indefinida. |
-| Demostración | Aventura local con rótulo persistente «Demostración» y estado independiente. |
+| Demostración | Aventura local con rótulo persistente «Demostración» y estado independiente: Vanessa conduce y explora sola. |
 
 El panel de participantes y la guía se muestran en la misma computadora proyectada; cualquier panel abierto puede verlo el público. Una segunda ventana de proyección separada queda para después.
 
 Los nombres repetidos conservan identidades distintas. El servidor añade una distinción visible estable, como «Laura · 2». El color no es el identificador.
 
+**Nombres sobre los avatares.** Cada personaje lleva siempre su nombre encima, en el celular de cada persona y en la proyección; el propio lleva «(tú)» y quien perdió la conexión lo dice con texto. Si dos personajes se cruzan, sus nombres simplemente se superponen: en el celular el propio queda por encima de todos; en la proyección se ve encima el del personaje que está más abajo en el mapa. En la proyección el rótulo crece un poco (hasta 1,3 veces) al ver el laboratorio entero; no se reacomoda.
+
 ### 2.2. Permisos
 
-| Acción | Administradora | Controlador participante | Participante en espera |
+| Acción | Administradora | Participante que juega | Observadora |
 | --- | --- | --- | --- |
-| Ver aventura y cuaderno | Siempre mientras la sala esté disponible. | Durante su turno. | Sigue la proyección presencial. |
-| Ver listado completo | Sí. | No es necesario. | No es necesario. |
-| Mover, experimentar y confirmar respuestas | Cuando tiene el control. | Con permiso vigente. | No. |
-| Dar, retirar o tomar control | Sí. | No. | No. |
+| Ver el laboratorio, los demás personajes y el cuaderno del grupo | Siempre mientras la sala esté disponible. | Sí. | Solo la proyección y el texto de la fase. |
+| Ver su propio avance y resultados | — | Solo los suyos. | No tiene. |
+| Ver el listado completo y el contador de la ronda | Sí. | No. | No. |
+| Mover su personaje, abrir la mesa habilitada y experimentar | No (solo en su demostración local). | Sí, según la fase de la ronda. | No. |
+| Abrir, reunir, avanzar la ronda, mostrar la frase de Freire | Sí. | No. | No. |
+| Seleccionar resultados de una persona y escribir las notas del grupo | Sí. | No. | No. |
 | Comenzar, pausar y reanudar | Sí. | No. | No. |
+| Incluir en la ronda a quien llegó tarde | Sí. | No. | No. |
 | Reiniciar avance o cerrar | Sí, con confirmación. | No. | No. |
 | Preguntar en voz alta | Sí. | Sí. | Sí. |
 
-La administradora que observa no puede manipular el experimento sin usar **Tomar control**. Puede consultar el cuaderno y abrir sus paneles localmente sin cambiar la escena del jugador.
+Nadie puede actuar sobre las pruebas de otra persona: cada acción personal se aplica solo al estado de quien la envía. La administradora no manipula el experimento de nadie; para mostrar cómo funciona una mesa usa **Probar la mesa yo misma** (2.5).
 
-### 2.3. Ciclo de sala y control
+### 2.3. Ciclo de sala
 
-Fases de sala: `welcome`, `running`, `paused`, `finished`, `closed` y `expired`. En pausa conservar `resumePhase`, que indica si se regresa a `running` o `finished`.
-
-Propietario del control: participante, administradora o ninguno. **Pausar conserva al propietario; retirar control lo elimina.** Dar o tomar control mientras hay pausa no reanuda.
+Fases de sala: `welcome`, `running`, `paused`, `finished`, `closed` y `expired`. En pausa conservar `resumePhase`, que indica si se regresa a `running` o `finished`. Ya no existe un «propietario del control»: todas las personas juegan a la vez.
 
 | Operación | Efecto autorizado |
 | --- | --- |
-| Comenzar | Desde bienvenida, con administradora conectada y un controlador elegido. |
-| Dar control | Reemplazar atómicamente al propietario por un participante conectado. |
-| Tomar control | Reemplazarlo por la administradora. |
-| Pausar | Detener reloj, movimiento y controles; conservar propietario. |
-| Reanudar | Continuar desde el instante congelado; requiere administradora y controlador conectados. |
-| Retirar control | Dejar propietario vacío y pausar una aventura en curso. |
-| Reiniciar avance | Borrar aventura, registros y piezas; volver a bienvenida. Conservar participantes y credenciales de esa sala. |
-| Finalizar aventura | Confirmar pregunta final; permitir consultas y revisitas controladas. |
-| Cerrar | Revocar control y credenciales de uso; todas las vistas muestran que terminó. |
+| Comenzar | Desde bienvenida, con la administradora conectada. La primera mesa queda en **preparación**. |
+| Pausar | Detener reloj, movimiento y pruebas; se ve «En pausa» en todas las pantallas. |
+| Reanudar | Continuar desde el instante congelado; requiere la administradora conectada. |
+| Reiniciar avance | Borrar aventura, pruebas de todas las personas, notas y piezas; volver a bienvenida. Conservar participantes y credenciales; sus personajes vuelven a la entrada. |
+| Finalizar aventura | Confirmar la pregunta final (fase `finished`); permite consultas. |
+| Cerrar | Revocar credenciales de uso; todas las vistas muestran que terminó. |
 | Vencer | Igual bloqueo; limpieza conforme a la política de retención. |
 
 Reiniciar y cerrar requieren un diálogo que explica su efecto. Reiniciar incrementa `roomGeneration` para invalidar mensajes del recorrido anterior.
 
-### 2.4. Recorrido y desplazamiento
+Si la administradora pierde la conexión, la sala se **pausa** para todas las personas; al volver recupera la conducción con la sala todavía pausada y decide cuándo reanudar.
 
-El orden inicial es `sombras → rampas → cajas → inventor`. La siguiente mesa se habilita al completar la anterior. Las ya completadas se pueden revisitar sin perder registros ni piezas.
+### 2.4. Rondas
 
-Tocar un punto solicita un destino; tocar una mesa solicita acercarse y abrirla. Una lista de mesas accesible permite llegar y abrir la misma actividad sin manejar el personaje. Esa alternativa conserva el orden y los permisos, pero no exige proximidad.
+La aventura avanza por **rondas**, una por mesa, en el orden `sombras → rampas → cajas`, seguidas del cierre con el inventor. Cada ronda tiene cuatro fases comunes que solo Vanessa avanza:
 
-El servidor valida destinos, límites y trayectos. Un punto inaccesible muestra una explicación breve y no deja al personaje atrapado. Las coordenadas de pantalla se convierten a coordenadas de mundo antes de enviar la intención.
+| Fase | Qué pasa | Qué ven las personas | Acción de Vanessa que la termina |
+| --- | --- | --- | --- |
+| **Preparación** | La mesa todavía no se abre. Las personas pueden caminar por el laboratorio. | «Escucha la pregunta de Vanessa. Pronto se abre la mesa.» La proyección muestra la **pregunta de apertura** de la mesa. | **Abrir mesa: [mesa]** |
+| **Exploración** | Todas las personas pueden abrir la mesa habilitada y explorar a la vez. Se fija la lista de la ronda. | «La mesa está abierta: explora a tu ritmo.» La proyección muestra solo «[mesa] · N de M listos». | **Conversemos** |
+| **Conversación** | Las pruebas nuevas se cierran (las que ruedan se cancelan). Los controles se detienen. | «Miremos la proyección y compartamos lo que descubrimos.» La proyección muestra la pregunta de conversación, los resultados que Vanessa selecciona y, cuando ella decide, la frase de Freire. | **Abrir siguiente mesa** (o **Pasar al inventor**) |
+| **Cierre** | Tras la última mesa: el inventor con las tres piezas. | «Miremos la proyección: el inventor ya tiene sus tres piezas y vamos a elegir una pregunta.» | **Confirmar la pregunta final** |
 
-Una mesa ocupada detiene la navegación del mapa y abre su vista cercana. No se sincronizan los píxeles del teléfono: cada dispositivo adapta cámara y composición a su tamaño.
+**Una mesa a la vez.** Solo la mesa de la ronda actual se puede abrir; tocar otra explica «Esa mesa se habilitará más adelante» o «Esa mesa ya terminó». En preparación, conversación y cierre nadie puede abrir mesas ni experimentar. Quien ya tenía la mesa abierta al reunir al grupo la sigue viendo, con los controles detenidos, hasta que se abre la siguiente.
+
+**Lista de la ronda.** Al abrir la mesa se fija quiénes cuentan: todas las personas que juegan (las observadoras no). Una desconexión no reduce el total: el contador «N de M listos» conserva M. Quien llegue después de abrir la mesa **acompaña sin contar**; Vanessa puede **incluirla en la ronda** mientras la mesa esté abierta. En la ronda siguiente la lista vuelve a fijarse con todas las personas presentes.
+
+**Conversemos.** Con todas las personas listas, pasa directo a la conversación. Con personas pendientes pide una confirmación excepcional, **«Pasar a conversación con pendientes»**, que nombra a quienes faltan: se conserva lo que hicieron, se registra quiénes no terminaron y **no se les concede la finalización**. Las pruebas de rampa en marcha se cancelan y no cuentan como terminadas.
+
+**Abrir siguiente mesa.** Incorpora al inventor la pieza de la mesa que termina, en esa transición y una sola vez, y devuelve a todas las personas al mapa. Tras la última mesa pasa al cierre.
+
+**Resultados en la conversación.** Vanessa elige a una persona para **proyectar sus resultados**: se muestra una copia de lo que esa persona registró (las posiciones de la linterna, la prueba más lenta y la más rápida, o los objetos que exploró) y esa comparación se conserva en el cuaderno del grupo. Seleccionar no altera las pruebas de nadie.
+
+### 2.5. Desplazamiento y demostración de Vanessa
+
+Tocar un punto del laboratorio solicita un destino; tocar la mesa habilitada solicita acercarse y abrirla al llegar. **Ir a la mesa actual** (menú «Mesas») abre la mesa sin manejar el personaje: es el equivalente accesible y no exige proximidad. Los personajes no se bloquean entre sí.
+
+El servidor valida destinos, límites y trayectos. Un punto inaccesible muestra una explicación breve y no deja al personaje atrapado. Las coordenadas de pantalla se convierten a coordenadas de mundo antes de enviar la intención. Tocar la mesa habilitada fuera de la exploración explica que Vanessa todavía no la abre; una pausa o «Conversemos» antes de llegar cancelan la apertura pendiente.
+
+No se sincronizan los píxeles del teléfono: cada dispositivo adapta cámara y composición a su tamaño. El celular sigue a su personaje con una ampliación legible; la proyección encuadra el laboratorio entero.
+
+**Probar la mesa yo misma.** Antes de abrir la mesa y durante la exploración, Vanessa puede mostrar cómo funciona la mesa con una persona de demostración **local** (no pasa por el servidor): usa las mismas reglas que cualquier participante, tiene su propio reloj y su resultado no cuenta en el contador, no entra al cuaderno ni cambia lo que ven las personas. Se cierra sola al pasar a la conversación o cambiar de mesa.
 
 <a id="spec-3"></a>
 
-## 3. Actividades, registros y cierre
+## 3. Actividades, resultados y cierre
 
-### 3.1. Reglas comunes del cuaderno
+### 3.1. Resultados personales y cuaderno
 
-Una respuesta puede confirmarse como `written`, `suggested`, `oral` o `uncertain`. Un texto escrito admite hasta 280 caracteres Unicode después de recortar espacios; no se exige acertar.
+**No hay formularios de respuesta.** Se eliminan las modalidades escrita, sugerida, oral e incertidumbre; «Anotar esta posición», «Tengo una pregunta», «Entendido», «Respetar y seguir explorando» y «Colocar las piezas» no existen. El juego registra lo que cada persona hace:
 
-| Modalidad | Datos | Representación compartida |
-| --- | --- | --- |
-| Escrita | Texto no vacío. | Texto confirmado. |
-| Sugerida | ID de una opción existente del proyecto. | El servidor resuelve su texto. |
-| Oral | Sin texto obligatorio. | «Lo compartiremos en voz alta». |
-| Incertidumbre | Sin explicación obligatoria. | «Todavía no tenemos una explicación». |
+| Mesa | Qué se registra solo |
+| --- | --- |
+| Sombras | Cada posición de la linterna y la sombra que produjo, al **terminar** el ajuste (soltar el slider o una pausa breve tras −/+). |
+| Rampas | Cada prueba terminada: inclinación, tiempo de la simulación y condiciones congeladas. |
+| La caja | Cada objeto compartido explorado y si se pidió permiso para la caja personal. |
 
-La modalidad incertidumbre satisface un registro de idea, predicción u observación cuando el paso lo permita; una nueva pregunta admite escritura, sugerencia o participación oral. Las combinaciones válidas se definen por campo.
+**Listo para conversar.** Se deduce de lo registrado; nadie lo marca ni lo confirma, y seguir probando no lo quita:
 
-Antes del primer formulario mostrar **«Esta idea se compartirá con el grupo»**. Los borradores permanecen en el dispositivo, no se proyectan letra por letra y no se transfieren al nuevo jugador. Cambiar de turno los separa del registro confirmado y avisa si quedó texto sin compartir.
+| Mesa | Criterio |
+| --- | --- |
+| Sombras | Dos posiciones de la linterna separadas al menos **5 cm** (configurable). Una posición muy parecida a otra se registra pero no cuenta. |
+| Rampas | Dos pruebas **terminadas** con inclinaciones que difieren al menos **5°**. Una prueba en marcha o cancelada no cuenta. Mientras falta la diferencia, el avance dice «1 de 2». |
+| La caja | Al menos **un objeto compartido** explorado. Pedir permiso es posible, nunca obligatorio. |
 
-Cada registro tiene ID, campo, autor, marcas temporales del servidor y revisión. Una edición conserva el valor inicial o historial de versiones. La **primera idea de Sombras permanece identificable** aunque después se añada una explicación revisada.
+El panel de cada persona muestra «Explorando · N de M» o «✓ Listo para conversar» y el texto correspondiente; no hay puntos ni comparación entre personas.
 
-Completar mesas y conceder piezas ocurre en una sola transición del dominio. No existe un comando del cliente para «otorgar pieza».
+**Cuaderno.** Dos partes, ambas de solo lectura para quien juega: **«Mis resultados»** (lo que el juego registró de esa persona) y **«Lo que anotó el grupo»**: las notas que Vanessa guarda —idea inicial del grupo (solo en Sombras, **conservada aparte** de la síntesis), idea del grupo (síntesis), preguntas que el grupo quiere conservar y la pregunta final— y las **comparaciones** que proyectó. Las ideas de Vanessa se identifican siempre como del grupo. Una corrección conserva la versión anterior a la vista. Nunca hay borradores ni texto de las personas del público.
+
+Completar mesas y conceder piezas ocurre en una sola transición del dominio (**Abrir siguiente mesa**). No existe un comando del cliente para «otorgar pieza» ni para fijar un resultado.
 
 ### 3.2. Sombras
 
-Pasos: `surprise → firstIdea → explore → observation → nextQuestion → completed`.
+Pregunta de apertura: «¿Por qué un objeto pequeño puede producir una sombra grande?». Objetivo en el celular: «Compara la sombra con la linterna cerca y lejos.»
 
-| Paso | Acción y condición para continuar |
-| --- | --- |
-| Sorpresa | Clic opcional y texto equivalente. «El objeto es pequeño. ¿Por qué su sombra se ve tan grande?». |
-| Primera idea | Confirmar idea escrita, sugerida, oral o incertidumbre. |
-| Explorar | Mover la linterna; confirmar al menos dos posiciones distintas. |
-| Observación | Confirmar lo observado; mantener visible la primera idea. |
-| Nueva pregunta | Escribir, elegir un ejemplo o indicar participación oral. |
-| Completar | Registrar condiciones y conceder la lupa una vez. |
+Mantener fijos objeto y pantalla. La linterna no atraviesa el objeto. Ofrecer un slider con «Más lejos del objeto» y «Más cerca del objeto», además de botones −/+. El ajuste es **local** (la escena lo dibuja al instante) y solo el resultado ya terminado viaja al servidor.
 
-Mantener fijos objeto y pantalla. La linterna no atraviesa el objeto. Ofrecer un slider con «Más lejos del objeto» y «Más cerca del objeto», además de botones −/+.
+Modelo de referencia para desarrolladores: fuente puntual ideal; distancia linterna–objeto `d`; distancia objeto–pantalla `b`; altura del objeto `h`. Usar `alturaSombra = h × (d + b) / d`. Valores iniciales propuestos: `d = 10…60 cm`, `b = 25 cm`, `h = 8 cm`. Acercar la linterna aumenta la sombra y alejarla la reduce. La linterna empieza en el extremo cercano del rango (`d` mínimo): la sombra grande de un objeto pequeño es la sorpresa.
 
-Modelo de referencia para desarrolladores: fuente puntual ideal; distancia linterna–objeto `d`; distancia objeto–pantalla `b`; altura del objeto `h`. Usar `alturaSombra = h × (d + b) / d`. Valores iniciales propuestos: `d = 10…60 cm`, `b = 25 cm`, `h = 8 cm`. Acercar la linterna aumenta la sombra y alejarla la reduce. La linterna empieza en el extremo cercano del rango (`d` mínimo): la sombra grande de un objeto pequeño es la sorpresa del primer paso.
+La separación mínima entre dos muestras que cuentan es configurable; valor inicial **5 cm**. No contar cada mensaje de arrastre como una exploración distinta: la muestra se registra al terminar el gesto. La misma posición no se registra dos veces seguidas.
 
-La separación mínima entre dos muestras que cuentan para completar es configurable; valor inicial **5 cm**. Un cambio continuo se comparte, pero una muestra de exploración se registra al terminar el gesto o confirmar la posición. No contar cada mensaje de arrastre como una exploración distinta.
+La representación y la descripción textual usan el mismo valor calculado. No sustituir el modelo por tamaños aleatorios o dos imágenes fijas.
 
-La representación y descripción textual usan el mismo valor calculado. No sustituir el modelo por tamaños aleatorios o dos imágenes fijas.
+Pregunta de conversación: «¿Qué cambió, qué permaneció igual y qué observación ayuda a revisar la primera idea?». Frase de Freire: «Freire propone volver más rigurosa nuestra curiosidad al observar, comparar y buscar razones.»
 
-Preguntas sugeridas: «¿Qué pasaría si movemos el objeto?» y «¿Todas las formas producen la misma sombra?».
-
-Guía breve de Vanessa: antes, escuchar la primera explicación y relacionar la sorpresa con curiosidad espontánea; después, preguntar qué cambió al probar y conectar observación, comparación y revisión de ideas con curiosidad epistemológica.
+Guía breve de Vanessa: antes, escuchar una o dos ideas y guardar la **idea inicial del grupo**; después, preguntar qué cambió, distinguir lo observado de lo supuesto y guardar la síntesis.
 
 ### 3.3. Rampas
 
-Pasos: `closedAnswer → question → prediction → trials → observation → completed`.
+Pregunta de apertura: «¿Qué creen que cambiará si aumenta la inclinación de la rampa?». Objetivo en el celular: «Compara dos inclinaciones y observa el tiempo de recorrido.» No hay escena de docente ni respuesta cerrada: cada persona elige una inclinación, suelta la pelota y mira el resultado.
 
-1. Docente ficticio: «Copia el resultado de la guía. No hagas preguntas».
-2. Guía: «En este montaje, al aumentar la inclinación la pelota llega antes al final de la rampa».
-3. Controles desactivados. **Tengo una pregunta** abre el siguiente paso sin temporizador ni transcripción obligatoria.
-4. Elegir «¿Qué pasaría si aumentamos la inclinación?» o escribir una pregunta sobre el montaje.
-5. Docente: «Exploremos esa pregunta. ¿Cómo podríamos comprobarlo?».
-6. Confirmar predicción; permitir incertidumbre o participación oral.
-7. Soltar una pelota desde reposo, cambiar solo la inclinación y repetir.
-8. Comparar al menos dos pruebas terminadas con inclinaciones distintas y confirmar observación.
-9. Conceder el bocadillo una sola vez, aunque la predicción no se haya cumplido.
-
-Misma pelota, superficie y longitud. Rango inicial **15°–45°**, paso de **5°**, diferencia mínima para comparar **5°**. Cada prueba dura aproximadamente **2–4 segundos de animación activa**. Desactivar nueva suelta y cambio de inclinación durante una prueba.
+Misma pelota, superficie y longitud. Rango inicial **15°–45°**, paso de **5°**, diferencia mínima para comparar **5°**. Cada prueba dura aproximadamente **2–4 segundos de animación activa**. Mientras la pelota rueda se bloquean la nueva suelta y el cambio de inclinación **de esa persona**; las demás siguen a su ritmo.
 
 **Modelo compartido propuesto:** esfera homogénea ideal rodando sin deslizar, sin pérdidas disipativas. `a = (5/7) × 9.81 × sin(θ)`; recorrido `L = 2 m`; duración visual `T = 2.4 × sqrt(2L/a)`. Da aproximadamente 3.56 s a 15° y 2.16 s a 45°. La posición sobre la rampa usa `s/L = min(1, (t/T)²)`.
 
 El factor 2.4 se aplica a todas las pruebas. El tiempo mostrado es el de esa **simulación visual**, no una medición real de laboratorio; debe corresponder al movimiento que se observa. El cálculo se implementa una sola vez en el dominio TypeScript, con grados convertidos a radianes.
 
-El servidor asigna `trialId`, calcula duración y congela parámetros. El cliente no decide cuándo una prueba terminó ni envía su resultado como autoridad. Una pausa conserva `elapsedMs`; el tiempo de conversación no se suma. La presentación puede dibujar a 60 FPS aunque reciba menos actualizaciones.
+El servidor asigna `trialId`, calcula duración y congela parámetros. El cliente no decide cuándo una prueba terminó ni envía su resultado: **el servidor la termina en su instante exacto** (inicio + duración). Una pausa conserva el tiempo transcurrido; el tiempo de conversación no se suma. Varias personas pueden tener pruebas en marcha a la vez. «Conversemos» cancela las que sigan rodando.
 
-Cada resultado conserva inclinación, condiciones, tiempo y modelo usado. El registro «Probé…» se deriva de esos resultados. Nuevas pruebas pueden ampliar la comparación, sin borrar las anteriores.
+Cada resultado conserva inclinación, condiciones, tiempo y modelo usado. En la conversación se proyectan, de la persona elegida, su prueba más lenta y la más rápida.
 
-Guía de Vanessa: durante la escena inicial, conversar sobre tener una respuesta sin poder investigar; después, pedir razones apoyadas en los resultados y relacionar preguntar, escuchar y comprender con las ideas de Freire.
+Pregunta de conversación: «¿Qué resultado apoya la explicación del grupo y cómo lo compararían con otra prueba?». Frase de Freire: «Para Freire, dialogar incluye preguntar y escuchar las explicaciones con una actitud curiosa.»
+
+Guía de Vanessa: antes, escuchar dos predicciones y pedir una razón o una manera de comprobarlas; durante, recordar que los tiempos son de una simulación; después, ofrecer una explicación breve del montaje y escuchar otras razones.
 
 ### 3.4. La caja de las sorpresas
 
-Pasos: `exploreShared → askPermission → refusal → respect → nextQuestion → completed`.
+Una sola escena con dos cajas: una **compartida** y una **personal**. Pregunta de apertura: «Hay dos cajas: una para explorar y otra personal. ¿Por dónde quieren empezar?». Objetivo en el celular: «Explora al menos un objeto de la caja compartida. La caja personal es de una compañera.»
 
-- Caja **Para explorar**: campanita, lupa y piedra. Abrir y explorar al menos un objeto.
+- Caja **compartida**: campanita, lupa y piedra. Cada persona elige objetos y lee su descripción; con uno basta para quedar lista.
 - Campanita: sonido opcional y descripción; lupa: detalle ampliado; piedra: vista cercana.
-- Caja **Personal**: pertenece a una compañera ficticia y siempre permanece cerrada.
-- Pedir permiso: «Prefiero guardar esas cosas para mí».
-- Elegir **Respetar y seguir explorando**.
-- Volver a elegir un objeto compartido y registrar una pregunta.
-- Conceder el corazón una sola vez.
+- Caja **personal**: pertenece a una compañera ficticia y **siempre permanece cerrada**. No existe ninguna acción para abrirla.
+- **Pedir permiso** es opcional: quien lo pide recibe la negativa completa en la escena, «Prefiero guardar esas cosas para mí», y la caja sigue cerrada. Tocarla de nuevo muestra: «Su contenido es personal. Podemos seguir explorando los objetos compartidos».
 
-Después de la negativa, un nuevo toque muestra: «Su contenido es personal. Podemos seguir explorando los objetos compartidos». No incluir una acción de abrir la caja personal, un asset de su contenido, un dato oculto con su contenido ni una recompensa que lo revele.
+No incluir una acción de abrir la caja personal, un asset de su contenido, un dato oculto con su contenido ni una recompensa que lo revele.
 
-Preguntas sugeridas: «¿Qué hace que la campanita suene?», «¿Por qué la lupa hace que algo se vea más grande?» y «¿Cómo habrá adquirido esta forma la piedra?».
+Pregunta de conversación: «¿Cómo podríamos seguir investigando respetando esa decisión?». Frase de Freire: «Freire señala que nuestra curiosidad debe respetar la privacidad de otras personas.» En la conversación Vanessa proyecta los resultados de alguien que pidió permiso, para que todas conozcan el límite.
 
-Cambiar de jugador entre negativa y respeto conserva ese paso. El registro final vincula objeto compartido y pregunta. La interacción se puede resolver en 1–2 minutos.
+Guía de Vanessa: sentir curiosidad no da permiso para revisar algo personal; preguntar cómo seguir investigando respetando esa decisión y por qué importa el permiso aunque haya mucha curiosidad.
 
-Guía de Vanessa: sentir curiosidad no da permiso para revisar algo personal; pedir permiso, respetar y continuar investigando. Preguntar: «¿Cómo acompañaríamos a un niño que quiere revisar las cosas personales de un compañero?».
+### 3.5. Inventor, pregunta final y reinicios
 
-### 3.5. Inventor, revisitas y reinicios
-
-Con las tres piezas, el controlador pulsa **Colocar las piezas**. Una animación breve identifica:
+Con las tres piezas incorporadas (una por ronda terminada), el cierre muestra el inventor encendido con sus tres mensajes:
 
 | Pieza | Mensaje |
 | --- | --- |
-| Lupa | Observar y probar. |
+| Lupa | Observar y comparar. |
 | Bocadillo | Preguntar y escuchar. |
 | Corazón | Investigar con respeto. |
 
-El grupo elige una pregunta guardada, una sugerencia o una nueva. La modalidad oral muestra «Compartamos nuestra próxima pregunta en voz alta». No hay generación de respuestas con IA.
+Los celulares muestran el texto del cierre automáticamente; nadie pulsa nada. **Vanessa escribe o elige la pregunta final**: una pregunta que el grupo guardó durante las conversaciones o una nueva. Antes de imprimirla en el inventor se le muestra para que la **confirme**; después puede **corregir** un error de escritura (se conserva la versión anterior). No hay generación de respuestas con IA.
 
-Confirmar la pregunta final cambia la fase a `finished` y muestra «Cada descubrimiento puede abrir otra pregunta». La administradora aún puede pausar, cambiar turno, tomar control, cerrar o reiniciar.
+Confirmar la pregunta final cambia la fase a `finished` y muestra «Cada descubrimiento puede abrir otra pregunta». La administradora aún puede pausar, cerrar o reiniciar. En `finished` los celulares dicen «Terminamos la aventura. Puedes revisar tus resultados.» (a la observadora, «Terminamos la aventura.») y el cuaderno sigue disponible. No se vuelve a conceder una pieza ni se borra la pregunta final.
 
-En `finished` se permiten consultas, revisitas y nuevas exploraciones de mesas completadas. No se vuelve a conceder una pieza ni se borra la pregunta final. El servidor habilita únicamente las acciones de revisita pertinentes, no reinicia silenciosamente los pasos del recorrido.
+**Reiniciar sala** borra el avance y requiere confirmación de Vanessa.
 
-**Reiniciar experimento** repone sus controles; no borra cuaderno, primera idea, pruebas terminadas ni piezas. Si hay una prueba de rampa en curso, el reinicio explícito la marca cancelada; no cuenta como prueba completada. **Reiniciar sala** sí borra el avance y requiere confirmación de Vanessa.
-
-Reflexión de cierre: aprender comienza con preguntas; observar, probar y escuchar puede cambiar lo que pensábamos; las preguntas de los niños importan y deben acompañarse con respeto por los demás.
+Reflexión de cierre: aprender comienza con preguntas; observar, probar y escuchar puede cambiar lo que pensábamos; las preguntas de los niños importan y deben acompañarse con respeto por los demás. Pregunta oral final: «¿Cómo ayudaríamos a un niño a pasar de “me da curiosidad” a “quiero comprenderlo”?».
 
 <a id="spec-4"></a>
 
@@ -282,27 +288,43 @@ Reflexión de cierre: aprender comienza con preguntas; observar, probar y escuch
 
 ### 4.1. Entidades
 
+El estado se separa en **tres capas**: la sala y la ronda (solo las modifica Vanessa), cada participante (solo lo modifica esa persona) y la presentación (la comparación que Vanessa proyecta). Nada de la capa personal se envía a las demás personas.
+
 | Entidad | Datos mínimos |
 | --- | --- |
-| Sala | `roomId`, código público, versión de configuración, fase, generación, propietario, versión de turno, versión de estado, fechas y vencimiento. |
-| Identidad | `principalId`, papel, nombre, color y número de distinción. Credencial privada almacenada como hash en servidor. |
+| Sala | `roomId`, código público, versión de configuración, fase, generación, versión de ronda, versión de estado, fechas y vencimiento. |
+| Identidad | `principalId`, papel, nombre, color, número de distinción y si **observa**. Credencial privada almacenada como hash en servidor. |
 | Presencia | Conexión vigente, `connectionEpoch` y estado conectado/desconectado. Se reconstruye al arrancar. |
-| Aventura | Mapa, posición/pies, plan de movimiento, vista compartida, mesa y pasos, cuaderno, piezas, inventor y reloj. |
-| Registro | Campo, modalidad, texto/opción confirmada, autor, revisión y fechas del servidor. |
-| Prueba de rampa | `trialId`, inclinación, condiciones, duración, tiempo activo, estado y resultado. |
+| Ronda | Índice de mesa, fase (`preparation`, `exploration`, `conversation`, `closing`), lista de la ronda, personas incluidas después, pendientes al conversar y si ya se mostró la frase de Freire. |
+| Aventura (grupo) | Mapa, ronda, mesas terminadas, piezas derivadas, notas del grupo, comparación proyectada, pregunta final y reloj. |
+| Participante | Personaje (pies, orientación, plan de movimiento), vista (`map` o una mesa) y sus resultados por mesa. Una entrada por quien juega; **quien observa no tiene**. |
+| Nota del grupo | `kind` (`initialIdea`, `synthesis`, `question`, `comparison`, `finalQuestion`), mesa, texto o comparación, revisión, historial y marcas del servidor. |
+| Prueba de rampa | `trialId`, inclinación, condiciones congeladas, duración, instante de inicio, estado (`running`, `finished`, `cancelled`) e instante de fin. |
 | Comando procesado | Identificador, identidad, generación, huella del payload y respuesta definitiva. |
 
-Tipos orientativos; generar o contrastar los tipos finales con los esquemas:
+Tipos orientativos; generar o contrastar los tipos finales con los esquemas (`shared/contracts/state.ts`):
 
 ~~~ts
-type ControlOwner =
-  | { role: "admin"; principalId: string }
-  | { role: "participant"; principalId: string }
-  | null;
-
 type RoomPhase =
   | "welcome" | "running" | "paused"
   | "finished" | "closed" | "expired";
+
+type RoundStage = "preparation" | "exploration" | "conversation" | "closing";
+
+interface RoundState {
+  index: number;               // posición en `route`; route.length = cierre
+  stage: RoundStage;
+  roster: string[];            // se fija al abrir la exploración
+  included: string[];          // quienes Vanessa incluyó después
+  pendingAtConversation: string[];
+  freireShown: boolean;
+}
+
+interface ParticipantState {
+  character: PlayerState;      // pies, orientación y plan de movimiento
+  view: { kind: "map" } | { kind: "activity"; activityId: string };
+  activities: Record<string, ShadowsState | RampsState | BoxesState>;
+}
 
 interface RoomState {
   roomId: string;
@@ -313,25 +335,23 @@ interface RoomState {
   mapHash: string;
   roomGeneration: number;
   stateVersion: number;
-  turnVersion: number;
+  roundVersion: number;
   phase: RoomPhase;
   resumePhase: "running" | "finished" | null;
-  controlOwner: ControlOwner;
-  adventure: AdventureState;
+  adventure: AdventureState;                    // capa de grupo
+  participants: Record<string, ParticipantState>; // capa personal
 }
 ~~~
 
-`AdventureState` contiene:
+`AdventureState` (grupo) contiene:
 
-- `mapId` y `player`: posición segura y plan aceptado de movimiento.
-- `view`: `map`, `activity` o `final`; `activityId` cuando corresponde.
-- `activities`: estado específico de Sombras, Rampas y Cajas.
-- `notebook`: registros confirmados, con revisiones.
-- `pieces`: conjunto de IDs derivado de mesas completadas.
-- `inventor`: piezas colocadas y registro de pregunta final.
-- `timeline`: tiempo activo acumulado, muestra del reloj del servidor y estado de simulación.
+- `mapId` y `round` (`RoundState`).
+- `completed`: mesas cuya ronda terminó con «Abrir siguiente mesa»; `pieces` se **deriva** de ellas.
+- `notebook`: notas del grupo, con revisiones e historial; `presentedNoteId`: la comparación que se proyecta ahora.
+- `inventor`: ID de la pregunta final.
+- `timeline`: tiempo activo acumulado y `counters` para IDs deterministas (notas, pruebas, planes).
 
-Las interfaces definitivas de actividades son uniones discriminadas por `type` y paso. Evitar un diccionario arbitrario de variables de juego.
+Los estados de actividad son uniones discriminadas por `type`: Sombras guarda las posiciones (`distanceCm`, `shadowCm`, si cuenta y su instante); Rampas, las pruebas; La caja, los objetos explorados, el seleccionado y si se pidió permiso. Evitar un diccionario arbitrario de variables de juego.
 
 ### 4.2. Versiones e invariantes
 
@@ -342,21 +362,22 @@ Las interfaces definitivas de actividades son uniones discriminadas por `type` y
 | `configRevision` | Edición del contenido, sin borrar progreso automáticamente. |
 | `configHash / mapHash` | Comprobar que cliente y servidor usan los mismos datos. |
 | `roomGeneration` | Distinguir recorridos antes/después de un reinicio de avance. |
-| `turnVersion` | Invalidar entradas de permisos anteriores. |
+| `roundVersion` | Sube con cada cambio de ronda (abrir, conversar, avanzar, reiniciar, pausar, recuperar): una acción personal de una ronda cerrada llega con la versión anterior y se rechaza (`STALE_ROUND`). |
 | `stateVersion` | Ordenar transiciones confirmadas y snapshots. |
 | `connectionEpoch` | Rechazar una pestaña sustituida. |
-| `frameSeq` | Ordenar muestras visuales entre transiciones; no equivale a una respuesta confirmada. |
+| `seq` del reloj | Ordenar las muestras de reloj entre transiciones; no equivale a una respuesta confirmada. |
 
 Invariantes:
 
-1. Una sala tiene cero o un propietario.
-2. Solo la conexión vigente de ese propietario puede jugar.
-3. Un cambio de propietario, pausa, reanudación, revocación o recuperación invalida entradas anteriores mediante `turnVersion`.
-4. El conjunto de piezas se deriva del dominio, no del payload del cliente.
-5. Una respuesta confirmada queda guardada antes de anunciarse como aceptada.
-6. El reloj de simulación avanza únicamente mientras la sala puede jugar.
-7. Los borradores, sprites, sockets y credenciales nunca forman parte del snapshot público de aventura.
-8. Un mapa o contenido nuevo no modifica a mitad de exposición una sala iniciada.
+1. Cada acción personal se aplica **solo** al estado de quien la envía; las pruebas de una persona no las modifica nadie más.
+2. Solo la administradora conduce la ronda; ninguna acción de participante abre, reúne ni avanza una ronda.
+3. La lista de la ronda se fija al abrir la mesa y una desconexión no la reduce.
+4. «Listo para conversar» se deduce de resultados ya registrados y es monótono: seguir probando no lo quita.
+5. El conjunto de piezas se deriva del dominio (`completed`), no del payload del cliente, y una pieza se incorpora una sola vez, al abrir la siguiente mesa.
+6. Un resultado confirmado queda guardado antes de anunciarse como aceptado.
+7. El reloj de simulación avanza únicamente mientras la sala está en curso.
+8. Los borradores, sprites, sockets y credenciales nunca forman parte del estado público; el estado personal de una persona nunca se envía a otra.
+9. Un mapa o contenido nuevo no modifica a mitad de exposición una sala iniciada.
 
 <a id="spec-5"></a>
 
@@ -369,27 +390,27 @@ Usar HTTP para obtener credenciales y Socket.IO para la sesión autenticada. Est
 | Endpoint propuesto | Solicitud | Respuesta |
 | --- | --- | --- |
 | `POST /api/rooms` | `contentSetId` permitido. | Sala, código, enlace público, `adminId` y credencial privada de administradora. |
-| `POST /api/rooms/:code/join` | Nombre y color válidos. | Identidad participante, nombre distinguido y credencial propia. |
+| `POST /api/rooms/:code/join` | Nombre y color válidos; `observer` opcional. | Identidad participante, nombre distinguido, si observa y credencial propia. |
 | `GET /api/rooms/:code` | Sin credencial. | Código, fase y título públicos; la pantalla de entrada confirma que la sala existe y sigue disponible sin entrar. *(Añadido al implementar la fase 2.)* |
 | `GET /api/health` | Sin datos de sala. | Disponibilidad básica del servicio. |
 
-La creación de sala no exige cuenta en la primera versión. Emitir tokens opacos aleatorios de al menos 32 bytes; verificar por hash. Al reconectar, enviar la credencial en el `auth` de Socket.IO, sin query string. El servidor resuelve sala, identidad y papel: no confiar en un `role` enviado por el navegador.
+La creación de sala no exige cuenta en la primera versión. Emitir tokens opacos aleatorios de al menos 32 bytes; verificar por hash. Al reconectar, enviar la credencial en el `auth` de Socket.IO, sin query string. El servidor resuelve sala, identidad y papel: no confiar en un `role` ni en un `observer` enviado por el navegador después de entrar.
 
 Conservar la credencial en almacenamiento local con claves propias por proyecto y sala. Usar HTTPS, permitir solo el origen del frontend y no registrar tokens ni incluirlos en logs, QR, capturas o snapshots. Escapar textos con React; no renderizar contenido del público mediante HTML arbitrario.
 
-Limitar creación/entrada, tamaño de mensajes y frecuencia de acciones. Color debe pertenecer a la paleta; nombre, código y texto se validan en servidor. El código de entrada permite unirse, no recuperar administración.
+Limitar creación/entrada, tamaño de mensajes y frecuencia de acciones (por participante: ráfaga de 20 y 8 por segundo). Color debe pertenecer a la paleta; nombre, código y texto se validan en servidor. El código de entrada permite unirse, no recuperar administración.
 
-La nueva conexión de una identidad sustituye a la anterior y aumenta `connectionEpoch`. Ignorar la desconexión posterior del socket viejo. Si se sustituye un controlador, pausar y retirar su control; el participante nuevo vuelve en espera. Una administradora que sustituye su conexión recupera administración, con la aventura pausada.
+Quien juega se da de alta con su personaje en la entrada al conectarse por primera vez; quien observa no se da de alta. La nueva conexión de una identidad sustituye a la anterior y aumenta `connectionEpoch`: la participante conserva su personaje y su estado, y la pestaña vieja queda desactivada. Ignorar la desconexión posterior del socket viejo. Una administradora que sustituye su conexión recupera administración, con la aventura pausada.
 
 ### 5.2. Sobres de comandos
 
 ~~~ts
-interface AdventureCommand {
+interface ParticipantCommand {
   requestId: string;
   roomGeneration: number;
-  turnVersion: number;
+  roundVersion: number;      // la ronda que la persona ve
   connectionEpoch: number;
-  action: AdventureAction;
+  action: ParticipantAction;
 }
 
 interface AdminCommand {
@@ -401,60 +422,63 @@ interface AdminCommand {
 }
 ~~~
 
-La identidad y la sala proceden de la conexión autenticada. `requestId` es único por comando, por ejemplo UUID. `commandSeq` aumenta en la conexión administrativa vigente; serializar cambios de turno para que una asignación vieja no reemplace otra posterior.
+La identidad y la sala proceden de la conexión autenticada. `requestId` es único por comando, por ejemplo UUID. `commandSeq` aumenta en la conexión administrativa vigente; serializar las acciones de Vanessa para que una vieja no reemplace otra posterior.
 
-`AdventureAction` es una unión tipada. Catálogo mínimo:
+`ParticipantAction` es una unión tipada. Catálogo (cada acción se aplica solo al estado de quien la envía):
 
 | Acción | Payload y validación de dominio |
 | --- | --- |
-| `player.moveTo` | Destino de mundo; mapa, camino y permisos. |
-| `station.open` | ID y origen `map` o `quickNav`; orden y proximidad cuando se usa el mapa. |
-| `adventure.returnToMap` | Cerrar actividad; conservar su avance. |
-| `shadows.light.set` | Distancia dentro de rango y `commitSample` booleano. |
-| `shadows.surprise.ack` | Marcar la sorpresa como vista. Opcional: la primera idea también puede confirmarse directamente en el paso `surprise`. *(Añadida al implementar el dominio; el catálogo es «mínimo».)* |
-| `record.confirm` | Mesa/campo/modalidad/valor permitidos en el paso actual. |
-| `record.edit` | ID, revisión esperada y nuevo valor; conservar valor previo. |
-| `ramps.question.open` | Abrir pregunta desde la respuesta cerrada. |
-| `ramps.angle.set` | Inclinación válida; ninguna prueba en marcha. |
-| `ramps.trial.start` | Sin resultado del cliente; el servidor crea la prueba. |
-| `boxes.shared.open` | Abrir la caja compartida. |
+| `player.moveTo` | Destino de mundo; mapa, camino y fase (preparación o exploración). |
+| `station.open` | ID y origen `map` o `quickNav`; solo la mesa de la ronda, en exploración; proximidad cuando se usa el mapa. |
+| `adventure.returnToMap` | Cerrar la mesa; conservar sus resultados. |
+| `shadows.sample` | Distancia dentro de rango; registra la posición y su sombra. |
+| `ramps.trial.start` | Inclinación válida; ninguna prueba propia en marcha. Sin resultado del cliente. |
 | `boxes.object.inspect` | ID de un objeto compartido existente. |
-| `boxes.permission.ask` | Solicitar permiso en el paso correspondiente. |
-| `boxes.refusal.ack` | Confirmar que se leyó la negativa. |
-| `boxes.refusal.respect` | Registrar el respeto y habilitar la nueva pregunta. |
-| `experiment.reset` | Mesa actual; efectos definidos en 3.5. |
-| `inventor.placePieces` | Tres piezas derivadas ya disponibles. |
-| `inventor.question.confirm` | Pregunta válida o referencia a registro existente. |
+| `boxes.permission.ask` | Pedir permiso para la caja personal; opcional, nunca la abre. |
 
-No aceptar acciones libres como `setState`, `grantPiece`, `setResult` o `openPersonalBox`.
+No existen acciones libres como `setState`, `grantPiece`, `setResult`, `openPersonalBox` ni «marcar listo».
 
-`AdminAction` incluye `room.start`, `control.assign`, `control.revoke`, `control.take`, `room.pause`, `room.resume`, `room.reset` y `room.close`.
+`AdminAction` agrupa:
+
+| Acción | Efecto |
+| --- | --- |
+| `room.start`, `room.pause`, `room.resume` | Ciclo de la sala (2.3). |
+| `room.reset` (`confirm`), `room.close` (`confirm`) | Reiniciar avance y cerrar. |
+| `round.open` | Preparación → exploración; fija la lista de la ronda. |
+| `round.converse` (`withPending?`) | Exploración → conversación; con pendientes exige `withPending`. |
+| `round.showFreire` | Muestra la frase de Freire de la mesa en la proyección. |
+| `round.next` | Conversación → siguiente mesa o cierre; incorpora la pieza. |
+| `round.include` | Incluye en la ronda a quien llegó después. |
+| `present.select`, `present.clear` | Proyectar los resultados de una persona (y conservarlos en el cuaderno) o quitarlos. |
+| `note.save`, `note.edit` | Guardar o corregir una nota del grupo (`initialIdea`, `synthesis`, `question`). |
+| `final.confirm`, `final.correct` | Confirmar la pregunta final (escrita o una guardada) y corregirla después. |
 
 ### 5.3. Eventos del transporte
 
 | Evento propuesto | Dirección | Contenido |
 | --- | --- | --- |
-| `admin.command` | Administradora → servidor | Sobre y acción de moderación. |
-| `adventure.action` | Controlador → servidor | Sobre y acción de aventura. |
+| `admin.command` | Administradora → servidor | Sobre y acción de moderación y conducción. |
+| `participant.action` | Participante → servidor | Sobre y acción personal. |
 | `room.sync` | Cliente → servidor | Solicitar estado permitido para su papel. |
-| `room.summary` | Servidor → todos | Fase, versiones, propietario, `configMismatch` y estado propio; sin cuaderno ni credenciales. |
-| `presence.updated` | Servidor → administradora | Listado necesario para moderar. |
-| `room.snapshot` | Servidor → administradora y controlador | Estado completo autorizado de aventura. |
-| `simulation.frame` | Servidor → esas dos vistas | Reloj, movimiento/prueba actual, versión y secuencia. |
-| `control.changed` | Servidor → afectados | Propietario, versión y cambio de vista. |
+| `room.summary` | Servidor → todos | Fase, versiones, `configMismatch` y estado propio (incluye si observa); sin cuaderno ni credenciales. |
+| `group.state` | Servidor → todos | Estado de grupo: ronda, piezas, notas del grupo, comparación proyectada, pregunta final y efectos de la transición. |
+| `me.state` | Servidor → su dueña | Su personaje, su vista y sus resultados. **Nunca** a otra persona. |
+| `characters.state` / `character.updated` | Servidor → todos | Posición pública (plan de movimiento, nombre, color, conexión) de cada personaje. |
+| `presence.updated` | Servidor → administradora | Listado necesario para conducir y el contador de la ronda `{ready, total}`, con el avance de cada persona. |
+| `clock.sample` | Servidor → todos | Reloj de simulación (`activeMs`, `running`, `seq`), mientras algo se mueve o cambia la fase. |
 | `session.replaced` | Servidor → socket sustituido | Deshabilitar esa pestaña. |
 
 Responder cada comando mediante acknowledgment de Socket.IO:
 
 ~~~ts
 type CommandResult =
-  | { ok: true; requestId: string; stateVersion: number; turnVersion: number }
+  | { ok: true; requestId: string; stateVersion: number; roundVersion: number }
   | { ok: false; requestId: string; code: string; message: string };
 ~~~
 
-Errores estables: `NOT_AUTHORIZED`, `STALE_CONNECTION`, `STALE_TURN`, `STALE_GENERATION`, `ROOM_PAUSED`, `INVALID_STEP`, `INVALID_PAYLOAD`, `ROOM_UNAVAILABLE`, `REVISION_CONFLICT`, `CONFIG_MISMATCH`, `RATE_LIMITED` y `PERSISTENCE_FAILED`.
+Errores estables: `NOT_AUTHORIZED`, `STALE_CONNECTION`, `STALE_ROUND`, `STALE_GENERATION`, `ROOM_PAUSED`, `INVALID_STEP`, `INVALID_PAYLOAD`, `ROOM_UNAVAILABLE`, `REVISION_CONFLICT`, `CONFIG_MISMATCH`, `RATE_LIMITED` y `PERSISTENCE_FAILED`.
 
-Una denegación desbloquea el botón pendiente y muestra una razón comprensible; no concede piezas ni modifica progreso.
+Una denegación desbloquea el botón pendiente y muestra una razón comprensible; no concede piezas ni modifica progreso. Si el servidor no responde tras los reintentos, el cliente avisa «El servidor no respondió. Revisa tu conexión.» y libera el botón.
 
 ### 5.4. Procesamiento e idempotencia
 
@@ -463,7 +487,7 @@ Cada sala tiene una cola serial de mutaciones. Cada comando que recibe confirmac
 1. Verificar conexión vigente y credencial.
 2. Detectar un `requestId` procesado para esa identidad y generación; si coincide su huella, devolver la respuesta guardada sin repetir la mutación.
 3. Rechazar reutilización del ID con otro payload.
-4. Verificar generación, papel, turno, fase, paso, rangos y referencias.
+4. Verificar generación, ronda (`roundVersion` en acciones personales), papel, fase, rangos y referencias.
 5. Calcular la transición mediante dominio puro.
 6. Guardar estado y respuesta del comando en la misma transacción.
 7. Actualizar memoria y emitir estado/acknowledgment después del commit.
@@ -472,33 +496,34 @@ Si la persistencia falla, no anunciar éxito; bloquear la continuación con mens
 
 Socket.IO no garantiza por sí solo persistencia ni entrega de cada evento. [T4] Si un acknowledgment se pierde, el cliente puede consultar sincronización o reintentar **el mismo comando discreto con el mismo ID**, únicamente mientras siga conectado y con permisos vigentes.
 
-No activar una reproducción automática de entradas acumuladas tras reconectar. Antes de `emit` comprobar conexión y permisos; los controles continuos pueden enviarse como eventos volátiles. Al perder conexión, cancelar gestos y pendientes; conservar borradores localmente. Al volver, pedir snapshot, verificar permiso y habilitar controles desde el estado actual.
+No activar una reproducción automática de entradas acumuladas tras reconectar. Antes de `emit` comprobar conexión y permisos. Al perder conexión, cancelar gestos y pendientes. Al volver, pedir el estado, verificar permiso y habilitar controles desde el estado actual.
 
-### 5.5. Separación de canales y cambio de turno
+### 5.5. Separación de canales y fan-out por audiencia
 
-Usar agrupaciones de Socket.IO controladas por servidor:
+Usar agrupaciones de Socket.IO controladas por servidor y enviar a cada audiencia solo lo suyo:
 
-- Canal de sala para información mínima de fase y turno.
-- Canal de vista para administradora y controlador actual.
-- Presencia administrativa dirigida a la conexión de Vanessa.
+| Audiencia | Recibe |
+| --- | --- |
+| Todas las pantallas | Resumen, estado de grupo, posiciones públicas de los personajes y reloj. |
+| Cada participante, además | **Su** estado personal (`me.state`) y ninguno ajeno. |
+| Administradora, además | Presencia y contador de la ronda. Ningún estado personal. |
+| Observadora | Lo común; sin estado personal ni presencia. |
 
-Quienes esperan no reciben el cuaderno ni actualizaciones continuas del experimento. Al asignar turno, retirar primero al anterior del canal de vista; actualizar propietario y versiones; añadir al nuevo; enviar snapshot; anunciar el cambio.
-
-El frontend anterior limpia controles, cierra formularios compartidos y desmonta el host de Phaser. El nuevo carga/aplica la instantánea antes de aceptar entradas. Los assets públicos pueden precargarse sin crear canvas ni enviar estado de aventura al participante en espera.
+Al cambiar la ronda se anuncia el nuevo estado de grupo a todas las pantallas; los cambios personales (un resultado registrado, una prueba que termina) solo se envían a su dueña, que además recibe una muestra de reloj para que su animación coincida con la del servidor. Una conversación o un cierre no desmontan el juego de nadie: el cliente cambia de escena dentro del mismo `Phaser.Game`.
 
 ### 5.6. Movimiento, reloj y simulaciones
 
-El servidor calcula un camino transitable desde el estado vigente y emite un **plan de movimiento**: ID, puntos en coordenadas de pies, velocidad y tiempo activo. Cliente y proyección interpolan ese mismo plan; no envían posiciones a 60 FPS.
+El servidor calcula un camino transitable desde el estado de cada personaje y emite un **plan de movimiento**: ID, puntos en coordenadas de pies, velocidad y tiempo activo. Cada pantalla interpola ese mismo plan para cada personaje; no se envían posiciones a 60 FPS. El servidor conserva el último plan aunque el personaje ya haya llegado: la posición se deduce del plan y del reloj.
 
-Usar una cuadrícula de navegación derivada del TMJ, obstáculos ampliados por la huella del personaje y búsqueda de caminos pura. Evitar atravesar esquinas bloqueadas. No ejecutar Phaser, DOM ni una física de navegador en Node para decidir posiciones.
+Usar una cuadrícula de navegación derivada del TMJ, obstáculos ampliados por la huella del personaje y búsqueda de caminos pura. Los personajes no se bloquean entre sí. No ejecutar Phaser, DOM ni una física de navegador en Node para decidir posiciones. Los personajes aparecen alrededor de la entrada, en anillos, descartando los puntos que chocan con el escenario.
 
-Para rampas, compartir `trialId`, parámetros, duración y tiempo activo. El servidor confirma el final una vez; el cliente solo representa. Un cambio de controlador conserva la prueba en curso. Una pausa o falta de propietario congela el reloj.
+Para rampas, el servidor crea cada prueba con su duración y la **termina en su instante exacto**; el cliente solo representa. Una pausa congela el reloj. Varias pruebas de varias personas pueden estar en marcha a la vez.
 
-Propuesta inicial: muestras del servidor a **10 Hz** y controles de arrastre a **12 Hz**, más la posición final al soltar. Validar/límite de frecuencia en servidor. Renderizar desde `Scene.update(time, delta)` con un reloj local ajustado por las muestras del servidor; el tiempo del dispositivo no decide el resultado.
+**Reloj.** Muestras del servidor cada **500 ms** (`CLOCK_SAMPLE_MS`) mientras algo se mueve o ruede, y al cambiar de fase; cada cliente interpola entre muestras con un reloj local (`ClientClock`) que absorbe la deriva y nunca decide un resultado. Los arrastres de la linterna y de la inclinación **no se envían**: son locales y solo el resultado terminado viaja al servidor (la posición de la linterna se registra poco después de terminar el ajuste). Renderizar desde `Scene.update(time, delta)`.
 
-`simulation.frame` puede ser efímero. Ordenarlo por generación, versiones y `frameSeq`; descartar muestras de planes o pruebas anteriores. Los snapshots siempre permiten reconstruir el estado sin haber recibido todos los frames.
+Ordenar las muestras por generación y secuencia; descartar las de un recorrido anterior o repetidas. Los estados siempre permiten reconstruir lo ocurrido sin haber recibido todas las muestras.
 
-No usar una física Arcade independiente en cada cliente para simular la rampa. Tampoco decidir colisiones autoritarias a partir de la posición enviada por un teléfono. Los cuerpos Arcade, si se conservan, son apoyo visual/debug; la trayectoria compartida procede del dominio.
+No usar una física Arcade independiente en cada cliente para simular la rampa. Tampoco decidir colisiones autoritarias a partir de la posición enviada por un teléfono. La trayectoria compartida procede del dominio.
 
 <a id="spec-6"></a>
 
@@ -506,17 +531,15 @@ No usar una física Arcade independiente en cada cliente para simular la rampa. 
 
 ### 6.1. SQLite y durabilidad
 
-Usar un repositorio pequeño sobre SQLite, transacciones y disco persistente. Guardar el estado JSON validado de sala; no construir event sourcing para la primera versión.
+Usar un repositorio pequeño sobre SQLite, transacciones y disco persistente. Guardar el estado JSON validado de sala (incluye a los participantes); no construir event sourcing para la primera versión.
 
-Tablas mínimas propuestas: `rooms`, `principals` y `processed_commands`. La primera almacena snapshot, versiones y ciclo de vida; la segunda hashes de credenciales e identidades; la tercera respuestas idempotentes. No guardar sockets como si fueran conexiones recuperables.
+Tablas mínimas: `rooms`, `principals` (con su marca de observadora) y `processed_commands`. La primera almacena el estado, versiones y ciclo de vida; la segunda hashes de credenciales e identidades; la tercera respuestas idempotentes. No guardar sockets como si fueran conexiones recuperables. La versión del esquema es la **2**; una base del modelo anterior (turnos) se respalda como `.v1.bak` y sus salas se conservan sin cargarse.
 
-Guardar cada transición confirmada antes del acknowledgment: formularios, pruebas creadas/terminadas, piezas, turnos, pausa, cierre y reinicio. Los controles continuos pueden agruparse, pero su posición final y cualquier estado anunciado como confirmado deben ser durables.
+Guardar cada transición confirmada antes del acknowledgment: resultados registrados, pruebas creadas/terminadas, rondas, notas, piezas, pausa, cierre y reinicio. Para empezar es aceptable guardar cada acción aceptada a la frecuencia limitada. Una muestra de reloj no es un comando confirmado ni requiere una fila nueva en el registro de comandos. El estado de una sala de 50 personas es un solo JSON; el ensayo de capacidad (11.2) mide si hace falta separarlo.
 
-Agrupar significa reducir muestras antes de procesarlas; no responder éxito a un cambio que aún no se guardó. Para empezar es aceptable guardar cada muestra aceptada a la frecuencia limitada. Un frame de interpolación no es un comando confirmado ni requiere una fila nueva en el registro de comandos.
+Durante movimiento o prueba guardar un checkpoint de reloj aproximadamente cada **500 ms**, además de hacerlo al pausar, cambiar de ronda o completar. Después de una caída abrupta se recupera el último checkpoint; documentar que la animación puede retroceder hasta ese intervalo. Las respuestas y resultados ya confirmados no se pierden.
 
-Durante movimiento o prueba guardar un checkpoint de reloj/posición aproximadamente cada **500 ms**, además de hacerlo al pausar, cambiar turno, parar o completar. Después de una caída abrupta se recupera el último checkpoint; documentar que la animación puede retroceder hasta ese intervalo. Las respuestas y resultados ya confirmados no se pierden.
-
-El reloj usa tiempo monotónico durante el proceso. Un reinicio no suma el tiempo que el servidor estuvo apagado. Recuperar salas en curso como pausadas, aumentar `turnVersion`, retirar control y reconstruir presencia como desconectada. Vanessa debe recuperar administración y elegir cómo continuar.
+El reloj usa tiempo monotónico durante el proceso. Un reinicio no suma el tiempo que el servidor estuvo apagado. Recuperar salas en curso como **pausadas**, aumentar `roundVersion` y reconstruir presencia como desconectada. **La lista de la ronda, el contador, las pruebas en marcha y la vista de cada persona se conservan.** Vanessa debe recuperar administración y elegir cuándo reanudar.
 
 Si la configuración guardada no coincide con la disponible, conservar datos y mostrar `CONFIG_MISMATCH`; no borrar el cuaderno ni migrarlo silenciosamente. Preparar despliegues entre sesiones o conservar el paquete de configuración compatible.
 
@@ -524,18 +547,18 @@ Si la configuración guardada no coincide con la disponible, conservar datos y m
 
 | Situación | Comportamiento |
 | --- | --- |
-| Espera pierde conexión | Actualizar su presencia; aventura continúa. |
-| Controlador pierde conexión | Al detectarlo: pausar, congelar tiempo y retirar control. |
-| Controlador regresa | Misma identidad en espera; no recuperar turno automáticamente. |
-| Vanessa pierde conexión | Al detectarlo: pausar. No entregar administración a otro usuario. |
-| Vanessa recarga | Autenticar credencial, recibir sala pausada y estado vigente. |
+| Una persona pierde conexión | Su personaje se ve pálido y «sin conexión»; la ronda **no** cambia: el total del contador no baja y su trabajo se conserva. Los demás siguen. |
+| Esa persona regresa | Misma identidad, mismo personaje, misma mesa y sus mismos resultados; sigue la fase de la ronda. |
+| Observadora pierde conexión | Solo cambia su presencia. |
+| Vanessa pierde conexión | Al detectarlo: pausar para todas las personas. No entregar administración a otro usuario. |
+| Vanessa recarga o vuelve | Autenticar credencial, recuperar la conducción con la sala pausada, la ronda y el contador intactos. |
 | Dos pestañas con una identidad | Nueva conexión sustituye anterior; solo el epoch vigente puede actuar. |
-| Se reinicia el servicio | Recuperar datos durables y sala pausada. |
+| Se reinicia el servicio | Recuperar datos durables y sala pausada, con la ronda y los resultados de todas las personas. |
 | Sala cerrada/vencida | Detener reconexión operativa y mostrar estado terminal. |
 
 Configurar heartbeat para verificar el objetivo de detectar cortes en **10 s o menos**. Como punto de partida, `pingInterval: 4000` y `pingTimeout: 5000`; medir falsos cortes en celulares. Los valores por defecto de Socket.IO no cumplen ese objetivo sin ajuste. [T6]
 
-No depender de la recuperación automática de Socket.IO. Pedir snapshot y validar credenciales/permisos siempre; la recuperación de conexión es una optimización posterior. [T5]
+No depender de la recuperación automática de Socket.IO. Pedir el estado y validar credenciales/permisos siempre; la recuperación de conexión es una optimización posterior. [T5]
 
 ### 6.3. Vida y aislamiento de sala
 
@@ -549,7 +572,7 @@ Una credencial está ligada a una sola sala. Probar que códigos y IDs de otra s
 
 ### 6.4. Demostración local
 
-`DemoController` utiliza el mismo dominio y modelos, sustituyendo solo transporte y persistencia. Mantiene un snapshot local con un espacio de almacenamiento distinto, sin tokens ni IDs de sala compartida.
+`DemoController` utiliza el mismo dominio y modelos (incluidas las rondas), sustituyendo solo transporte y persistencia. Mantiene un snapshot local con un espacio de almacenamiento distinto, sin tokens ni IDs de sala compartida.
 
 Vanessa decide entrar al respaldo. Mostrar «Demostración», conservar el último estado confirmado del servidor aparte y no mezclar avances al volver a la conexión.
 
@@ -557,7 +580,7 @@ Preparar el respaldo antes de exponer: cargar recursos mínimos de las tres mesa
 
 No hacer obligatorio un service worker. Documentar y ensayar ambas situaciones: backend caído con frontend cargado; computadora sin red usando el build local.
 
-*(Añadido al implementar la fase 6.)* `DemoController` cumple el mismo contrato que `RoomController` (`RoomPort`) y usa las mismas funciones puras de `shared/domain`; Vanessa es administradora y quien explora, empieza en el mapa y, al recargar, vuelve en pausa con lo confirmado. Su espacio de almacenamiento es `laboratorio-cosas-cotidianas:v1:demo:estado`. La ruta es `/demo`; `/demo?from=CÓDIGO` solo sirve para ofrecer «Volver a la sala». Con la conexión caída más de 5 s, la consola de Vanessa le ofrece pasar a la demostración (nunca lo hace sola) y, con la sala funcionando, ya dejó descargado el módulo y los recursos. `npm run preview:demo` sirve el build local sin servidor.
+*(Añadido al implementar la fase 6 y adaptado a las rondas.)* `DemoController` cumple el mismo contrato que `RoomController` (`RoomPort`: `act`, `admin`, `subscribeClock`) y usa las mismas funciones puras de `shared/domain`; Vanessa conduce la ronda y es a la vez la única persona que explora, con su propio personaje; empieza en la preparación de la primera mesa y, al recargar, vuelve en pausa con lo confirmado. Su espacio de almacenamiento es `laboratorio-cosas-cotidianas:v1:demo:estado` (formato 2; uno anterior se ignora). La ruta es `/demo`; `/demo?from=CÓDIGO` solo sirve para ofrecer «Volver a la sala». Con la conexión caída más de 5 s, la consola de Vanessa le ofrece pasar a la demostración (nunca lo hace sola) y, con la sala funcionando, ya dejó descargado el módulo y los recursos. `npm run preview:demo` sirve el build local sin servidor.
 
 <a id="spec-7"></a>
 
@@ -587,7 +610,7 @@ Un servidor HTTP pequeño, por ejemplo Express con Socket.IO sobre el mismo serv
 
 | Capa | Responsabilidad |
 | --- | --- |
-| React | Sala, moderación, formularios, sliders, cuaderno, guía y accesibilidad. |
+| React | Sala, conducción de la ronda, panel y controles de cada mesa, notas del grupo, cuaderno, guía y accesibilidad. |
 | Phaser | Mapa, sprites, escenas cercanas, cámara y animaciones de los datos recibidos. |
 | Controller de aplicación | Solicitudes, snapshots, bloqueos y coordinación entre React, puente y transporte. |
 | GameBridge | Eventos tipados, ready de escenas y última instantánea visual retenida. |
@@ -599,7 +622,7 @@ Un servidor HTTP pequeño, por ejemplo Express con Socket.IO sobre el mismo serv
 
 ~~~mermaid
 flowchart TD
-  React["React: sala y formularios"] --> Controller["Controller: intenciones y snapshots"]
+  React["React: sala y controles"] --> Controller["Controller: intenciones y estados"]
   Phaser["Phaser: mapa y experimentos"] --> Bridge["GameBridge"]
   Bridge --> Controller
   Controller --> Bridge
@@ -624,17 +647,20 @@ Los nombres siguientes son destinos de implementación, no archivos existentes:
 | `public/maps/` | laboratorio.tmj; futuros mapas del mismo perfil. |
 | `public/assets/` | assets.json; recursos organizados por categoría como en la referencia. |
 | `tools/tiled/` | laboratorio.tiled-project y README del flujo de edición. |
-| `shared/domain/` | adventureReducer, reglas de mesas, modelos, geometría y navegación. |
+| `shared/domain/` | Funciones puras: sala (`room`), conducción de la ronda (`round`), acciones y resultados personales (`participant`, `results`), transiciones comunes (`change`), modelos de sombra y rampa, movimiento y navegación. |
 | `shared/contracts/` | Eventos, acciones, estados y esquemas de mensajes. |
 | `shared/config/` | Validación Ajv, referencias cruzadas y lectura semántica del TMJ. |
-| `src/app/` | RoomProvider/controller, DemoController y navegación de vistas. |
+| `src/app/` | `RoomController`, `DemoController`, `LocalPlayer` (demostración de Vanessa en una sala real), puente con Phaser, enrutador de intenciones del mapa, audio y navegación de vistas. |
 | `src/network/` | Adaptador Socket.IO, autenticación, sincronización y reloj cliente. |
 | `src/config/` | Carga y AssetRegistry adaptado. |
-| `src/components/room/` | Bienvenida, espera, participantes y moderación. |
-| `src/components/activities/` | Formularios y controles HTML por mesa. |
-| `src/components/ui/` | Paneles, botones, cuaderno y confirmaciones. |
+| `src/components/room/` | Bienvenida, vista de quien juega y de quien observa, consola de Vanessa, lista de participantes, barra del mapa. |
+| `src/components/admin/` | Conducción de la ronda: pasos, proyección, notas del grupo, pregunta final y guía. |
+| `src/components/activities/` | Panel personal y controles HTML de cada mesa (sin formularios de respuesta). |
+| `src/components/ui/` | Paneles, botones y confirmaciones. |
+| `src/components/notebook/` | Cuaderno de solo lectura (mis resultados y notas del grupo) y bandeja de piezas. |
 | `src/game/bridge/` | Puente tipado por host. |
-| `src/game/scenes/` | BootScene, LaboratoryScene y escenas de las tres mesas. |
+| `src/game/scenes/` | LaboratoryScene, una escena por mesa, la del inventor y el director que cambia entre ellas dentro del mismo juego. |
+| `src/game/entities/` | Personajes de las personas (silueta coloreada con su nombre). |
 | `src/game/tiled/` | Factories de objetos y composición visual desde TMJ. |
 | `server/src/` | HTTP, Socket.IO, RoomService, reloj y RoomRepository. |
 | `server/data/` | SQLite de desarrollo, ignorado por Git; en producción usar volumen externo. |
@@ -648,7 +674,7 @@ Primera versión: una instancia persistente que sirve frontend, API y Socket.IO.
 
 Durante desarrollo, Vite puede usar proxy para `/api` y `/socket.io`. En producción no depender del servidor de desarrollo.
 
-El frontend de la bitácora está pensado para publicación estática, pero la sala nueva requiere proceso backend. Un despliegue exclusivamente estático no implementa turnos ni persistencia. La elección de proveedor queda pendiente; documentar requisitos y no publicar por redactar estos archivos.
+El frontend de la bitácora está pensado para publicación estática, pero la sala nueva requiere proceso backend. Un despliegue exclusivamente estático no implementa la sala compartida ni la persistencia. La elección de proveedor queda pendiente; documentar requisitos y no publicar por redactar estos archivos.
 
 Para crecer posteriormente a varias instancias, cambiar persistencia y coordinación/adapter de Socket.IO; SQLite con un volumen local y colas en memoria no se presenta como arquitectura distribuida.
 
@@ -792,8 +818,8 @@ Para probar cambios de mapa crear una nueva sala o entrar a una demo reiniciada 
 | Posiciones, dimensiones y colisiones | TMJ. |
 | Archivos gráficos/sonoros, atlas y frames | `assets.json` y definiciones de frame verificadas. |
 | Credenciales y parámetros secretos | Servidor/entorno; nunca JSON público. |
-| Respuestas, ensayos, turno y piezas | SQLite/snapshot de sala. |
-| Borradores, foco, paneles y volumen local | Estado local del navegador. |
+| Resultados personales, ronda, notas del grupo y piezas | SQLite/estado de sala. |
+| Foco, paneles, volumen y la posición de la linterna o la inclinación mientras se ajustan | Estado local del navegador. |
 
 `world.mapPath` es una referencia al archivo de mapa relativa a la base pública del sitio; por ejemplo `maps/laboratorio.tmj`. Es la única excepción necesaria a las referencias de recursos por `assetId`: el mapa conserva su formato nativo fuera del catálogo gráfico. **No añadir el TMJ a assets.json con hash obligatorio que deba reescribirse en cada guardado.**
 
@@ -810,11 +836,12 @@ Todos los gráficos y audios de la experiencia se referencian por `assetId`. El 
 | `project` | Datos de exposición; duración orientativa. |
 | `world` | mapPath, spawnId inicial, velocidad y huella del personaje. |
 | `route` | Array de IDs de actividades existentes, únicos y ordenados. |
-| `activities` | Definiciones por ID y tipo `shadows`, `ramps` o `boxes`. |
-| `inventor` | Piezas necesarias, instrucciones y pregunta final. |
+| `activities` | Definiciones por ID y tipo `shadows`, `ramps` o `boxes`: título, pieza, objetivo corto, pregunta de apertura, pregunta de conversación, frase de Freire y parámetros del experimento. |
+| `inventor` | Piezas (etiqueta y mensaje), pregunta con la que se abre el cierre, mensaje final, reflexión y pregunta oral de cierre. |
 | `dialogues` | Textos de personajes por ID. |
 | `facilitatorNotes` | Guiones del PRD por momento, en texto legible. |
-| `ui` | Etiquetas y referencias a recursos de panel/botones. |
+| `ui` | Etiquetas (las de fase y estado del celular son obligatorias) y referencias a recursos de panel/botones. |
+| `supportPhrases` | Cuatro frases de apoyo de Vanessa: `inicio`, `antesDeReunir`, `alExplicar` y `cierre`. |
 | `audio` | Referencias de eventos y valores iniciales, sin guardar volumen de cada dispositivo. |
 | `session` | Límite inicial y vencimiento; el servidor valida y aplica esos límites. |
 
@@ -840,7 +867,7 @@ La primera entrega mantiene exactamente las tres mesas del PRD. La capacidad de 
   "$schema": "../../shared/config/schemas/laboratorio.schema.json",
   "schemaVersion": 1,
   "contentSetId": "laboratorio-cosas-cotidianas",
-  "configRevision": "2026-10-05-v1",
+  "configRevision": "2026-10-06-rondas",
   "mode": "prototype",
   "project": {
     "title": "El laboratorio de las cosas cotidianas",
@@ -868,7 +895,10 @@ La primera entrega mantiene exactamente las tres mesas del PRD. La capacidad de 
       "type": "shadows",
       "title": "Sombras",
       "pieceId": "lupa",
-      "firstPrompt": "El objeto es pequeño. ¿Por qué su sombra se ve tan grande?",
+      "goal": "Compara la sombra con la linterna cerca y lejos.",
+      "openingQuestion": "¿Por qué un objeto pequeño puede producir una sombra grande?",
+      "conversationQuestion": "¿Qué cambió, qué permaneció igual y qué observación ayuda a revisar la primera idea?",
+      "freirePhrase": "Freire propone volver más rigurosa nuestra curiosidad al observar, comparar y buscar razones.",
       "experiment": {
         "sourceDistanceMinCm": 10,
         "sourceDistanceMaxCm": 60,
@@ -876,17 +906,16 @@ La primera entrega mantiene exactamente las tres mesas del PRD. La capacidad de 
         "objectHeightCm": 8,
         "minDistinctDistanceCm": 5,
         "requiredSamples": 2
-      },
-      "suggestions": [
-        { "id": "mover-objeto", "text": "¿Qué pasaría si movemos el objeto?" },
-        { "id": "otras-formas", "text": "¿Todas las formas producen la misma sombra?" }
-      ]
+      }
     },
     "rampas": {
       "type": "ramps",
       "title": "Rampas",
       "pieceId": "dialogo",
-      "firstPrompt": "Copia el resultado de la guía. No hagas preguntas.",
+      "goal": "Compara dos inclinaciones y observa el tiempo de recorrido.",
+      "openingQuestion": "¿Qué creen que cambiará si aumenta la inclinación de la rampa?",
+      "conversationQuestion": "¿Qué resultado apoya la explicación del grupo y cómo lo compararían con otra prueba?",
+      "freirePhrase": "Para Freire, dialogar incluye preguntar y escuchar las explicaciones con una actitud curiosa.",
       "experiment": {
         "model": "solid-sphere-ideal-v1",
         "minAngleDeg": 15,
@@ -896,46 +925,78 @@ La primera entrega mantiene exactamente las tres mesas del PRD. La capacidad de 
         "lengthMeters": 2,
         "visualTimeScale": 2.4,
         "requiredTrials": 2
-      },
-      "suggestions": [
-        { "id": "mas-inclinacion", "text": "¿Qué pasaría si aumentamos la inclinación?" }
-      ]
+      }
     },
     "cajas": {
       "type": "boxes",
       "title": "La caja de las sorpresas",
       "pieceId": "corazon",
-      "sharedObjects": ["campanita", "lupa", "piedra"],
+      "goal": "Explora al menos un objeto de la caja compartida. La caja personal es de una compañera.",
+      "openingQuestion": "Hay dos cajas: una para explorar y otra personal. ¿Por dónde quieren empezar?",
+      "conversationQuestion": "¿Cómo podríamos seguir investigando respetando esa decisión?",
+      "freirePhrase": "Freire señala que nuestra curiosidad debe respetar la privacidad de otras personas.",
+      "sharedObjects": [
+        { "id": "campanita", "label": "Campanita", "description": "Una campanita pequeña. Cuando se mueve, suena." },
+        { "id": "lupa", "label": "Lupa", "description": "Una lupa. Al mirar a través de ella, los detalles se ven más grandes." },
+        { "id": "piedra", "label": "Piedra", "description": "Una piedra de forma redondeada. De cerca se ven sus manchas y su textura." }
+      ],
+      "requiredObjects": 1,
       "refusalDialogueId": "caja-negativa",
-      "suggestions": [
-        { "id": "sonido", "objectId": "campanita", "text": "¿Qué hace que la campanita suene?" },
-        { "id": "aumento", "objectId": "lupa", "text": "¿Por qué la lupa hace que algo se vea más grande?" },
-        { "id": "forma", "objectId": "piedra", "text": "¿Cómo habrá adquirido esta forma la piedra?" }
-      ]
+      "personalTouchDialogueId": "caja-personal-toque",
+      "personalBox": { "label": "Caja personal", "ownerLabel": "Pertenece a una compañera" }
     }
   },
   "inventor": {
+    "activeAssetId": "lab.inventor.on",
     "requiredPieceIds": ["lupa", "dialogo", "corazon"],
+    "pieces": [
+      { "id": "lupa", "label": "Lupa", "message": "Observar y comparar." },
+      { "id": "dialogo", "label": "Bocadillo", "message": "Preguntar y escuchar." },
+      { "id": "corazon", "label": "Corazón", "message": "Investigar con respeto." }
+    ],
     "prompt": "Después de lo que descubrimos, ¿qué nos gustaría seguir investigando?",
-    "finalMessage": "Cada descubrimiento puede abrir otra pregunta."
+    "finalMessage": "Cada descubrimiento puede abrir otra pregunta.",
+    "reflection": ["Aprender comienza con preguntas.", "Observar, probar y escuchar puede cambiar lo que pensábamos."],
+    "closingQuestion": "¿Cómo ayudaríamos a un niño a pasar de «me da curiosidad» a «quiero comprenderlo»?"
   },
   "dialogues": {
     "caja-negativa": "Prefiero guardar esas cosas para mí",
-    "rampa-invitacion": "Exploremos esa pregunta. ¿Cómo podríamos comprobarlo?"
+    "caja-personal-toque": "Su contenido es personal. Podemos seguir explorando los objetos compartidos."
   },
   "facilitatorNotes": {
-    "sombras": ["¿Qué cambió cuando movieron la linterna?", "Relacionar observar, probar y comparar con la curiosidad epistemológica."],
-    "rampas": ["¿Qué resultado apoya su explicación?", "Invitar a escuchar y añadir ideas del grupo."],
-    "cajas": ["¿Tener curiosidad nos permite abrir la caja sin permiso?"],
-    "cierre": ["¿Qué les gustaría seguir descubriendo después de esta aventura?"]
+    "bienvenida": ["Explicar que todas las personas exploran desde su celular y que el grupo avanza junto."],
+    "sombras": ["Antes: escuchar una o dos ideas…", "Durante: observar el progreso…", "Después: preguntar qué cambió…"],
+    "rampas": ["…"],
+    "cajas": ["…"],
+    "cierre": ["Preguntar qué les gustaría seguir investigando y acordar una pregunta del grupo."]
+  },
+  "supportPhrases": {
+    "inicio": "Todas las personas van a explorar desde su celular…",
+    "antesDeReunir": "Vamos cerrando las pruebas. Ahora quiero escuchar qué observaron…",
+    "alExplicar": "Voy a relacionar lo que acabamos de hacer con la idea de Freire…",
+    "cierre": "Después de observar, preguntar y escuchar, ¿qué nos gustaría seguir investigando?…"
   },
   "ui": {
     "assets": {
       "button": "ui.button.green.default",
+      "buttonHover": "ui.button.green.hover",
       "panel": "ui.panel.cream.nine-slice",
       "notebookIcon": "ui.icon.open-book"
     },
-    "maxRecordCharacters": 280
+    "maxRecordCharacters": 280,
+    "labels": {
+      "waiting": "Estás en la sala. Sigue la aventura en la proyección",
+      "loadingMap": "Cargando el laboratorio…",
+      "welcomePhone": "Estás en la sala. Vanessa comenzará la aventura en un momento.",
+      "roundPreparationPhone": "Escucha la pregunta de Vanessa. Pronto se abre la mesa.",
+      "roundExplorationPhone": "La mesa está abierta: explora a tu ritmo.",
+      "roundConversationPhone": "Miremos la proyección y compartamos lo que descubrimos.",
+      "readyYou": "Ya exploraste esta mesa. Puedes seguir probando mientras terminamos en grupo.",
+      "notReadyYou": "Sigue explorando: cuando termines, aquí aparecerá «Listo».",
+      "closingPhone": "Miremos la proyección: el inventor ya tiene sus tres piezas y vamos a elegir una pregunta.",
+      "finishedPhone": "Terminamos la aventura. Puedes revisar tus resultados.",
+      "observerPhone": "Estás como observador. Sigue la aventura en la proyección."
+    }
   },
   "audio": {
     "phoneInitiallyMuted": true,
@@ -943,7 +1004,8 @@ La primera entrega mantiene exactamente las tres mesas del PRD. La capacidad de 
       "shadows.click": "lab.audio.click",
       "boxes.bell": "lab.audio.bell",
       "piece.earned": "lab.audio.piece",
-      "inventor.activated": "lab.audio.inventor"
+      "inventor.activated": "lab.audio.inventor",
+      "adventure.finished": "lab.audio.finished"
     }
   },
   "session": {
@@ -953,9 +1015,9 @@ La primera entrega mantiene exactamente las tres mesas del PRD. La capacidad de 
 }
 ~~~
 
-**Campos definidos al implementar la configuración (fase 1).** El esquema real, `shared/config/schemas/laboratorio.schema.json`, es el contrato; añade a este ejemplo: `inventor.activeAssetId` (gráfico de la máquina encendida, por `assetId`), `inventor.pieces[]` (etiqueta y mensaje de cada pieza), `inventor.placePrompt` (indicación antes de colocar las piezas), `inventor.placeButtonLabel`, `oralQuestionText` y `reflection`; en Sombras, `ideaSuggestions` (ideas sugeridas del paso «primera idea») además de `suggestions` (preguntas); en Rampas, `guideLine` e `inviteDialogueId`; en las tres mesas, `prompts` (la indicación de cada paso, por nombre de paso; obligatoria, con las claves de `REQUIRED_PROMPTS` en `shared/contracts/config.ts`: Sombras `firstIdea`, `explore`, `observation`, `nextQuestion`; Rampas `question`, `prediction`, `trials`, `observation`; Cajas `exploreShared`, `askPermission`, `respect`, `nextQuestion`); en Cajas, `sharedObjects` como objetos `{id, label, description}`, `personalTouchDialogueId` y `personalBox` (solo etiquetas: sin contenido, asset ni dato oculto); `ui.assets.buttonHover` y `ui.labels`. Los textos que este documento no fija son **de prototipo** y requieren revisión de Vanessa.
+**Campos de la configuración de rondas.** El esquema real, `shared/config/schemas/laboratorio.schema.json`, es el contrato. Cada actividad define `goal` (objetivo corto del celular), `openingQuestion` (se proyecta en la preparación), `conversationQuestion` (en la conversación) y `freirePhrase` (paráfrasis que Vanessa decide mostrar). La caja define `sharedObjects` como `{id, label, description}`, `requiredObjects` (cuántos objetos hay que explorar), `refusalDialogueId`, `personalTouchDialogueId` y `personalBox` (solo etiquetas: sin contenido, asset ni dato oculto). El inventor define `activeAssetId`, `pieces[]` (etiqueta y mensaje), `prompt`, `finalMessage`, `reflection` y `closingQuestion`. `facilitatorNotes` tiene una entrada por mesa más `bienvenida` y `cierre`; `supportPhrases`, las cuatro claves de `SUPPORT_PHRASE_KEYS`. `ui.labels` debe traer las de `REQUIRED_LABELS` (`waiting`, `loadingMap`, `welcomePhone`, `roundPreparationPhone`, `roundExplorationPhone`, `roundConversationPhone`, `readyYou`, `notReadyYou`, `closingPhone`, `finishedPhone`, `observerPhone`); las de señales de audio (`signal*`) son opcionales y tienen texto de respaldo. Los textos que este documento no fija son **de prototipo** y requieren revisión de Vanessa.
 
-El ejemplo omite parte de los recursos de escenas y de los guiones para mantenerlo legible. Durante la implementación definir sus campos en el esquema e incorporar todo el contenido necesario del PRD; no darlo por listo por copiar este fragmento. Los textos de la sección 3 fijan el comportamiento mínimo de las escenas.
+El ejemplo abrevia los guiones (las notas con «…»). El contenido completo vive en `public/config/laboratorio.json`; los textos de la sección 3 fijan el comportamiento mínimo de las escenas.
 
 ### 9.4. Preservación del manifiesto real
 
@@ -980,12 +1042,12 @@ Usar JSON Schema + Ajv, siguiendo la base existente. Compartir validadores entre
 Comprobar:
 
 - Forma y versión; números finitos; rangos seguros; IDs y enum de acciones.
-- Referencias de route, piezas, diálogos, sugerencias y assets existentes.
+- Referencias de route, piezas, diálogos y assets existentes, y los textos obligatorios de cada mesa y de las etiquetas.
 - IDs de piezas únicos por actividad activa y correspondencia del inventor con todas las piezas del recorrido.
 - Dependencias de atlas, frames, origin y nine-slice.
 - Perfil TMJ, capas, tipos, duplicados, obstáculos y alcanzabilidad.
 - Que dos posiciones/pruebas distintas sean posibles dentro de los rangos.
-- Que las preguntas de cajas refieran objetos compartidos y no contenido privado.
+- Que la caja tenga objetos compartidos suficientes (`requiredObjects`) y que ningún texto o dato refiera contenido privado de la caja personal.
 - Que no haya credenciales ni respuestas de una sala en configuración pública.
 - Que `mode: presentation` no conserve guiones incompletos o sonidos de prueba como finales.
 
@@ -999,9 +1061,9 @@ Crear errores que indiquen archivo, ruta JSON y, para Tiled, capa/objeto/propied
 
 ### 10.1. Escenas y ciclo de vida
 
-Empezar con `BootScene`, `LaboratoryScene` y una escena por experimento: `ShadowsScene`, `RampsScene` y `BoxesScene`. El inventor puede ser una vista de la escena de laboratorio. Compartir helpers concretos de composición y animación; no crear una jerarquía compleja de escenas base.
+Escenas: `LaboratoryScene` (el laboratorio compartido con los personajes de todas las personas), una escena por experimento —`ShadowsScene`, `RampsScene` y `BoxesScene`— e `InventorScene` para el cierre. Un **director de escenas** cambia de una a otra dentro del mismo `Phaser.Game`, según lo que ve esa audiencia: una persona ve la mesa que tiene abierta y, si no tiene ninguna, el laboratorio; la proyección ve siempre el laboratorio (salvo la demostración local de Vanessa); en el cierre y al terminar todas las pantallas ven el inventor. Compartir helpers concretos de composición y animación; no crear una jerarquía compleja de escenas base.
 
-React monta el host de juego cuando hay administradora, participante activo o demo. Debe existir un solo `Phaser.Game` por host. Cambiar turno, formulario o registro no recrea el juego de Vanessa; perder el turno desmonta el del participante.
+React monta el host de juego para la administradora, para cada persona que juega y para la demostración (no para quien observa). Debe existir un solo `Phaser.Game` por host. Abrir o cerrar una mesa, cambiar de ronda o registrar un resultado **no recrea** el juego de nadie: cambia de escena dentro del mismo canvas. El host observa el tamaño de su contenedor y reajusta el lienzo cuando el hueco del escenario cambia sin que cambie la ventana (por ejemplo, al aparecer la pregunta de la conversación junto al laboratorio).
 
 Al destruir: retirar suscripciones concretas, entrada, observadores, timers, audio y referencias. Mantener Strict Mode y probar montaje/desmontaje, incluyendo destrucción diferida de Phaser. No ocultar duplicaciones desactivando comprobaciones de React.
 
@@ -1015,25 +1077,26 @@ Las escenas usan `update(time, delta)` para interpolar/renderizar. No añadir un
 | `game:action-request` | Intención tipada desde mapa/escena. |
 | `game:load-progress` | Carga esencial, sin alterar progreso de sala. |
 | `game:asset-failures` | IDs que no pudieron cargarse. |
-| `app:snapshot` | Aplicar estado vigente a la escena. |
-| `app:frame` | Muestra visual/reloj; evitar render del árbol React por cada posición. |
-| `app:permissions` | Papel, permiso y motivos de bloqueo. |
+| `app:visual` | Estado visual vigente: fase, estado de grupo, **quién mira** (`participant` con su estado personal, `projection` —con la demostración local de Vanessa si la hay— u `observer`) y los personajes de todas las personas. |
+| `app:clock` | Muestra del reloj de simulación; evitar render del árbol React por cada una. |
+| `app:local` | Lo que solo existe en el dispositivo mientras se ajusta un experimento (posición de la linterna, inclinación elegida); no viaja al servidor. |
+| `app:permissions` | Si puede caminar y explorar, y el motivo cuando no (pausa, conversación, sin conexión). |
 | `app:request-result` | Resolver solicitudes pendientes, incluso denegadas. |
 | `app:effect` | Animación/sonido tras transición confirmada, con ID de efecto único. |
 
-Retener snapshot y permisos para escenas que arrancan después de emitidos. Usar token de escena para descartar callbacks de escenas sustituidas.
+Retener el último estado visual y los permisos para escenas que arrancan después de emitidos. Usar token de escena para descartar callbacks de escenas sustituidas.
 
-Distinguir bloqueos locales de pausa colectiva. Abrir el cuaderno de Vanessa, cambiar el tamaño de ventana o perder foco de su panel no debe pausar por sí mismo al jugador activo. Los experimentos se detienen por estado autorizado del servidor.
+Distinguir bloqueos locales de pausa colectiva. Abrir el cuaderno de Vanessa, cambiar el tamaño de ventana o perder foco de su panel no debe pausar a nadie. Los experimentos se detienen por la fase de la ronda y el estado autorizado del servidor.
 
-Al volver de una pestaña oculta, aplicar snapshot/tiempo actual; no adelantar la simulación con un delta acumulado. La pausa explícita debe poder recibir estado/reanudación fuera de `update`.
+Al volver de una pestaña oculta, aplicar el estado y el tiempo actuales; no adelantar la simulación con un delta acumulado. La pausa explícita debe poder recibir estado/reanudación fuera de `update`. El reloj del cliente se ajusta **solo** con las muestras del servidor.
 
 ### 10.3. Interfaz y arte
 
 Estilo pixel art cálido: madera, crema, verde, plantas decorativas y luz de ventana, coherente con los recursos aprobados de Vanessa y Jerry.
 
-Paneles, textos, slider, formularios y controles de sala son HTML/React, fuera del canvas. Los textos no se hornean en imágenes. Un título o señal breve del mapa puede dibujarse en Phaser con equivalente accesible.
+Paneles, textos, slider, botones, notas de Vanessa y controles de sala son HTML/React, fuera del canvas. Los textos no se hornean en imágenes. Un título o señal breve del mapa puede dibujarse en Phaser con equivalente accesible.
 
-Usar una misma silueta simple coloreable para los participantes, realizable con SVG/CSS. No generar retratos ni personaje individual por usuario.
+Usar una misma silueta simple coloreable para los participantes, realizable con SVG/CSS y dibujada en el laboratorio con el color de cada persona y su nombre encima. No generar retratos ni personaje individual por usuario.
 
 Assets nuevos mínimos:
 
@@ -1041,10 +1104,10 @@ Assets nuevos mínimos:
 | --- | --- |
 | Laboratorio | Aula, mesas, entrada, inventario/inventor y capas pertinentes. |
 | Sombras | Linterna, objeto, pantalla y representación dinámica de sombra. |
-| Rampas | Rampa, pelota, marcas y docente ficticio. |
+| Rampas | Rampa, pelota y marcas. |
 | Cajas | Dos cajas diferenciadas, campanita, lupa, piedra y compañera ficticia. |
 | Cierre | Lupa, bocadillo, corazón; inventor apagado/encendido. |
-| Sala | Señales de conexión, turno y pausa; QR generado por código. |
+| Sala | Señales de conexión y pausa; QR generado por código. |
 | Sonido | Clic, campana, pieza y cierre; recursos finales verificables. |
 
 Antes de crear arte, buscar reutilización pertinente en el catálogo. Los modelos precisos de sombra y rampa se dibujan con código y recursos estáticos, conservando coherencia con los cálculos.
@@ -1053,7 +1116,7 @@ Antes de crear arte, buscar reutilización pertinente en el catálogo. Los model
 
 Los teléfonos comienzan en silencio. Vanessa activa sonido en su computadora mediante un gesto permitido por el navegador. El volumen/mute es preferencia local, no parte del progreso compartido.
 
-La proyección es la salida principal. Identificar efectos por transición para no repetir campanas/piezas después de un snapshot o reconexión. No reproducir celebraciones históricas al reabrir el juego.
+La proyección es la salida principal. Identificar efectos por transición para no repetir campanas/piezas después de un estado nuevo o una reconexión. No reproducir celebraciones históricas al reabrir el juego. Las señales de **grupo** (pieza conseguida, inventor encendido, aventura terminada) llegan como efectos del estado de grupo y las oyen todas las pantallas; las **personales** (la posición de la linterna que se registró, la campanita) se deducen de los cambios del propio estado y las oye solo quien las provoca.
 
 Cada señal importante tiene texto equivalente. Un fallo de audio no bloquea la mesa. No copiar los tonos `audio.sfx.test-*` del repositorio como sonidos finales.
 
@@ -1069,25 +1132,26 @@ Los efectos de interfaz/eventos pertenecen a `laboratorio.json → audio`. Si po
 
 - Vista activa usable en vertical desde **360 px**; probar también 390 y 430 px.
 - Texto base de al menos **16 px**; zonas táctiles de al menos **44 × 44 px**.
-- Formularios desplazables con teclado abierto; botón de confirmación alcanzable. *(Nota P7-06: Chrome de Android, por defecto, no reduce la página al abrir el teclado y lo deja encima del formulario; `index.html` declara `interactive-widget=resizes-content` para que sí la reduzca. Además, al enfocar el campo se trae a la vista el botón de compartir. Verificado en el emulador de Android; no se sabe si Safari de iOS respeta esa declaración y el teclado de iOS con el campo de texto de las mesas no se pudo probar.)*
-- Cambios de turno anunciados con texto y nombre; espera sin mapa.
-- Botones −/+ equivalentes a arrastrar; lista de mesas equivalente a navegar.
+- Panel de la mesa desplazable, con los controles del experimento alcanzables en vertical. *(Nota: el celular ya no tiene campos de texto del público; las notas las escribe Vanessa en su computadora. La nota P7-06 sobre el teclado en Chrome de Android y `interactive-widget=resizes-content` sigue vigente para los campos de Vanessa, no se probó en un celular real.)*
+- Cada fase de la ronda anunciada con texto en el celular («La mesa está abierta», «Miremos la proyección…»); quien observa, sin mapa.
+- Botones −/+ equivalentes a arrastrar la linterna o la inclinación; «Ir a la mesa actual» equivalente a navegar.
 - Navegación por teclado en HTML y foco visible; no capturar flechas mientras se escribe.
 - Estados reconocibles por texto/iconos además de color.
-- Descripción textual del cambio de sombra y resultados numéricos de rampas.
+- Descripción textual del cambio de sombra y resultados numéricos de rampas; los resultados proyectados se escriben además de dibujarse (las barras son decoración).
+- Los nombres sobre los avatares son legibles en el celular y en la proyección, sin depender del color.
 - Respetar reducción de movimiento; sin destellos/sacudidas imprescindibles.
 - Controles de moderación plegables sin cubrir resultados en la proyección.
 - Fuentes pertinentes servidas con el sitio, sin depender de descargas externas durante la exposición.
 
-La experiencia pedagógica se comprende desde la proyección aunque una persona no tenga teléfono o no tome un turno.
+La conversación se comprende desde la proyección aunque una persona no tenga teléfono o no haya terminado su exploración.
 
 ### 11.2. Metas de ensayo
 
 | Aspecto | Meta y condición |
 | --- | --- |
-| Concurrencia | 50 participantes y una administradora, con un solo controlador. |
-| Cambio de turno | Visible en menos de 1 s en conexión estable; medir carga inicial y cambios posteriores por separado. |
-| Reflejo de control | Retraso objetivo inferior a 250 ms entre acción aceptada y visualización en proyección. |
+| Concurrencia | 50 participantes y una administradora, **todos explorando a la vez**. |
+| Transición de ronda | Abrir, reunir o avanzar visible en menos de 1 s en todas las pantallas en conexión estable; medir carga inicial y cambios posteriores por separado. |
+| Reflejo de una acción | Retraso objetivo inferior a 250 ms entre acción aceptada y su visualización en el propio teléfono, y en menos de 1 s en el contador de Vanessa. |
 | Desconexión abrupta | Detectada en aproximadamente 10 s o menos. |
 | Fluidez | Al menos 30 FPS en celulares reales de ensayo. |
 | Entrada | Aproximadamente 5 s o menos en conexión estable, con carga/reintento. |
@@ -1111,53 +1175,68 @@ No instrumentar cada fotograma en React. Registrar tiempos, errores y tamaños n
 | IDs del PRD | Implementación definida aquí |
 | --- | --- |
 | RF-01–RF-04 | Entrada, QR, identidad, presencia y espera: secciones 2 y 5. |
-| RF-05–RF-11 | Turno exclusivo, avance colectivo, proyección, pausa y tomar control: 2, 4 y 5. |
+| RF-05–RF-11 | **Modificados por la propuesta de rondas:** el turno exclusivo y «tomar control» se sustituyen por participación simultánea y rondas guiadas por Vanessa; se conservan el avance colectivo, la proyección y la pausa: 2, 4 y 5. |
 | RF-12–RF-15 | Sombras, Rampas, Cajas y privacidad: 3. |
-| RF-16–RF-18 | Cuaderno, piezas e inventor: 3 y 4. |
-| RF-19–RF-21 | Reconexión, recuperación administrativa, cierre y reinicio: 5 y 6. |
+| RF-16–RF-18 | Cuaderno (resultados personales y notas del grupo), piezas e inventor: 3 y 4. |
+| RF-19–RF-21 | Reconexión, recuperación administrativa, cierre y reinicio: 5 y 6. Quien observa: 2 y 5. |
 | RF-22 | Audio opcional: 10 y 11. |
 | RF-23 | Demostración local: 6.4. |
 | RF-24 | Persistencia tras reinicio: 6.1. |
 
 ### 12.2. Aceptación funcional
 
-Mantener los IDs CA del PRD para que implementación y ensayo sean trazables:
+Mantener los IDs CA del PRD para que implementación y ensayo sean trazables. Los marcados **(modificado)** cambian por la propuesta de rondas; los nuevos (CA-34 en adelante) pertenecen a esa propuesta:
 
 | ID | Escenario y resultado obligatorio |
 | --- | --- |
 | CA-01 | Crear sala entrega código y QR públicos sin exponer credencial administrativa. |
 | CA-02 | Entrada por QR con nombre/color aparece en el aula administrativa. |
 | CA-03 | Nombres repetidos tienen distinción visible e identidades independientes. |
-| CA-04 | Participante en espera ve solo tarjeta/estado; no se monta el mapa. |
-| CA-05 | Dar turno abre la aventura vigente e identifica al controlador en proyección. |
-| CA-06 | Tocar destino representa el mismo movimiento en teléfono y proyección. |
-| CA-07 | Cambiar turno conserva estado, devuelve al anterior a espera y habilita a uno solo. |
-| CA-08 | Acción tardía del controlador anterior es rechazada sin modificar avance. |
-| CA-09 | Espera no puede jugar, darse turno ni emitir moderación autorizada. |
-| CA-10 | Selecciones administrativas rápidas conservan la última confirmada, sin doble control. |
+| CA-04 | **(modificado)** Quien observa ve solo su tarjeta y el texto de la fase; no tiene personaje ni se monta el mapa. |
+| CA-05 | **(modificado)** Comenzar abre la aventura para todas las personas a la vez: cada una ve su personaje en el laboratorio compartido. |
+| CA-06 | **(modificado)** Tocar un destino representa el mismo movimiento de esa persona en su teléfono, en el de las demás y en la proyección. |
+| CA-07 | **(modificado)** Cambiar de ronda conserva el personaje y los resultados de cada persona y la devuelve al mapa. |
+| CA-08 | **(modificado)** Una acción personal de una ronda ya cerrada se rechaza (`STALE_ROUND`) sin modificar avance. |
+| CA-09 | **(modificado)** Quien observa no puede jugar; ninguna participante puede abrir, reunir ni avanzar la ronda ni emitir acciones de Vanessa. |
+| CA-10 | Acciones rápidas y repetidas de Vanessa conservan la última confirmada (cola serial y `commandSeq`). |
 | CA-11 | Pausar durante rampa congela tiempo; reanudar no añade la conversación. |
-| CA-12 | Cambiar controlador en pausa mantiene esa pausa. |
-| CA-13 | Tomar control habilita a Vanessa y revoca al participante. |
-| CA-14 | Sombras conserva primera idea, posiciones y observación entre turnos. |
-| CA-15 | Rampa no permite experimentar antes de abrir pregunta y confirmar predicción. |
+| CA-12 | **(modificado)** Pausar en cualquier fase conserva la ronda, la lista y el contador; reanudar continúa donde estaba. |
+| CA-13 | **(modificado)** «Probar la mesa yo misma» muestra la mesa en una demostración local de Vanessa sin cambiar el contador, el cuaderno ni lo que ven las personas. |
+| CA-14 | **(modificado)** Sombras conserva las posiciones de cada persona al cambiar de ronda, al recargar y al reconectar; la idea inicial del grupo se conserva aparte de la síntesis. |
+| CA-15 | **(modificado)** Rampas no permite soltar la pelota antes de abrir la mesa; una prueba en marcha bloquea solo la suelta de su dueña. |
 | CA-16 | Dos pruebas comparables con distintas inclinaciones conservan resultados coherentes. |
 | CA-17 | Repetir una petición de suelta crea una sola prueba. |
 | CA-18 | Pedir permiso muestra negativa y no abre la caja personal. |
-| CA-19 | Cajas conserva negativa y respeto al cambiar jugador. |
-| CA-20 | Solo respuestas confirmadas aparecen en cuaderno/proyección; borradores permanecen locales. |
-| CA-21 | Incertidumbre y participación oral permiten completar los registros correspondientes. |
-| CA-22 | Repetir cierre de mesa no duplica pieza ni efecto confirmado. |
-| CA-23 | Tres piezas habilitan colocar piezas y registrar pregunta del grupo. |
-| CA-24 | Desconectar controlador pausa, retira control y permite elegir reemplazo. |
-| CA-25 | Quien regresa recupera identidad en espera, sin desplazar al controlador vigente. |
+| CA-19 | **(modificado)** Cajas conserva la negativa y lo explorado si la persona recarga o regresa. |
+| CA-20 | **(modificado)** Solo resultados registrados por el juego y notas de Vanessa aparecen en cuaderno/proyección; el público no escribe texto. |
+| CA-21 | **(modificado)** Quedar lista no depende de escribir: los criterios de cada mesa se cumplen solo con acciones del experimento. |
+| CA-22 | Repetir «Abrir siguiente mesa» no duplica pieza ni efecto confirmado. |
+| CA-23 | **(modificado)** Tres piezas llevan al cierre: Vanessa escribe o elige la pregunta del grupo y la confirma. |
+| CA-24 | **(modificado)** Desconectar a una persona no cambia la ronda ni baja el total del contador; desconectar a Vanessa pausa para todas. |
+| CA-25 | **(modificado)** Quien regresa recupera su personaje, su mesa y sus resultados, sin afectar a las demás. |
 | CA-26 | Recargar Vanessa recupera administración y sala pausada; decide cuándo continuar. |
 | CA-27 | Reiniciar servicio recupera cambios confirmados y deja la sala pausada. |
 | CA-28 | Segunda pestaña sustituye primera; solo la conexión vigente puede actuar. |
-| CA-29 | Cerrar revoca control y muestra finalización en todos los dispositivos. |
+| CA-29 | Cerrar revoca las credenciales de uso y muestra finalización en todos los dispositivos. |
 | CA-30 | Credencial/código de otra sala no permite leer o modificar datos ajenos. |
-| CA-31 | Ensayo con 50 participantes documenta turnos, sincronización y métricas de 11.2. |
+| CA-31 | **(modificado)** Ensayo con 50 participantes explorando a la vez documenta rondas, sincronización y métricas de 11.2. |
 | CA-32 | Demo recorre mesas sin servidor y mantiene estado aislado de la sala. |
 | CA-33 | Audio apagado, teclado y alternativas al arrastre permiten comprender/completar. |
+| CA-34 | Abrir la mesa habilita a todas las personas a la vez; en preparación, conversación y cierre nadie experimenta. |
+| CA-35 | Solo la mesa de la ronda se puede abrir: otra se rechaza con un texto que distingue «más adelante» de «ya terminó». |
+| CA-36 | Cada experimento registra sus resultados sin formularios, y «listo para conversar» sale de los criterios de la mesa (dos posiciones ≥ 5 cm; dos pruebas terminadas ≥ 5°; un objeto compartido). |
+| CA-37 | El contador «N de M listos» fija M al abrir la mesa, excluye a quien observa, no baja si alguien se desconecta; quien llega tarde acompaña sin contar y Vanessa puede incluirla. |
+| CA-38 | «Conversemos» con pendientes exige «Pasar a conversación con pendientes», nombra a quienes faltan, conserva su trabajo y no les concede la finalización. |
+| CA-39 | «Conversemos» cancela las pruebas de rampa en marcha: no cuentan como terminadas. |
+| CA-40 | En la conversación los celulares dicen «Miremos la proyección y compartamos lo que descubrimos.» y detienen los controles. |
+| CA-41 | Proyectar los resultados de una persona muestra una copia (texto y barras) que se conserva en el cuaderno del grupo y no altera sus pruebas. |
+| CA-42 | La frase de Freire de la mesa se proyecta solo cuando Vanessa lo decide y nunca aparece en los celulares. |
+| CA-43 | La pieza de una mesa se incorpora al inventor al abrir la siguiente mesa, una sola vez. |
+| CA-44 | La pregunta final se escribe o se elige, se confirma antes de imprimirla y puede corregirse después conservando la versión anterior. |
+| CA-45 | Cada persona recibe solo su estado personal; la administradora y las demás no reciben el de nadie más. |
+| CA-46 | Cada avatar muestra su nombre encima en el celular de cada persona y en la proyección; si se cruzan, los nombres se superponen y en el celular el propio queda encima. |
+| CA-47 | En La caja existe una sola escena con una caja compartida y una personal cerrada; no hay ninguna acción para abrir la personal y quien pide permiso recibe la negativa completa. |
+| CA-48 | Quien se une como observadora queda fuera del contador y no puede actuar. |
 
 ### 12.3. Aceptación técnica adicional
 
@@ -1170,7 +1249,7 @@ Mantener los IDs CA del PRD para que implementación y ensayo sean trazables:
 | CT-05 | Remontar/reconectar recibe snapshot completo; no depende de haber escuchado un evento anterior. |
 | CT-06 | Phaser y transporte no hacen renderizar todo React por cada frame de movimiento. |
 | CT-07 | Sombras cambia continuamente según el modelo; dos muestras iguales no satisfacen exploración. |
-| CT-08 | Rampas usa mismo modelo/escala en ambas vistas; pausa, duplicados y cambio de turno no alteran resultado. |
+| CT-08 | Rampas usa mismo modelo/escala en ambas vistas; pausa, duplicados, desconexiones y cambio de ronda no alteran resultado. |
 | CT-09 | Snapshot público, QR y logs no exponen tokens; no existe contenido secreto de la caja personal en assets/datos. |
 | CT-10 | Servidor deniega payloads fuera de rango, pasos inválidos, IDs inexistentes y mensajes de generación/epoch antiguos. |
 | CT-11 | Fallo simulado de SQLite no produce acknowledgment de éxito ni pieza/registro «confirmado». |
@@ -1179,6 +1258,10 @@ Mantener los IDs CA del PRD para que implementación y ensayo sean trazables:
 | CT-14 | Demo funciona con backend apagado y desde build local preparado sin red; no sincroniza avances al regresar. |
 | CT-15 | Catálogo conserva IDs, rutas y metadatos; pose-sheets sin frames no se tratan como spritesheets listas. |
 | CT-16 | Pruebas con base URL distinta y rutas de entrada por QR resuelven mapa/assets sin duplicar prefijos. |
+| CT-17 | El servidor nunca envía a una persona el estado personal de otra (ni a la administradora), ni el listado de presencia a quien no es administradora. |
+| CT-18 | Un reinicio abrupto del servicio conserva la lista de la ronda, el contador, las pruebas en marcha y la vista de cada persona; la sala vuelve pausada. |
+| CT-19 | Cincuenta personas con pruebas de rampa simultáneas terminan cada una en su instante exacto y en el estado de su dueña. |
+| CT-20 | La demostración local (de una sala real o completa) funciona bajo Strict Mode sin duplicar temporizadores ni destruir la demostración en uso. |
 
 ### 12.4. Validación pedagógica
 
@@ -1188,7 +1271,7 @@ Ensayar con Vanessa y una o dos personas. Pedir que expliquen:
 2. Qué ocurrió al abrir espacio para preguntar en Rampas.
 3. Por qué se respetó la caja personal y cómo continuó la curiosidad.
 4. Qué les gustaría seguir investigando.
-5. Si pudieron seguir y aportar aunque no tuvieron el turno.
+5. Si pudieron explorar por su cuenta y luego aportar a la conversación, aunque no hubieran terminado su exploración.
 
 Registrar duración real, claridad de textos y momentos de pausa. Ajustar redacción y ritmo sin añadir evaluación de «respuestas correctas».
 
@@ -1198,11 +1281,11 @@ Registrar duración real, claridad de textos y momentos de pausa. Ajustar redacc
 
 ### 13.1. Alcance inicial y extensiones
 
-Indispensable: sala, identidad, presencia, turnos, pausa, proyección, las tres mesas, cuaderno, piezas, inventor, persistencia, recuperación y demo local.
+Indispensable: sala, identidad, presencia, observadoras, rondas guiadas, exploración simultánea, contador de personas listas, pausa, proyección, las tres mesas, cuaderno (resultados personales y notas del grupo), piezas, inventor con pregunta final, persistencia, recuperación y demo local.
 
-Después: levantar mano, voluntarios, selección aleatoria, reacciones discretas, exportar cuaderno, segunda ventana de proyección y nuevos experimentos. No introducir esas mejoras como dependencias del recorrido inicial.
+Después: levantar mano, reacciones discretas, exportar cuaderno, segunda ventana de proyección, comparar a varias personas a la vez en la proyección y nuevos experimentos. No introducir esas mejoras como dependencias del recorrido inicial.
 
-Fuera de alcance: personajes simultáneos por participante, rankings, cuentas, fotos, evaluador de texto con IA, preguntas respondidas automáticamente, edición de mapa dentro de la aplicación y un sistema distribuido de servidores.
+Fuera de alcance: rankings, cuentas, fotos, respuestas escritas del público, evaluador de texto con IA, preguntas respondidas automáticamente, edición de mapa dentro de la aplicación y un sistema distribuido de servidores.
 
 La propuesta de Tiled evita un importador y conserva formatos estándar, a cambio de trabajar con un perfil acotado. Si un mapa futuro necesita tilesets externos, plantillas, polígonos o múltiples mundos, decidir su soporte explícitamente y ampliar lector/validadores/pruebas. No reintroducir una copia editable de coordenadas.
 
