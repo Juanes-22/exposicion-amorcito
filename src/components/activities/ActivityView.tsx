@@ -63,7 +63,7 @@ export function ActivityView({ room, config, adv, interactive, canReturn, busy, 
       </header>
 
       {progress.done && piece ? (
-        <div className="banner banner--piece" role="status">
+        <div className="banner banner--piece">
           <strong>Conseguimos una pieza: {piece.label}.</strong> {piece.message}
         </div>
       ) : null}

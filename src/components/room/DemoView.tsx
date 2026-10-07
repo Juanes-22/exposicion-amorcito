@@ -1,10 +1,12 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { useAudioSignals } from "../../app/audio/useAudioSignals";
 import { DemoController } from "../../app/DemoController";
 import type { RoomClientState } from "../../app/RoomController";
 import { homePath, roomPath } from "../../app/useRoute";
 import type { LoadedProject } from "../../config/loadProject";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { AdventureHost } from "./AdventureHost";
+import { SignalText, SoundControl } from "./SoundControl";
 
 const noopSubscribe = () => () => undefined;
 const EMPTY: RoomClientState = { status: "connecting", summary: null, presence: null, snapshot: null, pending: 0, notice: null };
@@ -34,6 +36,7 @@ export function DemoView({ project, navigate }: { project: LoadedProject; naviga
 
   const state = useSyncExternalStore(controller?.subscribe ?? noopSubscribe, controller?.getState ?? emptyState);
   const notice = state.notice;
+  const audio = useAudioSignals({ project, state, device: "computer" });
   useEffect(() => {
     if (!notice || !controller) return;
     const t = setTimeout(() => controller.clearNotice(notice.id), 5000);
@@ -66,7 +69,9 @@ export function DemoView({ project, navigate }: { project: LoadedProject; naviga
         <button type="button" className="btn" onClick={() => setConfirm(true)}>Reiniciar la demostración</button>
         {fromCode ? <button type="button" className="btn" onClick={() => navigate(roomPath(fromCode))}>Volver a la sala {fromCode}</button> : null}
         <button type="button" className="btn btn--ghost" onClick={() => navigate(homePath())}>Salir</button>
+        <SoundControl audio={audio} />
       </div>
+      <SignalText audio={audio} />
 
       <AdventureHost project={project} state={state} controller={controller} camera="fit" notebookMenu canAct={playable} reason={paused ? "La demostración está en pausa." : null} label="Escena de la demostración" />
 

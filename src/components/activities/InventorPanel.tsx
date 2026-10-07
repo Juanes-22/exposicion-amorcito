@@ -71,7 +71,7 @@ export function InventorPanel({ room, config, adv, interactive, canReturn, busy,
         <div className="final-card">
           <p className="hint">Nuestra pregunta</p>
           <p className="final-card__question">{final.modality === "oral" ? inv.oralQuestionText : (final.text ?? "")}</p>
-          <p className="banner banner--piece" role="status">{inv.finalMessage}</p>
+          <p className="banner banner--piece">{inv.finalMessage}</p>
           <ul className="reflection" aria-label="Para pensar">
             {inv.reflection.map((r) => (
               <li key={r}>{r}</li>
