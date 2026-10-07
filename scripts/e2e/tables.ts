@@ -158,7 +158,7 @@ try {
   // Teclado del móvil: la ventana se reduce y el campo y el botón siguen al alcance.
   await ana.page.setViewportSize({ width: 390, height: 430 });
   await ana.page.getByLabel("Tu respuesta").focus();
-  await sleep(900);
+  await sleep(1200);
   // «A la vista» no basta: tiene que estar dentro de la ventana Y no tapado por otro elemento (el escenario, un aviso…).
   const inView = async (page: Page, loc: ReturnType<Page["locator"]>) => {
     const b = (await loc.boundingBox())!;
@@ -176,6 +176,7 @@ try {
     return covered === null;
   };
   check(await inView(ana.page, ana.page.getByLabel("Tu respuesta")), "con la ventana reducida por el teclado (390×430), el campo enfocado queda a la vista y sin nada encima");
+  check(await inView(ana.page, ana.page.getByRole("button", { name: "Compartir con el grupo" })), "al enfocar el campo se ven a la vez el campo y el botón de compartir (el botón se alinea al borde de abajo)");
   await ana.page.getByRole("button", { name: "Compartir con el grupo" }).focus();
   await sleep(900);
   check(await inView(ana.page, ana.page.getByRole("button", { name: "Compartir con el grupo" })), "y el botón «Compartir con el grupo» también, sin nada encima");
@@ -242,6 +243,8 @@ try {
   await ana.page.getByRole("button", { name: "Compartir con el grupo" }).click();
   await waitAdv(admin.page, `a.activities.sombras.step === "completed"`);
   await admin.page.getByText(/Conseguimos una pieza: Lupa/).waitFor();
+  check((await admin.page.locator(".signal").innerText()) === "Pieza conseguida: Lupa.", "la señal «Pieza conseguida: Lupa.» tiene su texto equivalente aunque el sonido esté apagado (por defecto lo está)");
+  check((await admin.page.getByRole("button", { name: /Activar sonido/ }).isVisible()) && !(await admin.page.evaluate(() => ((window as any).__AUDIO_LOG__ ?? []).length)), "el sonido empieza apagado en la proyección: nada suena hasta que Vanessa lo activa con un toque");
   const a1 = await adv(admin.page);
   check(a1.pieces.includes("lupa") && a1.notebook.filter((r: any) => r.activityId === "sombras").length === 3, "al completar Sombras el servidor concede la pieza «Lupa» y el cuaderno tiene sus tres registros");
   check((await admin.page.locator(".adventure__activity .record--first").count()) === 1 && (await admin.page.locator(".adventure__activity .record--first").innerText()).includes(DRAFT), "la primera idea sigue destacada en la proyección después de completar");
@@ -249,6 +252,11 @@ try {
   await ana.page.getByRole("button", { name: "Volver al mapa" }).click();
   await scenesAre(ana.page, "LaboratoryScene");
   check(await scenesAre(ana.page, "LaboratoryScene"), "«Volver al mapa» regresa a la escena del laboratorio");
+
+  // Vanessa activa el sonido con un gesto; las señales siguientes lanzan su sonido (y siguen teniendo su texto).
+  await admin.page.getByRole("button", { name: /Activar sonido/ }).click();
+  await admin.page.getByRole("button", { name: /Silenciar/ }).waitFor();
+  check(await admin.page.evaluate(() => (window as any).__AUDIO_LOG__ === undefined || (window as any).__AUDIO_LOG__.length === 0), "al activarlo no suena nada retroactivo: no hay celebraciones históricas");
 
   // ================= RAMPAS =================
   console.log("\nRampas");
@@ -297,7 +305,8 @@ try {
   await admin.page.getByRole("button", { name: "Reanudar" }).click();
   await waitAdv(admin.page, `a.activities.rampas.trials[0].state === "finished"`, 12000);
   const t1 = (await adv(admin.page)).activities.rampas.trials[0];
-  check(t1.endedActiveMs - t1.startActiveMs === t1.durationMs, "al reanudar la prueba termina a su hora exacta de simulación, sin contar el tiempo en pausa");
+  // Tolerancia de coma flotante: (inicio + duración) − inicio puede diferir de la duración en 1 ulp según el inicio (con `===` fallaba 1 de cada pocas ejecuciones).
+  check(Math.abs(t1.endedActiveMs - t1.startActiveMs - t1.durationMs) < 1e-6, "al reanudar la prueba termina a su hora exacta de simulación, sin contar el tiempo en pausa");
   await angleSlider.fill("6"); // 45°
   await waitAdv(admin.page, `a.activities.rampas.angleDeg === 45`);
   await ana.page.getByRole("button", { name: "Soltar la pelota" }).click();
@@ -311,6 +320,9 @@ try {
   await waitAdv(admin.page, `a.activities.rampas.step === "completed"`);
   await admin.page.getByText(/Conseguimos una pieza: Bocadillo/).waitFor();
   check((await adv(admin.page)).pieces.includes("dialogo"), "al completar Rampas se concede la pieza «Bocadillo»");
+  await admin.page.waitForFunction(() => ((window as any).__AUDIO_LOG__ ?? []).includes("piece.earned"), undefined, { timeout: 5000 });
+  check(true, "con el sonido activado, la pieza lanzó su sonido en la proyección (una sola vez)");
+  check((await admin.page.evaluate(() => ((window as any).__AUDIO_LOG__ as string[]).filter((e) => e === "piece.earned").length)) === 1, "y no se repitió");
   await ana.page.getByRole("button", { name: "Volver al mapa" }).click();
   await scenesAre(ana.page, "LaboratoryScene");
 
@@ -324,6 +336,8 @@ try {
   await ana.page.getByRole("button", { name: "Campanita" }).click();
   await waitAdv(admin.page, `a.activities.cajas.inspected.includes("campanita")`);
   await sleep(300);
+  await admin.page.waitForFunction(() => ((window as any).__AUDIO_LOG__ ?? []).includes("boxes.bell"), undefined, { timeout: 5000 });
+  check((await admin.page.locator(".signal").innerText()) === "Suena la campanita.", "la campanita suena en la proyección y su señal tiene texto equivalente");
   check(await has(admin.page, "BoxesScene", "Una campanita pequeña. Cuando se mueve, suena."), "al mirar un objeto, la proyección muestra la descripción en la escena");
   await ana.page.getByText("Una campanita pequeña. Cuando se mueve, suena.").waitFor();
   check(true, "y el teléfono, el mismo texto equivalente");
@@ -363,6 +377,8 @@ try {
   await beto.page.getByRole("button", { name: "Volver al mapa" }).click();
   await beto.page.getByText("Mesas", { exact: true }).click();
   check(await beto.page.getByRole("button", { name: "El inventor" }).isEnabled(), "con las tres mesas completadas, el inventor queda disponible");
+  check((await beto.page.evaluate(() => ((window as any).__AUDIO_LOG__ ?? []).length)) === 0 && (await ana.page.evaluate(() => ((window as any).__AUDIO_LOG__ ?? []).length)) === 0, "los teléfonos siguieron en silencio todo el recorrido (empiezan apagados y nadie lo activó)");
+  check((await beto.page.getByRole("button", { name: /Activar sonido/ }).isVisible()) && (await ana.page.getByRole("button", { name: /Activar sonido/ }).count()) === 0, "el controlador puede activarlo con un toque; quien espera no tiene control de sonido (no recibe señales)");
   check((await canvases(admin.page)) === 1 && (await canvases(beto.page)) === 1 && (await canvases(ana.page)) === 0, "al final de las mesas hay un canvas por vista activa y ninguno en la espera");
 
   // ================= PIEZAS Y CUADERNO =================
@@ -371,6 +387,26 @@ try {
   await beto.page.getByLabel("Tenemos las tres piezas").waitFor();
   await admin.page.getByLabel("Tenemos las tres piezas").waitFor();
   check(true, "el teléfono del controlador y la proyección muestran las tres piezas conseguidas, con texto");
+  // Barra del mapa en el teléfono más estrecho que SPECS 11.1 pide (360 px): nada se superpone ni se sale, y los paneles abren debajo.
+  await beto.page.setViewportSize({ width: 360, height: 740 });
+  await sleep(500);
+  const barRects = await beto.page.evaluate(`(() => [...document.querySelectorAll(".map-bar > *")].filter((el) => el.getBoundingClientRect().width > 4).map((el) => { const r = el.getBoundingClientRect(); return { cls: el.className, x: r.x, right: r.right, y: r.y, bottom: r.bottom, h: r.height }; }))()`) as Array<{ cls: string; x: number; right: number; y: number; bottom: number; h: number }>;
+  const sorted = [...barRects].sort((a, b) => a.x - b.x);
+  const overlaps = sorted.some((r, i) => i > 0 && r.x < sorted[i - 1]!.right - 0.5);
+  check(sorted.length === 3 && !overlaps && sorted[0]!.x >= 0 && sorted.at(-1)!.right <= 360 && barRects.filter((r) => r.cls.includes("menu")).every((r) => r.h >= 44), `a 360 px la barra del mapa (Mesas, piezas, Cuaderno) cabe en una fila sin superponerse y con zonas táctiles ≥ 44 px (${sorted.map((r) => `${Math.round(r.x)}–${Math.round(r.right)}`).join(", ")})`);
+  await beto.page.getByText("Mesas", { exact: true }).click();
+  const panelA = (await beto.page.locator(".stations-menu .map-panel").boundingBox())!;
+  check(panelA.y >= Math.max(...barRects.map((r) => r.bottom)) - 1 && panelA.x >= 0 && panelA.x + panelA.width <= 360, "el panel de las mesas se abre DEBAJO de la barra, dentro de la pantalla, sin tapar los botones");
+  await beto.page.locator(".notebook-menu > summary").click();
+  await sleep(300);
+  check((await beto.page.locator(".stations-menu .map-panel").isVisible()) === false && (await beto.page.locator(".notebook-menu .map-panel").isVisible()), "solo un panel abierto a la vez: abrir el cuaderno cierra el de las mesas");
+  // …y al revés: con el cuaderno abierto, abrir las mesas cierra el cuaderno.
+  await beto.page.getByText("Mesas", { exact: true }).click();
+  await sleep(300);
+  check((await beto.page.locator(".notebook-menu .map-panel").isVisible()) === false && (await beto.page.locator(".stations-menu .map-panel").isVisible()), "y al revés: abrir las mesas cierra el cuaderno");
+  await beto.page.getByText("Mesas", { exact: true }).click(); // se cierra el de las mesas: ningún panel queda abierto
+  await beto.page.setViewportSize({ width: 390, height: 844 });
+  await sleep(400);
   const version = () => beto.page.evaluate(() => (window as any).__PHASER_GAME__.registry.get("deps").bridge.snapshot.state.stateVersion as number);
   const v0 = await version();
   await admin.page.getByText(/^Cuaderno \(/).click();

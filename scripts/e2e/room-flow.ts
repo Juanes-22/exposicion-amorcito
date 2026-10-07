@@ -53,6 +53,15 @@ try {
   const phone = { width: 390, height: 844 };
   const ana = await open("ana", phone, `/sala/${code}`);
   await ana.page.getByLabel("Tu nombre").fill("Ana");
+  // En una pantalla muy estrecha los círculos de color no se aplastan aunque el nombre del color sea largo (defecto visto en Chrome Android a 360 dp; en Chromium de escritorio se reproduce a 320 px sin el arreglo).
+  for (const width of [360, 320]) {
+    await ana.page.setViewportSize({ width, height: 640 });
+    const sizes = await ana.page.evaluate(
+      `Array.from(document.querySelectorAll('.color-option__swatch')).map((el) => { const r = el.getBoundingClientRect(); return [Math.round(r.width * 10) / 10, Math.round(r.height * 10) / 10]; })`,
+    ) as Array<[number, number]>;
+    check(sizes.length > 0 && sizes.every(([w, h]) => w === 28 && h === 28), `a ${width} px de ancho los ${sizes.length} círculos de color siguen siendo círculos (28×28)`);
+  }
+  await ana.page.setViewportSize(phone);
   await shot(ana.page, "02-entrada-ana.png");
   await ana.page.getByRole("button", { name: "Entrar a la sala" }).click();
   await ana.page.getByText("Estás en la sala. Sigue la aventura en la proyección").waitFor();

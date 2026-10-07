@@ -143,7 +143,7 @@ try {
   const remaining = durationMs - (s.adventure.timeline.activeMs - startActive);
   const t = (admin.getState().snapshot!.state.adventure.activities.rampas as RampsState).trials[0]!;
   console.log(`  ℹ tras reanudar faltaban ${Math.round(remaining)} ms de prueba y terminó a los ${took} ms`);
-  check(t.endedActiveMs! - t.startActiveMs === durationMs, "terminó en su instante exacto de simulación (inicio + duración)");
+  check(Math.abs(t.endedActiveMs! - t.startActiveMs - durationMs) < 1e-6, "terminó en su instante exacto de simulación (inicio + duración)"); // tolerancia de coma flotante, no `===`
   check(Math.abs(took - remaining) < 1200, "y tardó en reanudarse lo que le faltaba: ni saltó al final por el tiempo apagado ni se alargó");
 
   // La administración se recuperó con la credencial de antes, sin pedir nada nuevo.

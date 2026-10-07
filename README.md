@@ -14,9 +14,11 @@ contradice a SPECS, manda SPECS.
 
 Construido y verificado: fases 0 a 6 de PLAN (base, contratos/dominio/Tiled directo, sala con control exclusivo y persistencia,
 movimiento compartido, las tres mesas, el cuaderno, las piezas y el inventor, y la continuidad: detección de cortes, reinicio real
-del servicio, vencimiento y limpieza de salas, y la demostración local de respaldo). El recorrido completo funciona de punta a punta
-en Chromium. **Todavía no existe**: el arte final, el audio y el ensayo de capacidad con celulares reales (fases 7–8). El dibujo de
-las mesas y del inventor es procedimental y los textos de cada paso son de prototipo. Detalle y evidencias en PLAN §5.
+del servicio, vencimiento y limpieza de salas, y la demostración local de respaldo) y, de la fase 7, **el audio opcional (P7-02), el
+ensayo de capacidad (P7-05) y la prueba en navegadores móviles reales de simulador/emulador (P7-06)**. El recorrido completo funciona
+de punta a punta en Chromium. **Todavía no existe**: el arte final, los sonidos finales (los actuales son provisionales), la
+optimización de carga y render (P7-04) ni la prueba en celulares físicos y en el equipo proyectado real (fases 7–8). El dibujo de las
+mesas y del inventor es procedimental y los textos de cada paso son de prototipo. Detalle y evidencias en PLAN §5.
 
 ## Requisitos
 
@@ -40,11 +42,11 @@ Cada persona usa su propio navegador/contexto: la credencial se guarda por sala 
 | `npm run typecheck` | Tipos de frontend, `shared/` y servidor. |
 | `npm test` | Dominio, contratos, servidor con Socket.IO real y SQLite temporal, cliente y componentes. |
 | `npm run test:e2e` | Compila y ejecuta los 7 e2e en Chromium (uno de ellos reinicia de verdad el proceso del servidor) con identidades independientes (ver «Pruebas»). Las capturas de evidencia solo se escriben en `docs/` con `E2E_EVIDENCE=1`. |
+| `npm run test:load` | Ensayo de capacidad: 50 participantes + administradora contra un servidor real en otro proceso (turnos repetidos, slider, rampa, entradas tardías, desconexiones). Tarda ~1 min. `LOAD_REPORT=1` escribe el informe en `docs/evidencia/fase7/`. Ver «Capacidad». |
+| `npm run ensayo` | Sala preparada para **ensayar en celulares reales** de la red local (puertos 3400/3412; ver «Ensayo en dispositivos»). |
 | `npm run build` | Valida, comprueba tipos y compila el frontend en `dist/`. |
 | `npm start` | Servicio de producción: sirve `dist/`, la API y Socket.IO desde el mismo origen. |
 | `npm run preview:demo` | Compila y sirve SOLO el frontend en <http://127.0.0.1:4173/demo>, sin servidor de salas ni base de datos: la demostración de respaldo (ver «Respaldo»). |
-
-Aún no existe `test:load` (fase 7).
 
 ## Estructura
 
@@ -136,10 +138,39 @@ cortada (capturas en `docs/evidencia/fase6/`), y edición directa del TMJ (CT-01
 `?debug` en la URL de la sala superpone colisiones y radios; `?hooks` solo expone el juego para las pruebas. **No** sustituyen el ensayo en
 Safari/iPhone, Chrome/Android y el equipo proyectado (PLAN fase 7).
 
+## Audio y señales
+
+El sonido es **opcional y empieza apagado**: un celular nunca suena hasta que la persona pulsa «Activar sonido» (el botón crea el
+`AudioContext` dentro de ese gesto). La preferencia se guarda solo en ese dispositivo. Los efectos salen de **transiciones del
+estado** (pieza conseguida, campanita de la caja, clic de Sombras, inventor encendido, aventura terminada) con un identificador por
+efecto, así que una reconexión, un snapshot repetido o el primer estado recibido no repiten sonidos. Cada evento tiene además su
+**señal textual** (`aria-live`), que se muestra siempre, con o sin sonido. Si el audio falla (navegador sin soporte, archivo que no
+carga), la actividad sigue sin bloquearse y el control lo dice con texto. Los eventos y sus recursos se configuran en
+`audio.events` de `laboratorio.json`; un evento desconocido es un error de validación.
+
+Los cinco sonidos actuales son **provisionales** (`placeholder: true`): se generan con `tools/audio/generate_sfx.py` y
+`mode: "presentation"` los rechaza hasta que haya sonidos finales.
+
+## Capacidad
+
+`npm run test:load` ensaya 50 participantes y la administradora con un solo controlador y mide entrada, cambio de turno, acción →
+proyección, entradas tardías, separación de frames y que quien espera **no recibe** snapshot de la aventura ni frames. El último
+informe está en [`docs/evidencia/fase7/capacidad.md`](docs/evidencia/fase7/capacidad.md). **Límite:** clientes y servidor comparten
+computadora y red de bucle local, y los clientes no dibujan: valida el protocolo y el servidor con 51 conexiones, **no** la red
+inalámbrica del lugar ni el rendimiento de los celulares (no se midieron FPS).
+
+## Ensayo en dispositivos
+
+`npm run ensayo` levanta el servidor (puertos 3400/3412) con una sala lista y un panel de control para abrirla desde los
+celulares de la red local, repartir el turno y simular la proyección. La prueba de la fase 7 se hizo con **Safari de iPhone SE
+(iOS 18.2, simulador) y Chrome de Android 15 (emulador, 411 y 360 dp)**; las capturas están en `docs/evidencia/fase7/`. Los
+simuladores no son celulares físicos: queda pendiente repetirlo con aparatos reales, con el teclado de iOS en el campo de texto de las
+mesas y con el equipo y proyector de la exposición.
+
 ## Recursos provisionales
 
 Las mesas, el tileset y el inventor son arte **provisional** generado para el prototipo, marcado `placeholder: true` en
-`assets.json`. `mode: "presentation"` en `laboratorio.json` rechaza cualquier recurso provisional. Sonidos finales: pendientes.
+`assets.json`. `mode: "presentation"` en `laboratorio.json` rechaza cualquier recurso provisional. Los cinco sonidos también son provisionales.
 Vanessa, Jerry, los botones/paneles crema y las margaritas son recursos reales del catálogo de Bitácora Amorcito.
 
 ## Pendientes conocidos
@@ -147,12 +178,15 @@ Vanessa, Jerry, los botones/paneles crema y las margaritas son recursos reales d
 - El **PRD v2.0** no está en el proyecto; SPECS lo cita como fuente de guiones y requisitos RF/CA. Los textos que SPECS no fija
   (p. ej. `ideaSuggestions` de Sombras y las descripciones de los objetos de la caja) son de prototipo y requieren revisión de
   Vanessa. Ver PLAN §5.
-- Medición formal de latencia, FPS y carga con celulares reales y 50 participantes: fase 7 (la latencia preliminar de la fase 3 es de localhost).
-- El teclado real de iOS y Android no se ha probado: el e2e simula un teléfono con la ventana reducida (fase 7).
+- La capacidad se ensayó con 50 clientes simulados en bucle local; falta medirla con celulares reales en la red del lugar y medir FPS (fase 7/8).
+- El teclado de Android se probó en emulador (Chrome); el de **iOS** con el campo de texto de las mesas no se pudo probar (el simulador quedó
+  en modo de teclado físico). Faltan celulares físicos.
 - Los textos de cada paso (`prompts`), las sugerencias y las descripciones de los objetos son de prototipo: requieren revisión de
   Vanessa y una prueba de claridad con niñas y niños (fase 8).
 - Falsos cortes de conexión con celulares reales (pantalla que se apaga, cambio de wifi a datos) y el comportamiento en segundo plano
-  de Safari/iPhone: fase 7. Los cortes de las pruebas son de red simulada en la misma computadora.
+  de Safari/iPhone: sin probar en aparatos físicos. Los cortes de las pruebas son de red simulada en la misma computadora.
 - La demostración exige que la página **ya esté abierta** o que se sirva el build local; no hay service worker ni modo sin conexión
   para una web que nunca se descargó (decisión de SPECS 6.4).
-- Audio de Phaser desactivado hasta la fase 7 (ver PLAN §5, decisiones).
+- El audio no usa el sonido de Phaser (sigue desactivado con `noAudio`): lo reproduce un módulo propio de la aplicación (`src/app/audio/`)
+  con `AudioContext` creado bajo gesto (ver PLAN §5, decisiones).
+- Phaser vuelve a dibujar a 60 fps aunque no pase nada: en el emulador Android sin GPU pesaba mucho. Se deja para P7-04.

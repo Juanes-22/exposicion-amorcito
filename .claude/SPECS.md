@@ -1057,6 +1057,8 @@ La proyección es la salida principal. Identificar efectos por transición para 
 
 Cada señal importante tiene texto equivalente. Un fallo de audio no bloquea la mesa. No copiar los tonos `audio.sfx.test-*` del repositorio como sonidos finales.
 
+**Nota de implementación (P7-02).** Los eventos de `audio.events` son un conjunto cerrado: `shadows.click`, `boxes.bell`, `piece.earned`, `inventor.activated` y `adventure.finished` (el «cierre» de la dirección visual); un evento desconocido o que apunte a un recurso que no es sonido es un error de validación. Cada señal tiene su texto en `ui.labels` (`signalPieceEarned`, `signalPiecesPlaced`, `signalFinished`, `signalBell`, `signalClick`) y se muestra y anuncia (`aria-live`) con o sin sonido. El audio lo reproduce la propia aplicación (Web Audio, un único contexto creado dentro del gesto que activa el sonido), no el audio de Phaser. La proyección recupera «activado» con el primer gesto de la página; el celular nunca. Mientras los sonidos sean provisionales (`placeholder: true`), `mode: presentation` los rechaza.
+
 Los efectos de interfaz/eventos pertenecen a `laboratorio.json → audio`. Si posteriormente se necesitan sonidos espaciales, sus emisores se colocan en la capa `sounds` del TMJ y se leen directamente; archivos y metadata permanecen en `assets.json`. Un laboratorio de sonidos con escritura de archivos no es dependencia de esta primera versión.
 
 <a id="spec-11"></a>
@@ -1067,7 +1069,7 @@ Los efectos de interfaz/eventos pertenecen a `laboratorio.json → audio`. Si po
 
 - Vista activa usable en vertical desde **360 px**; probar también 390 y 430 px.
 - Texto base de al menos **16 px**; zonas táctiles de al menos **44 × 44 px**.
-- Formularios desplazables con teclado abierto; botón de confirmación alcanzable.
+- Formularios desplazables con teclado abierto; botón de confirmación alcanzable. *(Nota P7-06: Chrome de Android, por defecto, no reduce la página al abrir el teclado y lo deja encima del formulario; `index.html` declara `interactive-widget=resizes-content` para que sí la reduzca. Además, al enfocar el campo se trae a la vista el botón de compartir. Verificado en el emulador de Android; no se sabe si Safari de iOS respeta esa declaración y el teclado de iOS con el campo de texto de las mesas no se pudo probar.)*
 - Cambios de turno anunciados con texto y nombre; espera sin mapa.
 - Botones −/+ equivalentes a arrastrar; lista de mesas equivalente a navegar.
 - Navegación por teclado en HTML y foco visible; no capturar flechas mientras se escribe.
