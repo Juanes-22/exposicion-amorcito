@@ -186,6 +186,8 @@
   background: var(--cream);
 }
 .color-option__swatch {
+  /* flex: none: en columnas estrechas el nombre del color no debe aplastar el círculo (visto en Chrome Android a 360 dp). */
+  flex: none;
   width: 28px;
   height: 28px;
   border-radius: 50%;
@@ -194,6 +196,10 @@
   color: #fff;
   font-weight: 900;
   border: 2px solid rgba(0, 0, 0, 0.35);
+}
+.color-option__label {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .silhouette {
   flex: none;
@@ -407,23 +413,61 @@
 }
 
 /* ---------- mapa: menú de mesas, aviso de cercanía y panel de actividad ---------- */
-.stations-menu {
+.map-bar {
   position: absolute;
   top: 8px;
   left: 8px;
+  right: 8px;
   z-index: 6;
-  max-width: min(92vw, 320px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  /* Los huecos de la barra no capturan toques: el mapa de debajo sigue siendo tocable. */
+  pointer-events: none;
+}
+.map-bar > * {
+  pointer-events: auto;
+}
+.map-bar > .map-bar__spacer {
+  pointer-events: none;
+  width: 1px;
+}
+.stations-menu,
+.notebook-menu {
   background: var(--paper);
   border: 2px solid var(--wood);
   border-radius: 10px;
   padding: 2px 10px;
 }
-.stations-menu summary {
+.stations-menu summary,
+.notebook-menu > summary {
   cursor: pointer;
   font-weight: 800;
   min-height: 44px;
   display: flex;
   align-items: center;
+  white-space: nowrap;
+}
+/* Panel de cada menú: debajo de la barra, nunca encima de sus botones, y de uno en uno. */
+.map-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  width: min(100%, 380px);
+  max-height: min(68vh, 460px);
+  overflow-y: auto;
+  background: var(--paper);
+  border: 2px solid var(--wood);
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: 0 4px 0 var(--wood-dark);
+  overscroll-behavior: contain;
+}
+.map-panel--left {
+  left: 0;
+}
+.map-panel--right {
+  right: 0;
 }
 .stations-menu__list {
   list-style: none;
@@ -760,16 +804,6 @@
 }
 
 /* ---------- piezas, cuaderno e inventor ---------- */
-.map-hud {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 6;
-  display: grid;
-  justify-items: end;
-  gap: 8px;
-  max-width: min(92vw, 380px);
-}
 .piece-tray {
   list-style: none;
   margin: 0;
@@ -793,26 +827,6 @@
 }
 .piece__label {
   font-size: 0.95rem;
-}
-.notebook-menu {
-  background: var(--paper);
-  border: 2px solid var(--wood);
-  border-radius: 10px;
-  padding: 2px 10px;
-  justify-self: end;
-}
-.notebook-menu summary {
-  cursor: pointer;
-  font-weight: 800;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-}
-.notebook-menu__body {
-  width: min(86vw, 360px);
-  max-height: 55vh;
-  overflow-y: auto;
-  padding-bottom: 10px;
 }
 .notebook {
   display: grid;
@@ -923,4 +937,67 @@
 }
 .backup-offer p {
   margin: 0;
+}
+
+/* ---------- sonido y señales ---------- */
+.sound-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.btn--small-bar {
+  min-height: 44px;
+  padding: 6px 12px;
+}
+.sound-control__volume input {
+  width: 110px;
+  min-height: 44px;
+  accent-color: var(--green-dark);
+}
+.sound-control__note {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.signal {
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 55;
+  max-width: min(92vw, 520px);
+  background: var(--paper);
+  color: var(--ink);
+  border: 3px solid var(--amber);
+  border-radius: 12px;
+  padding: 8px 14px;
+  font-weight: 800;
+  pointer-events: none;
+  box-shadow: 0 4px 0 var(--wood-dark);
+}
+.banner--with-sound {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.banner--with-sound .btn {
+  box-shadow: none;
+}
+
+@media (max-width: 420px) {
+  .activity__actions {
+    width: 100%;
+  }
+  .activity__actions .btn {
+    flex: 1 1 auto;
+    padding: 6px 10px;
+    font-size: 0.95rem;
+  }
+}
+/* Al llevar el botón de compartir a la vista con el teclado abierto queda un margen debajo, para que el borde no pegue con el teclado. */
+.record-form button[type="submit"] {
+  scroll-margin-bottom: 24px;
 }
