@@ -37,7 +37,11 @@ export function useAudioSignals({ project, state, device, player: injected }: { 
       }),
     [injected],
   );
-  useEffect(() => () => player.dispose(), [player]);
+  // `attach` en cada montaje: StrictMode (desarrollo) desmonta y monta de nuevo con el mismo reproductor, ya «soltado» por el primer desmontaje.
+  useEffect(() => {
+    player.attach();
+    return () => player.dispose();
+  }, [player]);
   const status = useSyncExternalStore(player.subscribe, player.getStatus);
   const [volume, setVolumeState] = useState(() => loadSoundPreference().volume);
   const [signal, setSignal] = useState<Pick<Signal, "id" | "text"> | null>(null);

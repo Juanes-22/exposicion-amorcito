@@ -136,6 +136,16 @@ describe("reproductor de efectos (SPECS 10.4)", () => {
     expect(seen).toEqual(["on", "off"]);
   });
 
+  it("`attach` vuelve a poner en uso un reproductor ya soltado (StrictMode desmonta y monta con la misma instancia)", async () => {
+    const f = fakeContext();
+    const p = createAudioPlayer({ holder: createHolder(), createContext: () => f.ctx, fetchBytes: bytes });
+    p.dispose();
+    expect(await p.enable({ a: "http://x/a.wav" })).toBe("off"); // soltado: no hace nada
+    p.attach();
+    expect(await p.enable({ a: "http://x/a.wav" })).toBe("on");
+    expect(p.play("a")).toBe(true);
+  });
+
   it("onPlay avisa de cada sonido lanzado de verdad (y solo de esos)", async () => {
     const f = fakeContext();
     const played: string[] = [];

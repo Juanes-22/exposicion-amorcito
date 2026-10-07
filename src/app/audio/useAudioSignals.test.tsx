@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EffectEvent, RoomSnapshot } from "../../../shared/contracts/events";
 import { createRoomState } from "../../../shared/domain/room";
@@ -7,7 +8,7 @@ import { bundle, Driver } from "../../../shared/testing/drive";
 import { SignalText, SoundControl } from "../../components/room/SoundControl";
 import type { LoadedProject } from "../../config/loadProject";
 import type { RoomClientState } from "../RoomController";
-import type { AudioPlayer, AudioStatus } from "./player";
+import { createAudioPlayer, createHolder, type AudioPlayer, type AudioStatus } from "./player";
 import { loadSoundPreference, saveSoundPreference } from "./preferences";
 import { useAudioSignals, type AudioSignals } from "./useAudioSignals";
 
@@ -25,6 +26,7 @@ function fakePlayer(result: AudioStatus = "on") {
     disable: vi.fn(() => set("off")),
     setVolume: vi.fn(),
     play: vi.fn(() => status === "on"),
+    attach: vi.fn(),
     dispose: vi.fn(),
   };
   return p as typeof p & AudioPlayer;
@@ -87,6 +89,21 @@ describe("useAudioSignals (SPECS 10.4)", () => {
     act(() => result.current.enable());
     await waitFor(() => expect(result.current.status).toBe("unavailable"));
     expect(loadSoundPreference().on).toBe(false);
+  });
+
+  it("bajo StrictMode (desarrollo: desmonta y monta con el mismo reproductor) «Activar sonido» sí activa el sonido", async () => {
+    const ctx = {
+      state: "suspended",
+      destination: {},
+      createGain: () => ({ gain: { value: 1 }, connect: vi.fn() }),
+      createBufferSource: () => ({ buffer: null, connect: vi.fn(), start: vi.fn() }),
+      decodeAudioData: vi.fn(async () => ({})),
+      resume: vi.fn(async () => void (ctx.state = "running")),
+    };
+    const player = createAudioPlayer({ holder: createHolder(), createContext: () => ctx as unknown as AudioContext, fetchBytes: async () => new ArrayBuffer(8) });
+    const { result } = renderHook(() => useAudioSignals({ project, state: state(1), device: "computer", player }), { wrapper: StrictMode });
+    act(() => result.current.enable());
+    await waitFor(() => expect(result.current.status).toBe("on"));
   });
 
   it("el texto de la señal aparece AUNQUE el sonido esté apagado, y el sonido solo suena si está activado", async () => {

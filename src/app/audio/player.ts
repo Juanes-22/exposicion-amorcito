@@ -38,6 +38,11 @@ export interface AudioPlayer {
   setVolume(volume: number): void;
   /** `true` solo si el sonido se lanzó de verdad. Nunca lanza. */
   play(event: string): boolean;
+  /**
+   * Pone el reproductor en uso. Debe llamarse en cada montaje: React StrictMode (solo en desarrollo) desmonta y vuelve a montar con la
+   * MISMA instancia, y sin esto un `dispose` previo la dejaba inservible (el botón «Activar sonido» no hacía nada).
+   */
+  attach(): void;
   dispose(): void;
 }
 
@@ -135,6 +140,10 @@ export function createAudioPlayer(deps: PlayerDeps = {}): AudioPlayer {
       } catch {
         return false;
       }
+    },
+
+    attach() {
+      disposed = false;
     },
 
     dispose() {
