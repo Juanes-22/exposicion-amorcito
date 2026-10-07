@@ -19,6 +19,7 @@
     "start": "tsx server/src/index.ts",
     "test:load": "tsx scripts/load/capacity.ts",
     "ensayo": "tsx scripts/rehearsal/room.ts",
+    "smoke": "tsx scripts/e2e/smoke.ts",
     "preview:demo": "vite build && vite preview --host 127.0.0.1 --port 4173 --strictPort --open /demo"
   },
   "dependencies": {

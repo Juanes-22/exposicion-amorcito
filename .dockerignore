@@ -1,0 +1,16 @@
+node_modules
+dist
+.git
+.github
+.claude
+docs
+tools
+server/data
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-*
+*.bak
+playtest-output
+.DS_Store

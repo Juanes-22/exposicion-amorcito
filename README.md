@@ -110,7 +110,37 @@ crea una sala nueva para probar un cambio.
 - Detección de cortes: `PING_INTERVAL_MS=4000` y `PING_TIMEOUT_MS=5000`. Un corte de red silencioso se detectó en ~8,6 s en las pruebas
   (objetivo ≤ 10 s; peor caso teórico 9 s). No se han medido falsos cortes en celulares reales (fase 7).
 - Las credenciales se guardan como hash. **No** se registran tokens ni textos del público.
-- El proveedor de hosting sigue **sin elegir** (PLAN P8-03).
+- El proveedor de hosting sigue **sin elegir** (PLAN P8-03); la imagen de Docker está lista y probada en local (ver «Despliegue con Docker»).
+
+## Despliegue con Docker
+
+El `Dockerfile` construye una sola imagen que sirve el frontend compilado, la API y Socket.IO desde el mismo origen. Compila
+`better-sqlite3` (módulo nativo) en la etapa de construcción y corre con un usuario sin privilegios.
+
+```bash
+docker build -t laboratorio .
+docker run -d --name laboratorio -p 8080:8080 -v laboratorio-datos:/data laboratorio
+npm run smoke -- http://127.0.0.1:8080     # prueba de humo en navegador: sala, dos personas y una mesa abierta
+```
+
+- **Volumen:** la base SQLite vive en `/data` (`DATABASE_PATH=/data/laboratorio.sqlite`). Sin un volumen persistente se pierde con cada
+  reinicio o redespliegue: las salas ya no se recuperan.
+- **Variables:** `TRUST_PROXY=1` viene activado en la imagen (detrás de un proxy, sin esto todas las personas parecen venir de la misma IP y
+  los límites de entrada se aplican juntos). `PORT` lo respeta el servidor, así que los proveedores que lo asignan funcionan sin tocar
+  nada. `PUBLIC_ORIGIN` es opcional: si falta, el QR y los enlaces se construyen con la dirección de la petición.
+- **Una sola instancia, siempre encendida.** Las salas viven en memoria; no la dejes escalar a varias réplicas ni a cero mientras haya
+  una sesión (SPECS 7.4).
+- **Salud:** `GET /api/health`.
+- **Comprobar un despliegue ya publicado:** `npm run smoke -- https://tu-dominio` (deja una sala de prueba que vence sola).
+
+Notas por proveedor (precios y límites consultados el 2026-10-07; revísalos antes de contratar):
+
+- *Render, servicio web gratis:* sirve para validar, pero se duerme tras 15 minutos sin tráfico (cuentan también los mensajes de WebSocket;
+  despertar tarda cerca de 1 minuto) y **no tiene disco persistente**: la base se borra al reiniciar, redesplegar o dormirse. Con la consola de
+  Vanessa abierta el latido de administradora mantiene tráfico.
+- *Fly.io:* siempre encendido y con volumen persistente (USD 2,19 al mes con 256 MB, 3,69 con 512 MB, más 0,15 por GB de volumen); no hay
+  región en Bogotá (se retira): elige la más cercana con `fly platform regions` y desactiva el apagado automático de la máquina.
+- Vercel y similares sin servidor **no sirven**: la aplicación necesita un proceso persistente con WebSockets y disco.
 
 ## Respaldo: la demostración local
 
