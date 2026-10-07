@@ -1,8 +1,9 @@
 # El laboratorio de las cosas cotidianas
 
-Aventura interactiva sobre la curiosidad: una sala compartida con turnos. Vanessa Estrada administra la sala desde la
-computadora proyectada; solo la persona con el turno usa el mapa y los experimentos en su celular; el resto sigue la
-proyección y participa en voz alta.
+Aventura interactiva sobre la curiosidad: una sala compartida con **rondas guiadas**. Todas las personas exploran a la vez desde su
+celular, cada una con su propio personaje en el laboratorio; Vanessa Estrada conduce desde la computadora proyectada: abre **una mesa
+por ronda**, mira cuántas personas ya están listas, reúne al grupo para conversar y decide cuándo seguir. Quien prefiere acompañar sin
+jugar entra como observadora.
 
 Práctica pedagógica 5 · Licenciatura en Educación Infantil · Universidad de Antioquia.
 
@@ -12,13 +13,28 @@ contradice a SPECS, manda SPECS.
 
 ## Estado
 
-Construido y verificado: fases 0 a 6 de PLAN (base, contratos/dominio/Tiled directo, sala con control exclusivo y persistencia,
-movimiento compartido, las tres mesas, el cuaderno, las piezas y el inventor, y la continuidad: detección de cortes, reinicio real
-del servicio, vencimiento y limpieza de salas, y la demostración local de respaldo) y, de la fase 7, **el audio opcional (P7-02), el
-ensayo de capacidad (P7-05) y la prueba en navegadores móviles reales de simulador/emulador (P7-06)**. El recorrido completo funciona
-de punta a punta en Chromium. **Todavía no existe**: el arte final, los sonidos finales (los actuales son provisionales), la
-optimización de carga y render (P7-04) ni la prueba en celulares físicos y en el equipo proyectado real (fases 7–8). El dibujo de las
-mesas y del inventor es procedimental y los textos de cada paso son de prototipo. Detalle y evidencias en PLAN §5.
+Construido y verificado: fases 0 a 6 de PLAN (base, contratos/dominio/Tiled directo, sala y persistencia, movimiento compartido, las
+tres mesas, el inventor y la continuidad: detección de cortes, reinicio real del servicio, vencimiento y limpieza de salas, y la
+demostración local de respaldo), de la fase 7 **el audio opcional, el ensayo de capacidad y la prueba en navegadores móviles de
+simulador/emulador**, y la **fase 9: participación simultánea y rondas guiadas por Vanessa**, que reemplazó el modelo de un solo
+controlador por turnos (formularios y modalidades de respuesta incluidos). El recorrido completo funciona de punta a punta en Chromium.
+**Todavía no existe**: el arte final, los sonidos finales (los actuales son provisionales), la optimización de carga y render (P7-04)
+ni la prueba en celulares físicos y en el equipo proyectado real (fases 7–8). El dibujo de las mesas y del inventor es procedimental y
+los textos son de prototipo. Detalle y evidencias en PLAN §5.
+
+## Cómo se juega
+
+1. Vanessa crea la sala; las personas entran con el QR (nombre, color y, si quieren, «solo acompañar»). Cada una aparece como una
+   silueta con su nombre encima en el laboratorio compartido.
+2. **Preparación:** la proyección muestra la pregunta de la mesa; las personas pueden caminar. **Abrir mesa:** todas pueden abrirla
+   (menú «Mesas → Ir a la mesa actual» o tocándola en el mapa) y exploran a su ritmo; los resultados se registran solos y cada persona
+   queda «Lista para conversar» al cumplir el criterio de la mesa. Vanessa ve «N de M listos».
+3. **Conversemos:** se cierran las pruebas (las que ruedan se cancelan), los celulares dicen «Miremos la proyección y compartamos lo que
+   descubrimos.», Vanessa proyecta los resultados de alguien, guarda las ideas del grupo y, cuando quiere, muestra la frase de Freire.
+   Con personas pendientes pide una confirmación excepcional que no les concede la mesa por terminada.
+4. **Abrir siguiente mesa** incorpora la pieza al inventor y devuelve a todas al mapa. Tras las tres mesas, Vanessa escribe o elige la
+   pregunta final, la confirma y se imprime en el inventor.
+5. **Probar la mesa yo misma** (Vanessa) enseña cómo funciona una mesa con una persona local que no cuenta ni se guarda.
 
 ## Requisitos
 
@@ -42,7 +58,7 @@ Cada persona usa su propio navegador/contexto: la credencial se guarda por sala 
 | `npm run typecheck` | Tipos de frontend, `shared/` y servidor. |
 | `npm test` | Dominio, contratos, servidor con Socket.IO real y SQLite temporal, cliente y componentes. |
 | `npm run test:e2e` | Compila y ejecuta los 7 e2e en Chromium (uno de ellos reinicia de verdad el proceso del servidor) con identidades independientes (ver «Pruebas»). Las capturas de evidencia solo se escriben en `docs/` con `E2E_EVIDENCE=1`. |
-| `npm run test:load` | Ensayo de capacidad: 50 participantes + administradora contra un servidor real en otro proceso (turnos repetidos, slider, rampa, entradas tardías, desconexiones). Tarda ~1 min. `LOAD_REPORT=1` escribe el informe en `docs/evidencia/fase7/`. Ver «Capacidad». |
+| `npm run test:load` | Ensayo de capacidad: 50 participantes + administradora contra un servidor real en otro proceso (entrada, las tres rondas con todas las personas explorando a la vez, 100 pruebas de rampa simultáneas, entradas tardías, desconexiones y regreso de la administradora). Tarda ~1 min. `LOAD_REPORT=1` escribe el informe en `docs/evidencia/fase7/`. Ver «Capacidad». |
 | `npm run ensayo` | Sala preparada para **ensayar en celulares reales** de la red local (puertos 3400/3412; ver «Ensayo en dispositivos»). |
 | `npm run build` | Valida, comprueba tipos y compila el frontend en `dist/`. |
 | `npm start` | Servicio de producción: sirve `dist/`, la API y Socket.IO desde el mismo origen. |
@@ -63,7 +79,7 @@ src/            React + Phaser (app, network, config, components, game)
 scripts/        validación, e2e
 ```
 
-El dominio (`shared/domain/`) es el único lugar con las reglas de las mesas, los turnos, las piezas y los modelos de
+El dominio (`shared/domain/`) es el único lugar con las reglas de las rondas, los resultados personales, las piezas y los modelos de
 sombra y rampa. Sin React, Phaser, sockets ni almacenamiento: son funciones puras que no mutan su entrada.
 
 ## Editar el mapa (Tiled directo)
@@ -84,8 +100,9 @@ crea una sala nueva para probar un cambio.
 - El proxy debe admitir conexiones persistentes y la negociación HTTP de Socket.IO. Usa HTTPS en producción.
 - Variables en [`.env.example`](.env.example). La base y las credenciales **no** van en Git (`.gitignore`).
 - `PUBLIC_ORIGIN` fija el origen de los enlaces de entrada; si hay prefijo, compila con `VITE_BASE=/prefijo/`.
-- Un reinicio recupera las salas pausadas y sin controlador; Vanessa recupera la administración con su credencial y elige
-  cómo continuar. El tiempo con el servidor apagado no cuenta.
+- Un reinicio recupera las salas **pausadas**, con la ronda, la lista de personas, el contador y las pruebas en marcha intactos;
+  Vanessa recupera la administración con su credencial y elige cuándo reanudar. El tiempo con el servidor apagado no cuenta.
+- La base cambió de esquema (versión 2): una base del modelo anterior se respalda como `….v1.bak` y sus salas se conservan sin cargarse.
 - **Vencimiento y limpieza** (`ADMIN_IDLE_TTL_MS`, `TERMINAL_RETENTION_MS`, `SWEEP_INTERVAL_MS`): una sala cuya administradora lleva
   2 horas sin dar señales (comandos o la señal periódica del navegador abierto; las participantes no cuentan) **vence**: se avisa y se
   cierran las conexiones. Una sala terminal (cerrada o vencida) se **elimina por completo** (sala, identidades y comandos) 24 horas
@@ -97,7 +114,7 @@ crea una sala nueva para probar un cambio.
 
 ## Respaldo: la demostración local
 
-`/demo` es la misma aventura (mismo dominio, reglas, escenas y formularios) **sin servidor ni red**. Vanessa explora y modera sola. Siempre
+`/demo` es la misma aventura (mismo dominio, reglas y escenas) **sin servidor ni red**. Vanessa conduce las rondas y explora sola, con su propio personaje. Siempre
 muestra el rótulo «Demostración». Su estado vive en el navegador, en un espacio propio (`…:demo:estado`), sin credenciales ni IDs de
 sala: **nunca se mezcla ni se sincroniza con una sala**. Si se recarga, vuelve en pausa con lo confirmado. «Reiniciar la demostración»
 solo borra el avance de la demostración.
@@ -128,13 +145,14 @@ Además: `server/src/detection.test.ts` usa relojes reales y un proxy que corta 
 cuánto tarda en detectarse; `scripts/e2e/restart.ts` arranca el servidor como proceso aparte, lo mata con `SIGKILL` a mitad de una prueba
 de rampa y lo vuelve a arrancar con el mismo archivo SQLite.
 
-Los e2e actuales cubren: ciclo de vida de Phaser bajo StrictMode (CT-04), administradora + dos participantes en contextos
-independientes (capturas en `docs/evidencia/fase2/`), movimiento compartido con toque real, cambio de turno en pleno
-movimiento, pausa, redimensionado y pestaña congelada (capturas en `docs/evidencia/fase3/`), las tres mesas completas desde dos
-teléfonos y la proyección, con borradores, teclado reducido, pausa con la pelota rodando y la caja personal, y después el cuaderno
-(panel de Vanessa y corrección desde el teléfono), el inventor, la pregunta final, la revisita en `finished` y el reinicio de sala
-(capturas en `docs/evidencia/fase4/`), el reinicio real del servicio y la demostración local con el servidor apagado y con la red
-cortada (capturas en `docs/evidencia/fase6/`), y edición directa del TMJ (CT-01).
+Los e2e actuales (`scripts/e2e/`) cubren: ciclo de vida de Phaser bajo StrictMode (`strictmode.ts`, CT-04); sala con administradora y
+dos participantes en contextos independientes, nombres repetidos, pausa y recargas (`room-flow.ts`); movimiento compartido con toque
+real, planes simultáneos de dos personas, pausa, redimensionado, pestaña congelada, mesas y latencia (`movement.ts`); **las tres rondas
+completas con proyección, dos celulares y una observadora** —contador, «Conversemos» con pendientes, pruebas que se cancelan, resultados
+y frase de Freire proyectados, notas del grupo, pregunta final, cuaderno y nombres sobre los avatares— (`rounds.ts`); el reinicio real
+del servicio con dos pruebas en marcha (`restart.ts`); la demostración local con el servidor apagado y con la red cortada
+(`demo.ts`); y la edición directa del TMJ (`tiled-direct.ts`, CT-01). Las capturas de evidencia de las fases 2 a 6 en `docs/evidencia/`
+son del modelo de turnos; las del modelo de rondas solo se escriben con `E2E_EVIDENCE=1` (`docs/evidencia/rondas/`).
 `?debug` en la URL de la sala superpone colisiones y radios; `?hooks` solo expone el juego para las pruebas. **No** sustituyen el ensayo en
 Safari/iPhone, Chrome/Android y el equipo proyectado (PLAN fase 7).
 
@@ -142,8 +160,9 @@ Safari/iPhone, Chrome/Android y el equipo proyectado (PLAN fase 7).
 
 El sonido es **opcional y empieza apagado**: un celular nunca suena hasta que la persona pulsa «Activar sonido» (el botón crea el
 `AudioContext` dentro de ese gesto). La preferencia se guarda solo en ese dispositivo. Los efectos salen de **transiciones del
-estado** (pieza conseguida, campanita de la caja, clic de Sombras, inventor encendido, aventura terminada) con un identificador por
-efecto, así que una reconexión, un snapshot repetido o el primer estado recibido no repiten sonidos. Cada evento tiene además su
+estado** (pieza conseguida, inventor encendido y aventura terminada, que oyen todas las pantallas; la campanita de la caja y el clic de
+una posición de Sombras, que oye solo quien los provoca) con un identificador por efecto, así que una reconexión, un estado repetido
+o el primero que se recibe no repiten sonidos. Cada evento tiene además su
 **señal textual** (`aria-live`), que se muestra siempre, con o sin sonido. Si el audio falla (navegador sin soporte, archivo que no
 carga), la actividad sigue sin bloquearse y el control lo dice con texto. Los eventos y sus recursos se configuran en
 `audio.events` de `laboratorio.json`; un evento desconocido es un error de validación.
@@ -153,16 +172,17 @@ Los cinco sonidos actuales son **provisionales** (`placeholder: true`): se gener
 
 ## Capacidad
 
-`npm run test:load` ensaya 50 participantes y la administradora con un solo controlador y mide entrada, cambio de turno, acción →
-proyección, entradas tardías, separación de frames y que quien espera **no recibe** snapshot de la aventura ni frames. El último
-informe está en [`docs/evidencia/fase7/capacidad.md`](docs/evidencia/fase7/capacidad.md). **Límite:** clientes y servidor comparten
+`npm run test:load` ensaya 50 participantes y la administradora **explorando a la vez** y mide la entrada, la apertura y las transiciones
+de ronda en todas las pantallas, el reflejo de cada acción en el propio teléfono, el contador de Vanessa, las entradas tardías, las pruebas
+de rampa simultáneas con sus muestras de reloj, las desconexiones y que **nadie recibe** el estado personal de otra persona ni el listado
+de presencia. El último informe está en [`docs/evidencia/fase7/capacidad.md`](docs/evidencia/fase7/capacidad.md). **Límite:** clientes y servidor comparten
 computadora y red de bucle local, y los clientes no dibujan: valida el protocolo y el servidor con 51 conexiones, **no** la red
 inalámbrica del lugar ni el rendimiento de los celulares (no se midieron FPS).
 
 ## Ensayo en dispositivos
 
 `npm run ensayo` levanta el servidor (puertos 3400/3412) con una sala lista y un panel de control para abrirla desde los
-celulares de la red local, repartir el turno y simular la proyección. La prueba de la fase 7 se hizo con **Safari de iPhone SE
+celulares de la red local, conducir las rondas (`/start`, `/open`, `/converse`, `/freire`, `/next`) y simular la proyección. La prueba de la fase 7 se hizo con **Safari de iPhone SE
 (iOS 18.2, simulador) y Chrome de Android 15 (emulador, 411 y 360 dp)**; las capturas están en `docs/evidencia/fase7/`. Los
 simuladores no son celulares físicos: queda pendiente repetirlo con aparatos reales, con el teclado de iOS en el campo de texto de las
 mesas y con el equipo y proyector de la exposición.
@@ -181,8 +201,10 @@ Vanessa, Jerry, los botones/paneles crema y las margaritas son recursos reales d
 - La capacidad se ensayó con 50 clientes simulados en bucle local; falta medirla con celulares reales en la red del lugar y medir FPS (fase 7/8).
 - El teclado de Android se probó en emulador (Chrome); el de **iOS** con el campo de texto de las mesas no se pudo probar (el simulador quedó
   en modo de teclado físico). Faltan celulares físicos.
-- Los textos de cada paso (`prompts`), las sugerencias y las descripciones de los objetos son de prototipo: requieren revisión de
-  Vanessa y una prueba de claridad con niñas y niños (fase 8).
+- Los textos de cada mesa (objetivo, preguntas de apertura y conversación, frases de Freire, descripciones de los objetos, frases de
+  apoyo) son los de la propuesta de mejora y requieren revisión de Vanessa y una prueba de claridad (fase 8).
+- La persistencia guarda un solo JSON por sala. Con 50 personas el servidor midió CPU máx 31 % y 131 MiB en bucle local; falta medirlo con
+  varias salas y con disco lento.
 - Falsos cortes de conexión con celulares reales (pantalla que se apaga, cambio de wifi a datos) y el comportamiento en segundo plano
   de Safari/iPhone: sin probar en aparatos físicos. Los cortes de las pruebas son de red simulada en la misma computadora.
 - La demostración exige que la página **ya esté abierta** o que se sirva el build local; no hay service worker ni modo sin conexión
