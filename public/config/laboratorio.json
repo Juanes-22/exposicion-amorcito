@@ -2,7 +2,7 @@
   "$schema": "../../shared/config/schemas/laboratorio.schema.json",
   "schemaVersion": 1,
   "contentSetId": "laboratorio-cosas-cotidianas",
-  "configRevision": "2026-10-06-rondas",
+  "configRevision": "2026-10-14-observatorio",
   "mode": "prototype",
   "project": {
     "title": "El laboratorio de las cosas cotidianas",
@@ -73,36 +73,24 @@
       }
     },
     "cajas": {
-      "type": "boxes",
-      "title": "La caja de las sorpresas",
+      "type": "telescope",
+      "title": "El observatorio",
       "pieceId": "corazon",
-      "goal": "Explora al menos un objeto de la caja compartida. La caja personal es de una compañera.",
-      "openingQuestion": "Hay dos cajas: una para explorar y otra personal. ¿Por dónde quieren empezar?",
-      "conversationQuestion": "¿Cómo podríamos seguir investigando respetando esa decisión?",
-      "freirePhrase": "Freire señala que nuestra curiosidad debe respetar la privacidad de otras personas.",
-      "sharedObjects": [
-        {
-          "id": "campanita",
-          "label": "Campanita",
-          "description": "Una campanita pequeña. Cuando se mueve, suena."
-        },
-        {
-          "id": "lupa",
-          "label": "Lupa",
-          "description": "Una lupa. Al mirar a través de ella, los detalles se ven más grandes."
-        },
-        {
-          "id": "piedra",
-          "label": "Piedra",
-          "description": "Una piedra de forma redondeada. De cerca se ven sus manchas y su textura."
-        }
-      ],
-      "requiredObjects": 1,
-      "refusalDialogueId": "caja-negativa",
-      "personalTouchDialogueId": "caja-personal-toque",
-      "personalBox": {
-        "label": "Caja personal",
-        "ownerLabel": "Pertenece a una compañera"
+      "goal": "Explora el cielo. Acerca la Luna y encuentra un grupo de estrellas.",
+      "openingQuestion": "Ahora tenemos otra herramienta para explorar. ¿Qué podemos descubrir con el telescopio y qué cambia cuando acercamos la vista?",
+      "conversationQuestion": "¿Qué cambió entre mirar el panorama y enfocarse en un detalle?",
+      "freirePhrase": "Freire nos recuerda que la curiosidad no nos da derecho a invadir la privacidad de alguien ni a exponerla ante los demás.",
+      "readyText": "Ya exploraste la Luna y las estrellas. Puedes seguir mirando mientras nos reunimos.",
+      "experiment": {
+        "zoomLevels": [
+          1,
+          3
+        ],
+        "fieldRadius": 380,
+        "centerTolerance": 0.3,
+        "dwellMs": 800,
+        "curtainDelayMs": 1000,
+        "curtainCloseMs": 1000
       }
     }
   },
@@ -139,10 +127,7 @@
     ],
     "closingQuestion": "¿Cómo ayudaríamos a un niño a pasar de «me da curiosidad» a «quiero comprenderlo»?"
   },
-  "dialogues": {
-    "caja-negativa": "Prefiero guardar esas cosas para mí",
-    "caja-personal-toque": "Su contenido es personal. Podemos seguir explorando los objetos compartidos."
-  },
+  "dialogues": {},
   "facilitatorNotes": {
     "bienvenida": [
       "Explicar que todas las personas exploran desde su celular y que el grupo avanza junto.",
@@ -159,9 +144,12 @@
       "Después: preguntar qué resultado apoya la explicación del grupo y cómo lo compararían con otra prueba. Ofrecer una explicación breve del montaje y escuchar otras razones."
     ],
     "cajas": [
-      "Antes: presentar las dos cajas y explicar a quién pertenece cada una.",
-      "Durante: cada persona elige por dónde empezar. Pedir permiso es posible, no obligatorio.",
-      "Después: proyectar la negativa para que todas las personas conozcan el límite. Preguntar cómo seguir investigando respetando esa decisión y por qué importa el permiso aunque haya mucha curiosidad."
+      "Antes: decir «Ahora tenemos otra herramienta para explorar. Miren qué pueden descubrir con el telescopio y qué cambia cuando acercan la vista». No anunciar nada sobre la casa.",
+      "Durante: cada persona mueve su propio telescopio; queda lista al observar de cerca la Luna y el grupo de estrellas. Encontrar la casa no es un requisito.",
+      "Después, para abrir: «¿Qué detalles encontraron al acercar la Luna?», «¿Qué les llamó la atención cuando movieron el telescopio?», «¿Qué cambió entre mirar el panorama y enfocarse en un detalle?».",
+      "Mostrar la casa con «Mostrar la casa» (demostración propia, una vez basta). Para pensar el límite: «¿Qué nos hizo entender el gesto de cerrar la cortina?», «¿Poder ver algo significa que tenemos derecho a observarlo de cerca?», «¿Necesitábamos conocer esa conversación para seguir descubriendo cosas?», «¿Qué otras cosas podíamos investigar con el telescopio?».",
+      "No pedir que identifiquen quién miró la casa ni que compartan experiencias familiares; no invitar a adivinar el motivo de la discusión: las siluetas no permiten saberlo.",
+      "Explicación sugerida: el telescopio nos dejó ver detalles y también dirigir la mirada hacia la vida de otras personas. La cortina nos hizo reconocer un límite. Freire nos recuerda que la curiosidad no nos da derecho a invadir la privacidad de alguien ni a exponerla ante los demás. Todavía teníamos la Luna, las estrellas y nuevas preguntas. Para continuar: «¿Qué otra pregunta podríamos investigar con esta herramienta?» (se puede guardar en el cuaderno del grupo)."
     ],
     "cierre": [
       "Preguntar qué les gustaría seguir investigando y acordar una pregunta del grupo.",
@@ -182,7 +170,6 @@
       "signalPieceEarned": "Pieza conseguida: {pieza}.",
       "signalPiecesPlaced": "El inventor se encendió: ya tiene sus tres piezas.",
       "signalFinished": "Terminamos la aventura.",
-      "signalBell": "Suena la campanita.",
       "signalClick": "Se anotó la posición de la linterna.",
       "welcomePhone": "Estás en la sala. Vanessa comenzará la aventura en un momento.",
       "roundPreparationPhone": "Escucha la pregunta de Vanessa. Pronto se abre la mesa.",
@@ -199,7 +186,6 @@
     "phoneInitiallyMuted": true,
     "events": {
       "shadows.click": "lab.audio.click",
-      "boxes.bell": "lab.audio.bell",
       "piece.earned": "lab.audio.piece",
       "inventor.activated": "lab.audio.inventor",
       "adventure.finished": "lab.audio.finished"

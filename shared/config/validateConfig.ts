@@ -2,6 +2,7 @@ import configSchema from "./schemas/laboratorio.schema.json";
 import type { AssetManifest, ConfigIssue, ValidationResult } from "../contracts/assets";
 import type { LaboratorioConfig } from "../contracts/config";
 import { AUDIO_EVENT_IDS, FACILITATOR_MOMENTS, INVENTOR_ID, REQUIRED_LABELS } from "../contracts/config";
+import { centeredTargets, CLOSE_ZOOM, PANORAMA, TELESCOPE_TARGETS } from "../domain/telescope";
 import { ajvIssues, compileSchema } from "./ajv";
 import type { SheetDefinition } from "./frameDefinitions";
 
@@ -60,10 +61,6 @@ export function validateConfig(data: unknown, ctx: ConfigContext): ConfigValidat
   for (const p of required) if (!defined.has(p)) issues.push(at("inventor.pieces", `falta el texto de la pieza «${p}»`));
 
   // ---- actividades ----
-  const dialogue = (path: string, id: string) => {
-    if (!Object.hasOwn(c.dialogues, id)) issues.push(at(path, `diálogo inexistente: «${id}»`));
-  };
-
   for (const [id, a] of Object.entries(c.activities)) {
     const where = `activities.${id}`;
     switch (a.type) {
@@ -86,15 +83,17 @@ export function validateConfig(data: unknown, ctx: ConfigContext): ConfigValidat
         }
         break;
       }
-      case "boxes": {
-        const objects = new Set<string>();
-        a.sharedObjects.forEach((o, i) => {
-          if (objects.has(o.id)) issues.push(at(`${where}.sharedObjects[${i}].id`, `el objeto «${o.id}» está repetido`));
-          objects.add(o.id);
-        });
-        if (a.requiredObjects > a.sharedObjects.length) issues.push(at(`${where}.requiredObjects`, "no puede pedir más objetos de los que hay en la caja compartida"));
-        dialogue(`${where}.refusalDialogueId`, a.refusalDialogueId);
-        dialogue(`${where}.personalTouchDialogueId`, a.personalTouchDialogueId);
+      case "telescope": {
+        const e = a.experiment;
+        const [wide, close] = e.zoomLevels;
+        if (!(wide < close)) issues.push(at(`${where}.experiment.zoomLevels`, "el aumento cercano debe ser mayor que el general"));
+        // Con el aumento general el visor tiene que caber en el panorama; si no, no hay dónde moverlo.
+        if (e.fieldRadius * 2 > PANORAMA.height * wide) issues.push(at(`${where}.experiment.fieldRadius`, `con el aumento general el visor no cabe en el panorama (máximo ${(PANORAMA.height * wide) / 2})`));
+        // Las dos observaciones tienen que poder lograrse: la Luna con el aumento cercano y las estrellas con el general.
+        else if (wide < close) {
+          if (!centeredTargets({ ...TELESCOPE_TARGETS.moon, zoom: CLOSE_ZOOM }, e).moon) issues.push(at(`${where}.experiment`, "con estos valores no se puede centrar la Luna con el aumento cercano"));
+          if (!centeredTargets({ ...TELESCOPE_TARGETS.stars, zoom: 0 }, e).stars) issues.push(at(`${where}.experiment`, "con estos valores no se puede centrar el grupo de estrellas con el aumento general"));
+        }
         break;
       }
     }

@@ -1191,3 +1191,58 @@
   width: 100%;
   resize: vertical;
 }
+
+/* ---------- El observatorio: controles del telescopio ---------- */
+.observations {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.observations li {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--paper);
+  border: 2px solid var(--cream-deep);
+}
+.observations li.is-done {
+  border-color: var(--green-dark);
+  background: #eef8ee;
+  font-weight: 700;
+}
+.telescope-controls {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+/* Cruceta: arriba y abajo en la columna del centro, izquierda y derecha a los lados. */
+.telescope-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 52px);
+  grid-template-rows: repeat(3, 52px);
+  gap: 4px;
+}
+.telescope-pad__up {
+  grid-area: 1 / 2;
+}
+.telescope-pad__left {
+  grid-area: 2 / 1;
+}
+.telescope-pad__right {
+  grid-area: 2 / 3;
+}
+.telescope-pad__down {
+  grid-area: 3 / 2;
+}
+.telescope-zoom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.telescope-zones {
+  flex-wrap: wrap;
+  gap: 6px;
+}

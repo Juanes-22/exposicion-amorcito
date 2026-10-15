@@ -11,24 +11,17 @@ export interface Signal {
   text: string;
 }
 
-/** La campanita de La caja de las sorpresas suena al mirarla (SPECS 3.4: «sonido opcional»). */
-export const BELL_OBJECT_ID = "campanita";
-
 const countOf = (p: ParticipantState, id: string): number => {
   const st = p.activities[id];
   return st?.type === "shadows" ? countedSamples(st).length : 0;
 };
-const selectedOf = (p: ParticipantState, id: string): string | undefined => {
-  const st = p.activities[id];
-  return st?.type === "boxes" ? st.selectedObjectId : undefined;
-};
 
 /**
- * Detecta las señales sonoras y escritas POR TRANSICIÓN (SPECS 10.4): no se repite una campana o una pieza después de un snapshot, una
+ * Detecta las señales sonoras y escritas POR TRANSICIÓN (SPECS 10.4): no se repite un clic o una pieza después de un snapshot, una
  * reconexión o un reinicio de la sala, y no se reproducen celebraciones históricas al abrir o reabrir el juego.
  * - Señales de grupo (pieza conseguida, inventor encendido, aventura terminada): vienen como efectos del servidor en el estado de grupo,
  *   se deduplican por `effectId` y los llevan todas las pantallas.
- * - Señales personales (la posición de la linterna que se registró, la campanita): se deducen comparando MI estado con el anterior de la
+ * - Señales personales (la posición de la linterna que se registró): se deducen comparando MI estado con el anterior de la
  *   misma generación y de versión igual o mayor. Solo las produce lo que hice yo.
  * - El primer estado tras conectar (o tras un cambio de generación) solo fija la línea de base: no emite nada.
  */
@@ -89,8 +82,6 @@ export function createSignalTracker(config: LaboratorioConfig) {
       const stamp = (event: AudioEventId) => `${snapshot.roomGeneration}:${snapshot.stateVersion}:${event}`;
       for (const id of Object.keys(snapshot.participant.activities)) {
         if (countOf(snapshot.participant, id) > countOf(before!.participant, id)) out.push({ id: stamp("shadows.click"), event: "shadows.click", text: labels.signalClick ?? "Se anotó la posición de la linterna." });
-        const now = selectedOf(snapshot.participant, id);
-        if (now === BELL_OBJECT_ID && now !== selectedOf(before!.participant, id)) out.push({ id: stamp("boxes.bell"), event: "boxes.bell", text: labels.signalBell ?? "Suena la campanita." });
       }
       return out.filter((s, i) => out.findIndex((x) => x.id === s.id) === i);
     },

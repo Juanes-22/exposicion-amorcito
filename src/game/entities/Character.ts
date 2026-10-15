@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { PARTICIPANT_COLORS } from "../../../shared/contracts/limits";
 import type { Point } from "../../../shared/contracts/geometry";
+import { crispText } from "../crispText";
 import { FONT } from "../scenes/activityShared";
 
 /**
@@ -54,7 +55,7 @@ export class CharacterView {
     const scale = options.own ? 1.15 : 0.9;
     this.image = scene.add.image(feet.x, feet.y, textureKey(options.colorId)).setOrigin(0.5, 1).setScale(scale).setAlpha(options.own ? 1 : 0.8).setDepth(feet.y);
     this.ring = options.own ? scene.add.ellipse(feet.x, feet.y - 2, 44, 16).setStrokeStyle(3, 0xffffff, 0.95).setFillStyle(0xffffff, 0.12).setDepth(feet.y - 1) : null;
-    this.label = scene.add.text(feet.x, feet.y - SILHOUETTE_H * scale - 6, options.displayName, { fontFamily: FONT, fontSize: "15px", fontStyle: "bold", color: "#fff8e6", backgroundColor: "#3b2a1acc", padding: { x: 5, y: 2 } }).setOrigin(0.5, 1);
+    this.label = crispText(scene.add.text(feet.x, feet.y - SILHOUETTE_H * scale - 6, options.displayName, { fontFamily: FONT, fontSize: "15px", fontStyle: "bold", color: "#fff8e6", backgroundColor: "#3b2a1acc", padding: { x: 5, y: 2 } })).setOrigin(0.5, 1);
   }
 
   /** `zoom`: el de la cámara. Con el laboratorio entero a la vista el rótulo crece un poco (hasta 1,3 veces) para que se siga leyendo; no más. */

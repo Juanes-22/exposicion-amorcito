@@ -17,7 +17,8 @@ Construido y verificado: fases 0 a 6 de PLAN (base, contratos/dominio/Tiled dire
 tres mesas, el inventor y la continuidad: detección de cortes, reinicio real del servicio, vencimiento y limpieza de salas, y la
 demostración local de respaldo), de la fase 7 **el audio opcional, el ensayo de capacidad y la prueba en navegadores móviles de
 simulador/emulador**, y la **fase 9: participación simultánea y rondas guiadas por Vanessa**, que reemplazó el modelo de un solo
-controlador por turnos (formularios y modalidades de respuesta incluidos). El recorrido completo funciona de punta a punta en Chromium.
+controlador por turnos (formularios y modalidades de respuesta incluidos), y la **fase 10: la tercera mesa es El observatorio**, que
+reemplazó La caja de las sorpresas. El recorrido completo funciona de punta a punta en Chromium.
 **Todavía no existe**: el arte final, los sonidos finales (los actuales son provisionales), la optimización de carga y render (P7-04)
 ni la prueba en celulares físicos y en el equipo proyectado real (fases 7–8). El dibujo de las mesas y del inventor es procedimental y
 los textos son de prototipo. Detalle y evidencias en PLAN §5.
@@ -34,7 +35,13 @@ los textos son de prototipo. Detalle y evidencias en PLAN §5.
    Con personas pendientes pide una confirmación excepcional que no les concede la mesa por terminada.
 4. **Abrir siguiente mesa** incorpora la pieza al inventor y devuelve a todas al mapa. Tras las tres mesas, Vanessa escribe o elige la
    pregunta final, la confirma y se imprime en el inventor.
-5. **Probar la mesa yo misma** (Vanessa) enseña cómo funciona una mesa con una persona local que no cuenta ni se guarda.
+
+Las mesas son **Sombras** (acercar y alejar una linterna), **Rampas** (soltar una pelota con distintas inclinaciones) y **El
+observatorio**: cada persona mira por su propio telescopio un panorama nocturno, acerca la Luna y encuentra un grupo de estrellas
+(arrastrando el visor o con flechas, aumentos y zonas). En el horizonte hay una casa con dos siluetas que discuten; si alguien la mira
+de cerca, una silueta cierra la cortina, una sola vez y solo para esa persona. No es un requisito ni da puntos, y la consola nunca dice
+quién la miró. En la conversación Vanessa no proyecta la exploración de nadie: pulsa **Mostrar la casa** para que todo el grupo vea la
+escena y conversar sobre el límite entre la curiosidad y la privacidad.
 
 ## Requisitos
 
@@ -190,8 +197,8 @@ Safari/iPhone, Chrome/Android y el equipo proyectado (PLAN fase 7).
 
 El sonido es **opcional y empieza apagado**: un celular nunca suena hasta que la persona pulsa «Activar sonido» (el botón crea el
 `AudioContext` dentro de ese gesto). La preferencia se guarda solo en ese dispositivo. Los efectos salen de **transiciones del
-estado** (pieza conseguida, inventor encendido y aventura terminada, que oyen todas las pantallas; la campanita de la caja y el clic de
-una posición de Sombras, que oye solo quien los provoca) con un identificador por efecto, así que una reconexión, un estado repetido
+estado** (pieza conseguida, inventor encendido y aventura terminada, que oyen todas las pantallas; el clic de una posición de Sombras,
+que oye solo quien lo provoca; El observatorio funciona sin sonido) con un identificador por efecto, así que una reconexión, un estado repetido
 o el primero que se recibe no repiten sonidos. Cada evento tiene además su
 **señal textual** (`aria-live`), que se muestra siempre, con o sin sonido. Si el audio falla (navegador sin soporte, archivo que no
 carga), la actividad sigue sin bloquearse y el control lo dice con texto. Los eventos y sus recursos se configuran en
@@ -226,13 +233,13 @@ Vanessa, Jerry, los botones/paneles crema y las margaritas son recursos reales d
 ## Pendientes conocidos
 
 - El **PRD v2.0** no está en el proyecto; SPECS lo cita como fuente de guiones y requisitos RF/CA. Los textos que SPECS no fija
-  (p. ej. `ideaSuggestions` de Sombras y las descripciones de los objetos de la caja) son de prototipo y requieren revisión de
+  (p. ej. `ideaSuggestions` de Sombras y los textos de El observatorio) son de prototipo y requieren revisión de
   Vanessa. Ver PLAN §5.
 - La capacidad se ensayó con 50 clientes simulados en bucle local; falta medirla con celulares reales en la red del lugar y medir FPS (fase 7/8).
 - El teclado de Android se probó en emulador (Chrome); el de **iOS** con el campo de texto de las mesas no se pudo probar (el simulador quedó
   en modo de teclado físico). Faltan celulares físicos.
-- Los textos de cada mesa (objetivo, preguntas de apertura y conversación, frases de Freire, descripciones de los objetos, frases de
-  apoyo) son los de la propuesta de mejora y requieren revisión de Vanessa y una prueba de claridad (fase 8).
+- Los textos de cada mesa (objetivo, preguntas de apertura y conversación, frases de Freire, guion de El observatorio, frases de
+  apoyo) son los de las propuestas de mejora y requieren revisión de Vanessa y una prueba de claridad (fase 8).
 - La persistencia guarda un solo JSON por sala. Con 50 personas el servidor midió CPU máx 31 % y 131 MiB en bucle local; falta medirlo con
   varias salas y con disco lento.
 - Falsos cortes de conexión con celulares reales (pantalla que se apaga, cambio de wifi a datos) y el comportamiento en segundo plano

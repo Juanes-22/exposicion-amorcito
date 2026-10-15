@@ -69,7 +69,7 @@ async function playJourney(page: Page, label: string) {
   await page.getByRole("button", { name: "Guardar la idea", exact: true }).click();
   await page.locator(".adventure__panels .records .record__text", { hasText: `${label}: la luz estira la sombra` }).waitFor();
 
-  await explore("Rampas", "Abrir siguiente mesa: La caja de las sorpresas", async () => {
+  await explore("Rampas", "Abrir siguiente mesa: El observatorio", async () => {
     const angle = page.getByRole("slider", { name: "Inclinación de la rampa" });
     await angle.waitFor();
     for (const idx of ["0", "6"]) {
@@ -79,10 +79,12 @@ async function playJourney(page: Page, label: string) {
     }
   });
 
-  await explore("La caja de las sorpresas", "Pasar al inventor", async () => {
-    await page.getByRole("button", { name: "Campanita" }).click();
-    await page.getByRole("button", { name: "Pedir permiso para abrir la caja personal" }).click();
-    await page.getByText("Prefiero guardar esas cosas para mí").waitFor();
+  await explore("El observatorio", "Pasar al inventor", async () => {
+    await page.getByRole("button", { name: "Luna", exact: true }).click();
+    await page.getByRole("button", { name: "Acercar la vista: aumento cercano" }).click();
+    await page.getByText("✓ Luna observada").waitFor();
+    await page.getByRole("button", { name: "Estrellas", exact: true }).click();
+    await page.getByText("✓ Estrellas observadas").waitFor();
   });
 
   // Cierre: la pregunta final se escribe, se revisa y se confirma antes de imprimirse en el inventor.

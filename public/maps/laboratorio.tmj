@@ -384,7 +384,7 @@
       {
        "name": "assetId",
        "type": "string",
-       "value": "lab.station.boxes"
+       "value": "lab.station.telescope"
       }
      ]
     },

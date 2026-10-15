@@ -48,9 +48,9 @@ describe("reproductor de efectos (SPECS 10.4)", () => {
     const b = createAudioPlayer({ holder, createContext: create, fetchBytes });
     await a.enable({ "piece.earned": "http://x/piece.wav" });
     a.dispose();
-    await b.enable({ "piece.earned": "http://x/piece.wav", "boxes.bell": "http://x/bell.wav" });
+    await b.enable({ "piece.earned": "http://x/piece.wav", "shadows.click": "http://x/click.wav" });
     expect(create).toHaveBeenCalledTimes(1);
-    expect(fetchBytes).toHaveBeenCalledTimes(2); // piece una vez y bell una vez
+    expect(fetchBytes).toHaveBeenCalledTimes(2); // piece una vez y click una vez
     expect(b.play("piece.earned")).toBe(true);
     expect(f.log.started).toHaveLength(1); // suena una sola vez
   });
@@ -152,7 +152,7 @@ describe("reproductor de efectos (SPECS 10.4)", () => {
     const p = createAudioPlayer({ holder: createHolder(), createContext: () => f.ctx, fetchBytes: bytes, onPlay: (e) => played.push(e) });
     await p.enable({ "piece.earned": "http://x/p.wav" });
     p.play("piece.earned");
-    p.play("boxes.bell");
+    p.play("shadows.click"); // sin sonido asignado
     expect(played).toEqual(["piece.earned"]);
   });
 });

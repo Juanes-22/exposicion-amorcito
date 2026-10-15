@@ -155,6 +155,8 @@ export function selectPresentation(room: RoomState, principalId: string, ctx: Ro
   const adv = room.adventure;
   const id = currentActivityId(adv, config);
   if (adv.round.stage !== "conversation" || id === null) return fail("INVALID_STEP", "Los resultados se proyectan durante la conversación.");
+  // En el observatorio nadie expone lo que miró: se proyecta la demostración de Vanessa, nunca la exploración de una persona.
+  if (config.activities[id]?.type === "telescope") return fail("INVALID_STEP", "En el observatorio no se proyectan los resultados de una persona: se proyecta la demostración de Vanessa.");
   const person = room.participants[principalId];
   if (!person) return fail("INVALID_PAYLOAD", "Esa persona no juega en esta sala.");
   const comparison = buildComparison(person, id, config, principalId, ctx.nameOf(principalId));

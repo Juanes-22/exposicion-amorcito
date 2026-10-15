@@ -3,7 +3,7 @@ import type { CommandErrorCode } from "./limits";
 
 /**
  * Acciones y sobres de comando. Hay dos tipos: las de cada participante sobre su propio personaje y sus propias pruebas, y las de
- * Vanessa sobre la sala y la ronda. No existen acciones libres como setState, grantPiece, setResult u openPersonalBox: el servidor
+ * Vanessa sobre la sala y la ronda. No existen acciones libres como setState, grantPiece, setResult u openCurtain: el servidor
  * deriva la finalización, las piezas y los resultados.
  */
 
@@ -16,8 +16,12 @@ export type ParticipantAction =
   | { type: "shadows.sample"; distanceCm: number }
   /** Suelta la pelota con la inclinación elegida; el resultado (ángulo y tiempo) se registra solo al terminar. */
   | { type: "ramps.trial.start"; angleDeg: number }
-  | { type: "boxes.object.inspect"; objectId: string }
-  | { type: "boxes.permission.ask" };
+  /**
+   * El visor del telescopio quedó quieto en este lugar y con este aumento. El servidor guarda la dirección (para reabrir la mesa ahí),
+   * registra la Luna o las estrellas si están centradas con el aumento requerido y, si la ventana está centrada de cerca, cierra la
+   * cortina. El cliente nunca declara una observación ni una mesa terminada.
+   */
+  | { type: "telescope.aim"; x: number; y: number; zoom: number };
 
 /** Pregunta final del inventor: la escribe Vanessa o elige una pregunta que el grupo ya guardó. */
 export type FinalQuestionInput = { kind: "written"; text: string } | { kind: "saved"; noteId: string };
@@ -77,8 +81,7 @@ export const PARTICIPANT_ACTION_TYPES = [
   "adventure.returnToMap",
   "shadows.sample",
   "ramps.trial.start",
-  "boxes.object.inspect",
-  "boxes.permission.ask",
+  "telescope.aim",
 ] as const satisfies readonly ParticipantAction["type"][];
 
 export const ADMIN_ACTION_TYPES = [

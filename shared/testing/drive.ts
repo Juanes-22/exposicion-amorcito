@@ -4,6 +4,7 @@ import type { EffectEvent } from "../contracts/events";
 import type { RoomState } from "../contracts/state";
 import { ensureParticipant, applyAdminAction, applyParticipantAction, createRoomState, tickRoom, type AdminContext } from "../domain/room";
 import { realBundle } from "./project";
+import { CLOSE_ZOOM, TELESCOPE_TARGETS } from "../domain/telescope";
 
 export const bundle = realBundle();
 
@@ -109,10 +110,12 @@ export class Driver {
     this.tick(6000);
   }
 
-  /** Un objeto compartido explorado: la persona queda lista en La caja. */
-  readyBoxes(id: string): void {
+  /** La Luna de cerca y el grupo de estrellas centrados: la persona queda lista en el observatorio. */
+  readyTelescope(id: string): void {
     this.openStation(id, "cajas");
-    this.must(this.act(id, { type: "boxes.object.inspect", objectId: "lupa" }), "objeto");
+    const { moon, stars } = TELESCOPE_TARGETS;
+    this.must(this.act(id, { type: "telescope.aim", x: moon.x, y: moon.y, zoom: CLOSE_ZOOM }), "Luna");
+    this.must(this.act(id, { type: "telescope.aim", x: stars.x, y: stars.y, zoom: 0 }), "estrellas");
   }
 
   /** Recorre las tres rondas completas hasta el cierre con las personas indicadas listas. */
@@ -126,7 +129,7 @@ export class Driver {
     this.must(this.admin({ type: "round.converse" }), "conversar 2");
     this.must(this.admin({ type: "round.next" }), "avanzar 2");
     this.must(this.admin({ type: "round.open" }), "abrir 3");
-    for (const id of ready) this.readyBoxes(id);
+    for (const id of ready) this.readyTelescope(id);
     this.must(this.admin({ type: "round.converse" }), "conversar 3");
     this.must(this.admin({ type: "round.next" }), "avanzar 3");
   }

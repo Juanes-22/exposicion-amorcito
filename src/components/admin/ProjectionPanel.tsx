@@ -49,7 +49,7 @@ export function ProjectionPanel({ config, adv }: Omit<Props, "counter">) {
       <section className="projection" aria-label="Conversación">
         <p className="projection__kicker">{cfg.title} · conversemos</p>
         <h2 className="projection__question">{cfg.conversationQuestion}</h2>
-        {presented ? <ComparisonView comparison={presented} config={config} /> : null}
+        {presented ? <ComparisonView comparison={presented} /> : null}
         {round.freireShown ? <blockquote className="projection__freire">{cfg.freirePhrase}</blockquote> : null}
       </section>
     );

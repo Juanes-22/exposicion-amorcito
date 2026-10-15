@@ -35,6 +35,8 @@ interface ActivityBase {
   conversationQuestion: string;
   /** Paráfrasis breve de la idea de Freire que se trabaja en la mesa. Es una adaptación para la exposición, no una cita. */
   freirePhrase: string;
+  /** Texto para quien ya quedó lista en esta mesa. Si falta, se usa `ui.labels.readyYou`. */
+  readyText?: string;
 }
 
 export interface ShadowsActivityConfig extends ActivityBase {
@@ -47,26 +49,32 @@ export interface RampsActivityConfig extends ActivityBase {
   experiment: RampsExperiment;
 }
 
-export interface BoxesSharedObject {
-  id: string;
-  label: string;
-  /** Texto equivalente de lo que se ve, se oye o se observa del objeto. */
-  description: string;
+/**
+ * El observatorio (SPECS 3.4): un telescopio que mira un panorama nocturno. La disposición del panorama (Luna, estrellas, tejados y la
+ * casa) vive en `shared/domain/telescope.ts`, porque el servidor la usa para validar las observaciones; aquí van los valores que se
+ * ajustan en un ensayo.
+ */
+export interface TelescopeExperiment {
+  /** Los dos aumentos, de menor a mayor: el general, con el que se entra, y el cercano. */
+  zoomLevels: [number, number];
+  /** Radio de lo que se ve por el visor, en unidades del panorama, con el aumento 1. */
+  fieldRadius: number;
+  /** Zona central del visor donde un objetivo cuenta como «centrado», en fracción del radio visible. */
+  centerTolerance: number;
+  /** Cuánto tiene que quedar centrado un objetivo del cielo para registrar la observación (ms). */
+  dwellMs: number;
+  /** Enfoque cercano de la ventana antes de que la persona de la casa reaccione (ms). */
+  curtainDelayMs: number;
+  /** Duración del gesto de girarse y cerrar la cortina (ms). */
+  curtainCloseMs: number;
 }
 
-export interface BoxesActivityConfig extends ActivityBase {
-  type: "boxes";
-  sharedObjects: BoxesSharedObject[];
-  /** Cuántos objetos compartidos hay que explorar para quedar lista. Pedir permiso es posible, nunca obligatorio. */
-  requiredObjects: number;
-  refusalDialogueId: string;
-  /** Texto cuando se toca de nuevo la caja personal después de la negativa. */
-  personalTouchDialogueId: string;
-  /** Solo etiquetas: la caja personal no tiene contenido, ni asset, ni dato oculto (SPECS 3.4). */
-  personalBox: { label: string; ownerLabel: string };
+export interface TelescopeActivityConfig extends ActivityBase {
+  type: "telescope";
+  experiment: TelescopeExperiment;
 }
 
-export type ActivityConfig = ShadowsActivityConfig | RampsActivityConfig | BoxesActivityConfig;
+export type ActivityConfig = ShadowsActivityConfig | RampsActivityConfig | TelescopeActivityConfig;
 export type ActivityType = ActivityConfig["type"];
 
 export interface PieceConfig {
@@ -150,7 +158,7 @@ export const FACILITATOR_MOMENTS = ["bienvenida", "cierre"] as const;
 export const SUPPORT_PHRASE_KEYS = ["inicio", "antesDeReunir", "alExplicar", "cierre"] as const;
 
 /** Eventos sonoros que la aplicación sabe emitir (SPECS 10.4). `laboratorio.json → audio.events` asigna un recurso a cada uno. */
-export const AUDIO_EVENT_IDS = ["shadows.click", "boxes.bell", "piece.earned", "inventor.activated", "adventure.finished"] as const;
+export const AUDIO_EVENT_IDS = ["shadows.click", "piece.earned", "inventor.activated", "adventure.finished"] as const;
 export type AudioEventId = (typeof AUDIO_EVENT_IDS)[number];
 
 export interface AudioConfig {

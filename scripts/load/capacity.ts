@@ -16,6 +16,7 @@ import os from "node:os";
 import { join, resolve } from "node:path";
 import { PARTICIPANT_COLOR_IDS } from "../../shared/contracts/limits";
 import type { RampsState, ShadowsState } from "../../shared/contracts/state";
+import { CLOSE_ZOOM, TELESCOPE_TARGETS } from "../../shared/domain/telescope";
 import { LoadClient, now, stats, type Stats } from "./client";
 
 const TOTAL = 50;
@@ -258,7 +259,7 @@ try {
   check(people.every((p) => trialsOf(p).every((t) => t.state === "finished" && t.endedActiveMs !== undefined && Math.abs(t.endedActiveMs - t.startActiveMs - t.durationMs) < 1e-6)), "las 100 pruebas terminaron en su instante exacto de simulación, cada una en el estado de su dueña");
   void tLast;
 
-  // Conversar y avanzar a La caja.
+  // Conversar y avanzar al observatorio.
   const tConv2 = now();
   await must(admin.admin({ type: "round.converse" }), "round.converse");
   transitions.push(await everywhere("conversación de Rampas", (c) => c.group?.adventure.round.stage === "conversation" && c.group.adventure.round.index === 1, tConv2));
@@ -266,10 +267,16 @@ try {
   await must(admin.admin({ type: "round.next" }), "round.next");
   transitions.push(await everywhere("siguiente mesa", (c) => c.group?.adventure.round.index === 2, tNext2));
 
-  // ---- 4. La caja, con desconexiones y reconexiones ----
-  console.log("\n4. La caja y las desconexiones");
+  // ---- 4. El observatorio, con desconexiones y reconexiones ----
+  console.log("\n4. El observatorio y las desconexiones");
+  const observe = async (c: LoadClient) => {
+    const { moon, stars } = TELESCOPE_TARGETS;
+    await must(c.act({ type: "station.open", stationId: "cajas", origin: "quickNav" }), "station.open");
+    await must(c.act({ type: "telescope.aim", x: moon.x, y: moon.y, zoom: CLOSE_ZOOM }), "telescope.aim (Luna)");
+    await must(c.act({ type: "telescope.aim", x: stars.x, y: stars.y, zoom: 0 }), "telescope.aim (estrellas)");
+  };
   await must(admin.admin({ type: "round.open" }), "round.open");
-  await everywhere("La caja abierta", (c) => c.group?.adventure.round.stage === "exploration" && c.group.adventure.round.index === 2, now());
+  await everywhere("El observatorio abierto", (c) => c.group?.adventure.round.stage === "exploration" && c.group.adventure.round.index === 2, now());
   const droppers = people.slice(5, 8);
   for (const p of droppers) p.client.close();
   await until(() => admin.presence?.connectedCount === TOTAL - droppers.length, "la presencia refleja las caídas", 3000);
@@ -277,10 +284,7 @@ try {
   await Promise.all(
     people
       .filter((p) => !droppers.includes(p))
-      .map(async (p) => {
-        await must(p.client.act({ type: "station.open", stationId: "cajas", origin: "quickNav" }), "station.open");
-        await must(p.client.act({ type: "boxes.object.inspect", objectId: "lupa" }), "boxes.object.inspect");
-      }),
+      .map((p) => observe(p.client)),
   );
   await until(() => admin.presence?.round.ready === TOTAL - droppers.length, "el contador cuenta a quienes siguen conectadas", 3000);
   const rejoinMs: number[] = [];
@@ -295,10 +299,7 @@ try {
     check(((c.me!.participant.activities.sombras as ShadowsState).samples.length === 2) && (c.me!.participant.activities.rampas as RampsState).trials.length === 2, `${p.name} vuelve y recupera su trabajo anterior (sus 2 posiciones y sus 2 pruebas)`);
   }
   console.log(`  ℹ ${droppers.length} personas se cayeron y volvieron: ${fmt(stats(rejoinMs))}`);
-  for (const p of droppers) {
-    await must(p.client.act({ type: "station.open", stationId: "cajas", origin: "quickNav" }), "station.open");
-    await must(p.client.act({ type: "boxes.object.inspect", objectId: "piedra" }), "boxes.object.inspect");
-  }
+  for (const p of droppers) await observe(p.client);
   await until(() => admin.presence?.round.ready === TOTAL, "todas listas tras volver", 3000);
   check(true, `al volver, las ${droppers.length} personas terminan la mesa y el contador llega a ${TOTAL} de ${TOTAL}`);
 
@@ -349,7 +350,7 @@ try {
     fecha: new Date().toISOString(),
     equipo: { sistema: `${os.type()} ${os.release()} (${os.platform()}/${os.arch()})`, procesador: os.cpus()[0]?.model ?? "?", nucleos: os.cpus().length, memoriaGiB: Math.round(os.totalmem() / 2 ** 30), node: process.version },
     red: "bucle local (127.0.0.1): clientes y servidor en la misma computadora; no hay red inalámbrica ni celulares reales",
-    escenario: { participantes: TOTAL, administradoras: 1, enLaRonda: INITIAL, entradasTardias: LATE, desconectadasYReconectadas: droppers.length, rondas: 3, enLaRondaDeRampasYCaja: TOTAL },
+    escenario: { participantes: TOTAL, administradoras: 1, enLaRonda: INITIAL, entradasTardias: LATE, desconectadasYReconectadas: droppers.length, rondas: 3, enLaRondaDeRampasYObservatorio: TOTAL },
     metas: GOALS,
     entradaMs: entryStats,
     transicionesDeRondaMs: transStats,
@@ -378,7 +379,7 @@ try {
         `Fecha: ${report.fecha}`,
         `Equipo: ${report.equipo.sistema}, ${report.equipo.procesador}, ${report.equipo.nucleos} núcleos, ${report.equipo.memoriaGiB} GiB, Node ${report.equipo.node}.`,
         `Red: ${report.red}.`,
-        `Escenario: ${TOTAL} participantes y 1 administradora; ${INITIAL} en la lista de la ronda y ${LATE} entradas tardías que acompañan; las tres mesas completas con todas las personas explorando a la vez (44 personas con 2 posiciones de linterna cada una; después las 50 con 2 pruebas de rampa simultáneas; La caja); ${droppers.length} desconexiones y reconexiones; caída y regreso de la administradora; pregunta final.`,
+        `Escenario: ${TOTAL} participantes y 1 administradora; ${INITIAL} en la lista de la ronda y ${LATE} entradas tardías que acompañan; las tres mesas completas con todas las personas explorando a la vez (44 personas con 2 posiciones de linterna cada una; después las 50 con 2 pruebas de rampa simultáneas; el observatorio, con la Luna y las estrellas); ${droppers.length} desconexiones y reconexiones; caída y regreso de la administradora; pregunta final.`,
         "",
         "| Medida (ms) | n | p50 | p95 | p99 | máx | Meta (SPECS 11.2) |",
         "| --- | --- | --- | --- | --- | --- | --- |",

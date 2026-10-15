@@ -3,7 +3,7 @@ import type { LoadedProject } from "../../config/loadProject";
 import type { RoomClientState, RoomPort } from "../../app/RoomController";
 import { useAudioSignals } from "../../app/audio/useAudioSignals";
 import { prepareBackup } from "../../app/backup";
-import { useLocalDemo } from "../../app/useLocalDemo";
+import { useHouseDemo } from "../../app/useHouseDemo";
 import { roomPath } from "../../app/useRoute";
 import { currentActivity } from "../../app/view";
 import { GroupNotes } from "../admin/GroupNotes";
@@ -38,7 +38,7 @@ interface Props {
 /**
  * Aventura de Vanessa (propuesta de rondas, sección 4): el laboratorio compartido que se proyecta, con los pasos de cada ronda, el
  * contador de personas listas, los resultados que decide proyectar y el cuaderno del grupo. Las personas exploran en su celular; aquí
- * solo se conduce. Con la sala real, «Probar la mesa yo misma» abre una demostración local que no cuenta ni se guarda.
+ * solo se conduce.
  */
 export function AdminConsole({ project, state, controller, standalone = false, barExtra }: Props) {
   const summary = state.summary!;
@@ -47,7 +47,6 @@ export function AdminConsole({ project, state, controller, standalone = false, b
   const { config } = project.bundle;
   const [confirm, setConfirm] = useState<Confirm>(null);
   const [busy, setBusy] = useState(false);
-  const local = useLocalDemo(project);
 
   // Con la sala funcionando se deja listo el respaldo: si el servidor deja de responder, la demostración ya está descargada.
   useEffect(() => {
@@ -67,12 +66,9 @@ export function AdminConsole({ project, state, controller, standalone = false, b
   const presentedAuthor = adv?.notebook.find((n) => n.id === adv.presentedNoteId)?.comparison?.authorId ?? null;
   const paused = summary.phase === "paused";
   const playing = summary.phase === "running";
-
-  // La demostración local es de UNA mesa y una ronda: al pasar a la conversación o cambiar de mesa se termina sola.
-  useEffect(() => {
-    if (local.active && (stage === "conversation" || stage === "closing" || local.player?.activityId !== current?.id)) local.stop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stage, current?.id, local.active]);
+  // En el observatorio no se proyecta la exploración de nadie: Vanessa muestra la casa con una demostración propia (SPECS 3.4).
+  const telescope = current?.config.type === "telescope" ? current : null;
+  const houseDemo = useHouseDemo(telescope && stage === "conversation" ? telescope.id : null, telescope?.config.type === "telescope" ? telescope.config : null);
 
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -83,7 +79,6 @@ export function AdminConsole({ project, state, controller, standalone = false, b
     }
   };
   const disabled = busy || !online;
-  const demoOffer = !standalone && playing && current && (stage === "preparation" || stage === "exploration") ? { active: local.active, start: () => adv && current && local.start(current.id, adv), stop: local.stop } : null;
 
   return (
     <div className="adventure">
@@ -92,7 +87,7 @@ export function AdminConsole({ project, state, controller, standalone = false, b
         {stage ? <span className="chip" role="status">{STAGE_LABEL[stage]}</span> : null}
         <span className="chip" role="status">{PHASE_LABEL[summary.phase] ?? summary.phase}</span>
         {adv && (playing || stage === "exploration") ? (
-          <RoundControls config={config} adv={adv} counter={state.presence?.round ?? null} pending={pending} disabled={disabled || !playing} admin={(a) => controller.admin(a)} demo={demoOffer} />
+          <RoundControls config={config} adv={adv} counter={state.presence?.round ?? null} pending={pending} disabled={disabled || !playing} admin={(a) => controller.admin(a)} houseDemo={telescope && stage === "conversation" ? houseDemo : null} />
         ) : null}
         {paused ? (
           <button type="button" className="btn btn--primary" disabled={disabled} onClick={() => void run(() => controller.admin({ type: "room.resume" }))}>Reanudar</button>
@@ -109,7 +104,6 @@ export function AdminConsole({ project, state, controller, standalone = false, b
         <SoundControl audio={audio} />
       </div>
       <SignalText audio={audio} />
-      {local.active ? <div className="demo-bar" role="status"><strong>Demostración local</strong><span>Lo que hagas aquí no cuenta ni se guarda en la sala.</span></div> : null}
 
       <Suspense fallback={<div className="adventure__map"><p role="status" style={{ padding: 16 }}>Cargando el mapa…</p></div>}>
         <AdventureHost
@@ -118,20 +112,16 @@ export function AdminConsole({ project, state, controller, standalone = false, b
           port={controller}
           camera="fit"
           label={standalone ? "Escena de la demostración" : "Escena de la aventura"}
-          demo={local.participant}
-          clock={local.active ? local.player : controller}
-          overlay={() => (adv && !local.active ? <ProjectionBadge config={config} adv={adv} counter={state.presence?.round ?? null} /> : null)}
+          demo={houseDemo.participant}
+          overlay={() => (adv ? <ProjectionBadge config={config} adv={adv} counter={state.presence?.round ?? null} /> : null)}
           panel={(bridge) => {
             if (!adv) return null;
             const interactive = stage === "exploration" && playing;
-            if (local.active && local.participant && local.player) {
-              return <PersonalPanel config={config} adv={adv} participant={local.participant} act={local.player.perform} setLocal={(p) => bridge.setLocal(p)} busy={false} interactive onClose={local.stop} />;
-            }
             if (state.me && state.me.participant.view.kind === "activity" && (stage === "exploration" || stage === "preparation")) {
-              return <PersonalPanel config={config} adv={adv} participant={state.me.participant} act={(a) => controller.act(a)} setLocal={(p) => bridge.setLocal(p)} busy={state.pending > 0} interactive={interactive} />;
+              return <PersonalPanel config={config} adv={adv} participant={state.me.participant} act={(a) => controller.act(a)} setLocal={(p) => bridge.setLocal(p)} onLocal={(cb) => bridge.on("app:local", cb)} busy={state.pending > 0} interactive={interactive} />;
             }
             // La pregunta, los resultados y la frase de Freire se proyectan junto al laboratorio, no encima de él.
-            return !local.active && stage !== "exploration" ? <ProjectionPanel config={config} adv={adv} /> : null;
+            return stage !== "exploration" ? <ProjectionPanel config={config} adv={adv} /> : null;
           }}
         />
       </Suspense>
@@ -146,7 +136,7 @@ export function AdminConsole({ project, state, controller, standalone = false, b
             {...(stage ? { stage } : {})}
             presentedAuthorId={presentedAuthor}
             onInclude={(principalId) => void run(() => controller.admin({ type: "round.include", principalId }))}
-            onSelect={(principalId) => void run(() => controller.admin({ type: "present.select", principalId }))}
+            {...(telescope ? {} : { onSelect: (principalId: string) => void run(() => controller.admin({ type: "present.select", principalId })) })}
           />
           {presentedAuthor ? (
             <button type="button" className="btn btn--ghost" disabled={disabled} onClick={() => void run(() => controller.admin({ type: "present.clear" }))}>Quitar los resultados de la proyección</button>

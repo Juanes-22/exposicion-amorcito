@@ -1,5 +1,6 @@
-import type { ActivityConfig, BoxesActivityConfig, LaboratorioConfig, RampsActivityConfig, ShadowsActivityConfig } from "../contracts/config";
-import type { ActivityState, BoxesState, Comparison, ComparisonData, ParticipantState, RampsState, RampTrial, ShadowSample, ShadowsState } from "../contracts/state";
+import type { ActivityConfig, LaboratorioConfig, RampsActivityConfig, ShadowsActivityConfig } from "../contracts/config";
+import type { ActivityState, Comparison, ComparisonData, ParticipantState, RampsState, RampTrial, ShadowSample, ShadowsState } from "../contracts/state";
+import { startView } from "./telescope";
 
 /**
  * Resultados personales y criterios de finalización (propuesta de rondas, secciones 5–7). «Listo para conversar» se deduce de los
@@ -26,8 +27,8 @@ export function emptyActivityState(cfg: ActivityConfig): ActivityState {
       return { type: "shadows", samples: [] };
     case "ramps":
       return { type: "ramps", trials: [] };
-    case "boxes":
-      return { type: "boxes", inspected: [], askedPermission: false };
+    case "telescope":
+      return { type: "telescope", ...startView(cfg.experiment), observed: [], curtain: "open" };
   }
 }
 
@@ -53,9 +54,10 @@ export function readiness(state: ActivityState | undefined, cfg: ActivityConfig)
       // Con las pruebas suficientes pero sin inclinaciones diferentes todavía falta una: no se muestra «2 de 2» sin estar lista.
       return { done: ready ? needed : Math.min(n, Math.max(0, needed - 1)), needed, ready };
     }
-    case "boxes": {
-      const needed = cfg.requiredObjects;
-      const n = state?.type === "boxes" ? state.inspected.length : 0;
+    case "telescope": {
+      // La Luna y el grupo de estrellas. Encontrar la casa o la cortina no cuenta: no es un requisito ni una respuesta.
+      const needed = 2;
+      const n = state?.type === "telescope" ? state.observed.length : 0;
       return { done: Math.min(n, needed), needed, ready: n >= needed };
     }
   }
@@ -69,8 +71,8 @@ export function personReadiness(p: ParticipantState | undefined, activityId: str
 
 /**
  * Los resultados de una persona que Vanessa proyecta: una copia (seleccionar no altera el original). En Sombras, sus dos primeras
- * posiciones que cuentan; en Rampas, su prueba más lenta y su prueba más rápida entre las terminadas (el mayor contraste); en La caja,
- * los objetos que exploró y si pidió permiso. `null` si todavía no tiene nada que mostrar.
+ * posiciones que cuentan; en Rampas, su prueba más lenta y su prueba más rápida entre las terminadas (el mayor contraste). En el
+ * observatorio no se proyectan los resultados de nadie (se proyecta la demostración de Vanessa): `null`, como si no tuviera nada que mostrar.
  */
 export function buildComparisonData(p: ParticipantState, activityId: string, config: LaboratorioConfig): ComparisonData | null {
   const cfg = config.activities[activityId];
@@ -89,10 +91,6 @@ export function buildComparisonData(p: ParticipantState, activityId: string, con
     const chosen = byAngle.length >= 2 && byAngle[0]!.angleDeg !== byAngle.at(-1)!.angleDeg ? [byAngle[0]!, byAngle.at(-1)!] : byAngle.slice(0, 1);
     return { type: "ramps", trials: chosen.map((t) => ({ angleDeg: t.angleDeg, durationMs: t.durationMs })) };
   }
-  if (cfg.type === "boxes" && st.type === "boxes") {
-    const b = st as BoxesState;
-    return b.inspected.length > 0 || b.askedPermission ? { type: "boxes", inspected: [...b.inspected], askedPermission: b.askedPermission } : null;
-  }
   return null;
 }
 
@@ -102,13 +100,10 @@ export function buildComparison(p: ParticipantState, activityId: string, config:
 }
 
 /** Texto equivalente de una comparación, para lectores de pantalla y para el cuaderno. */
-export function describeComparison(c: Comparison, config: LaboratorioConfig): string {
+export function describeComparison(c: Comparison): string {
   const d = c.data;
   if (d.type === "shadows") return d.samples.map((s) => `linterna a ${fmt(s.distanceCm)} cm → sombra de ${fmt(s.shadowCm, 1)} cm`).join("; ");
-  if (d.type === "ramps") return d.trials.map((t) => `${fmt(t.angleDeg)}° → ${fmt(t.durationMs / 1000, 1)} s`).join("; ");
-  const cfg = config.activities[c.activityId] as BoxesActivityConfig | undefined;
-  const names = d.inspected.map((id) => cfg?.sharedObjects.find((o) => o.id === id)?.label ?? id);
-  return `${names.length > 0 ? `exploró: ${names.join(", ")}` : "no exploró objetos"}${d.askedPermission ? "; pidió permiso para la caja personal" : ""}`;
+  return d.trials.map((t) => `${fmt(t.angleDeg)}° → ${fmt(t.durationMs / 1000, 1)} s`).join("; ");
 }
 
 const fmt = (n: number, decimals = 0) => n.toLocaleString("es", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });

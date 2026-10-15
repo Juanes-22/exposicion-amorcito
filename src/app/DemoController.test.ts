@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AdminAction, ParticipantAction } from "../../shared/contracts/actions";
 import type { ClockSample } from "../../shared/contracts/events";
-import type { BoxesState, ParticipantState, RampsState, ShadowsState } from "../../shared/contracts/state";
+import type { ParticipantState, RampsState, ShadowsState, TelescopeState } from "../../shared/contracts/state";
+import { CLOSE_ZOOM, TELESCOPE_TARGETS } from "../../shared/domain/telescope";
 import { planDurationMs } from "../../shared/domain/movement";
 import { playerAt } from "../../shared/domain/participant";
 import { bundle, Driver } from "../../shared/testing/drive";
@@ -46,7 +47,8 @@ const presencia = (c: DemoController) => c.getState().presence!;
 const ella = (c: DemoController) => presencia(c).participants[0]!;
 const rampas = (c: DemoController) => yo(c).activities.rampas as RampsState;
 const sombras = (c: DemoController) => yo(c).activities.sombras as ShadowsState;
-const cajas = (c: DemoController) => yo(c).activities.cajas as BoxesState;
+const telescopio = (c: DemoController) => yo(c).activities.cajas as TelescopeState;
+const { moon, stars, window: ventana } = TELESCOPE_TARGETS;
 
 /** Vanessa, que conduce la ronda y explora con su personaje. Es la única persona de la demostración. */
 const YO = "demo-vanessa";
@@ -60,13 +62,16 @@ const abrirMesa = (mesa: string): Paso[] => [{ admin: { type: "round.open" } }, 
 const EXPLORAR: Record<"sombras" | "rampas" | "cajas", Paso[]> = {
   sombras: [...abrirMesa("sombras"), { act: { type: "shadows.sample", distanceCm: 20 } }, { act: { type: "shadows.sample", distanceCm: 50 } }],
   rampas: [...abrirMesa("rampas"), { act: { type: "ramps.trial.start", angleDeg: 20 } }, { espera: 6000 }, { act: { type: "ramps.trial.start", angleDeg: 40 } }, { espera: 6000 }],
-  cajas: [...abrirMesa("cajas"), { act: { type: "boxes.object.inspect", objectId: "campanita" } }, { act: { type: "boxes.permission.ask" } }, { act: { type: "boxes.object.inspect", objectId: "lupa" } }],
+  cajas: [...abrirMesa("cajas"), { act: { type: "telescope.aim", x: moon.x, y: moon.y, zoom: CLOSE_ZOOM } }, { act: { type: "telescope.aim", x: stars.x, y: stars.y, zoom: 0 } }],
 };
-/** La conversación de la mesa: reunir, mostrar la frase, proyectar sus resultados, guardar la síntesis y abrir la siguiente. */
+/**
+ * La conversación de la mesa: reunir, mostrar la frase, proyectar sus resultados, guardar la síntesis y abrir la siguiente. En el
+ * observatorio no se proyecta la exploración de nadie (se muestra la casa con la demostración de la consola).
+ */
 const conversar = (mesa: string): Paso[] => [
   { admin: { type: "round.converse" } },
   { admin: { type: "round.showFreire" } },
-  { admin: { type: "present.select", principalId: YO } },
+  ...(mesa === "cajas" ? [] : [{ admin: { type: "present.select", principalId: YO } } as Paso]),
   { admin: { type: "note.save", activityId: mesa, kind: "synthesis", text: `Lo que vimos en ${mesa}` } },
   { admin: { type: "round.next" } },
 ];
@@ -120,7 +125,7 @@ describe("DemoController: mismo dominio, sin servidor (CA-32)", () => {
     expect(ronda(c)).toMatchObject({ index: 3, stage: "closing" });
     expect(grupo(c).notebook.find((n) => n.kind === "finalQuestion")?.text).toBe(PREGUNTA);
     // Lo proyectado en cada mesa quedó en el cuaderno común, con su nombre.
-    expect(grupo(c).notebook.filter((n) => n.kind === "comparison").map((n) => [n.activityId, n.comparison!.authorName])).toEqual([["sombras", "Vanessa"], ["rampas", "Vanessa"], ["cajas", "Vanessa"]]);
+    expect(grupo(c).notebook.filter((n) => n.kind === "comparison").map((n) => [n.activityId, n.comparison!.authorName])).toEqual([["sombras", "Vanessa"], ["rampas", "Vanessa"]]);
   });
 
   it("es una sala de una persona: Vanessa conduce (administradora) y juega (participante) a la vez, y su personaje es el que ve el laboratorio", async () => {
@@ -266,16 +271,20 @@ describe("participación simultánea: el contador de la ronda y el criterio de c
     expect(presencia(c).round).toEqual({ ready: 1, total: 1 });
   });
 
-  it("La caja: pedir permiso no cuenta como explorar; con un objeto compartido explorado queda «lista» y la caja personal sigue cerrada", async () => {
+  it("El observatorio: la casa no cuenta; con la Luna de cerca y el grupo de estrellas queda «lista», y no se proyecta su exploración", async () => {
     const c = make();
     await correr(c, [...EXPLORAR.sombras, ...conversar("sombras"), ...EXPLORAR.rampas, ...conversar("rampas"), ...abrirMesa("cajas")]);
-    await ok(c.act({ type: "boxes.permission.ask" }), "pedir permiso");
-    expect(cajas(c)).toMatchObject({ askedPermission: true, inspected: [] });
-    expect(ella(c)).toMatchObject({ ready: false, progress: { done: 0, needed: 1 } });
-    expect(await c.act({ type: "boxes.object.inspect", objectId: "no-existe" })).toMatchObject({ ok: false, code: "INVALID_PAYLOAD" });
-    await ok(c.act({ type: "boxes.object.inspect", objectId: "piedra" }), "explorar");
-    expect(ella(c)).toMatchObject({ ready: true, progress: { done: 1, needed: 1 } });
+    expect(telescopio(c)).toMatchObject({ zoom: 0, observed: [], curtain: "open" });
+    await ok(c.act({ type: "telescope.aim", x: ventana.x, y: ventana.y, zoom: CLOSE_ZOOM }), "mirar la ventana");
+    expect(telescopio(c)).toMatchObject({ observed: [], curtain: "closed" });
+    expect(ella(c)).toMatchObject({ ready: false, progress: { done: 0, needed: 2 } });
+    expect(await c.act({ type: "telescope.aim", x: 0, y: 0, zoom: 7 })).toMatchObject({ ok: false, code: "INVALID_PAYLOAD" });
+    await ok(c.act({ type: "telescope.aim", x: moon.x, y: moon.y, zoom: CLOSE_ZOOM }), "la Luna");
+    await ok(c.act({ type: "telescope.aim", x: stars.x, y: stars.y, zoom: 0 }), "las estrellas");
+    expect(ella(c)).toMatchObject({ ready: true, progress: { done: 2, needed: 2 } });
     expect(presencia(c).round).toEqual({ ready: 1, total: 1 });
+    await ok(c.admin({ type: "round.converse" }), "reunir");
+    expect(await c.admin({ type: "present.select", principalId: YO })).toMatchObject({ ok: false, code: "INVALID_STEP" });
   });
 
   it("durante la conversación sigue contada en la ronda; al abrir la siguiente mesa el contador vuelve a empezar", async () => {
