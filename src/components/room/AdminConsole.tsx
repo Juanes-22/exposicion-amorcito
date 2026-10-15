@@ -1,15 +1,16 @@
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import type { LoadedProject } from "../../config/loadProject";
 import type { RoomClientState, RoomPort } from "../../app/RoomController";
 import { useAudioSignals } from "../../app/audio/useAudioSignals";
-import { tableShowcase } from "../../app/tableShowcase";
 import { useHouseDemo } from "../../app/useHouseDemo";
+import { useVanessaTable } from "../../app/useVanessaTable";
 import { roomPath } from "../../app/useRoute";
 import { currentActivity } from "../../app/view";
 import { GroupNotes } from "../admin/GroupNotes";
 import { FinalQuestion } from "../admin/FinalQuestion";
 import { hasProjection, ProjectionBadge, ProjectionPanel } from "../admin/ProjectionPanel";
 import { RoundControls } from "../admin/RoundControls";
+import { VanessaTablePanel } from "../admin/VanessaTablePanel";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { QrCode } from "../ui/QrCode";
 import { ParticipantList } from "./ParticipantList";
@@ -58,8 +59,9 @@ export function AdminConsole({ project, state, controller }: Props) {
   const telescope = current?.config.type === "telescope" ? current : null;
   // La casa aparece con la frase de Freire: la idea se muestra directamente, y se queda en la proyección hasta pasar al inventor.
   const houseDemo = useHouseDemo(telescope && stage === "conversation" && adv?.round.freireShown ? telescope.id : null, telescope?.config.type === "telescope" ? telescope.config : null);
-  // Mientras se explora, la proyección muestra la escena de la mesa abierta (en su estado inicial) en lugar del mapa.
-  const showcase = useMemo(() => (adv ? tableShowcase(adv, config) : null), [stage, current?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Mientras se explora, la proyección muestra la mesa abierta en lugar del mapa, y Vanessa también puede hacer la actividad (su propio
+  // experimento, local a la consola: no cuenta para el grupo).
+  const vanessa = useVanessaTable(adv, project.bundle);
 
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -98,11 +100,18 @@ export function AdminConsole({ project, state, controller }: Props) {
           port={controller}
           camera="fit"
           label="Escena de la aventura"
-          demo={houseDemo.participant ?? showcase}
+          demo={houseDemo.participant ?? vanessa.participant}
           overlay={() => (adv ? <ProjectionBadge config={config} adv={adv} counter={state.presence?.round ?? null} /> : null)}
           // Las preguntas y la frase de Freire se proyectan junto al laboratorio, no encima de él; cuando no hay nada que proyectar, el
           // laboratorio ocupa toda la pantalla.
-          panel={() => (adv && hasProjection(config, adv) ? <ProjectionPanel config={config} adv={adv} /> : null)}
+          panel={(bridge) =>
+            adv && hasProjection(config, adv) ? (
+              <>
+                <ProjectionPanel config={config} adv={adv} />
+                {stage === "exploration" ? <VanessaTablePanel config={config} adv={adv} table={vanessa} bridge={bridge} interactive={playing} /> : null}
+              </>
+            ) : null
+          }
         />
       </Suspense>
 

@@ -19,6 +19,8 @@ export interface PersonalPanelProps {
   busy: boolean;
   /** La mesa está abierta para explorar: fuera de la exploración los controles se detienen. */
   interactive: boolean;
+  /** Vanessa explora en la proyección: los mismos controles, sin «Volver al mapa» ni avance propio (su prueba no cuenta para el grupo). */
+  facilitator?: boolean;
 }
 
 /**
@@ -26,7 +28,7 @@ export interface PersonalPanelProps {
  * controles del experimento y si ya quedó lista para conversar; «Volver al mapa» aparece recién al completarla. Los resultados se
  * registran solos; no hay formularios, modalidades de respuesta ni botones de «anotar» o «entendido».
  */
-export function PersonalPanel({ config, adv, participant, act, setLocal, onLocal, busy, interactive }: PersonalPanelProps) {
+export function PersonalPanel({ config, adv, participant, act, setLocal, onLocal, busy, interactive, facilitator = false }: PersonalPanelProps) {
   if (participant.view.kind !== "activity") return null;
   const id = participant.view.activityId;
   const cfg = config.activities[id];
@@ -35,6 +37,19 @@ export function PersonalPanel({ config, adv, participant, act, setLocal, onLocal
   const r = readiness(st, cfg);
   const labels = config.ui.labels;
   const actions: PersonalActions = { act, setLocal, ...(onLocal ? { onLocal } : {}), busy, interactive, config };
+
+  if (facilitator) {
+    return (
+      <section className="personal" aria-labelledby="personal-title">
+        <h2 id="personal-title" className="visually-hidden">Prueba la mesa: {cfg.title}</h2>
+        <p className="hint">Prueba la mesa en la proyección: es tu propio experimento y no cuenta para el grupo.</p>
+        {!interactive ? <p className="hint" role="status">La mesa está en pausa.</p> : null}
+        {cfg.type === "shadows" && st.type === "shadows" ? <ShadowsControls cfg={cfg} st={st} a={actions} /> : null}
+        {cfg.type === "ramps" && st.type === "ramps" ? <RampsControls cfg={cfg} st={st} a={actions} /> : null}
+        {cfg.type === "telescope" && st.type === "telescope" ? <TelescopeControls cfg={cfg} st={st} a={actions} /> : null}
+      </section>
+    );
+  }
 
   return (
     <section className="personal" aria-labelledby="personal-title">

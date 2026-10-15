@@ -184,6 +184,10 @@ try {
   check(await scenesAre(admin.page, "ShadowsScene"), "al abrir la mesa, la proyección muestra la actividad de Sombras en lugar del mapa");
   const visibles = await admin.page.evaluate(() => (window as any).__PHASER_GAME__.scene.getScene("ShadowsScene").children.list.filter((o: any) => o.type === "Text" && o.visible).map((o: any) => o.text).join(" | "));
   check(!/Posiciones comparadas/.test(visibles), "la proyección muestra la mesa sin el avance de nadie");
+  // Vanessa también prueba la mesa en la proyección: su linterna es suya y no cuenta para el grupo.
+  await admin.page.getByRole("slider", { name: "Distancia de la linterna al objeto" }).fill("30");
+  await waitVisual(admin.page, `v.viewer.demo.activities.sombras.samples.length === 1`);
+  check((await admin.page.getByText("0 de 2 listos").count()) > 0 && (await visual(ana.page)).viewer.me.activities.sombras.samples.length === 0, "Vanessa mueve la linterna en la proyección: se registra en su experimento, no en el de nadie ni en el contador");
   await sleep(500);
   await shot(ana.page, "04-sombras-telefono.png");
   await shot(admin.page, "05-sombras-proyeccion-exploracion.png");
@@ -280,6 +284,10 @@ try {
   await admin.page.waitForFunction(() => (window as any).__PHASER_GAME__.scene.isActive("RampsScene"));
   await sleep(600); // la escena termina de dibujarse antes de la captura
   await shot(admin.page, "09-rampas-pregunta-proyeccion.png");
+  await admin.page.getByRole("button", { name: "Soltar la pelota" }).click();
+  await waitVisual(admin.page, `v.viewer.demo.activities.rampas.trials.length === 1`);
+  await waitVisual(admin.page, `v.viewer.demo.activities.rampas.trials[0].state === "finished"`, 12000);
+  check(true, "Vanessa suelta la pelota en la proyección y la prueba termina sola, con el reloj de la sala");
   const goTable = async (p: Page, title: string) => {
     await p.getByText("Mesas", { exact: true }).click();
     await p.getByRole("button", { name: "Ir a la mesa actual" }).click();
@@ -371,6 +379,16 @@ try {
   await ana.page.getByText("✓ Listo para conversar").waitFor();
   check((await scope(ana.page)).curtain === "open" && !(await ana.page.locator(".personal").innerText()).includes("Galaxia"), "Ana observa la Luna de cerca y el grupo de estrellas con las flechas y queda lista sin acercarse a la casa; la galaxia no se anuncia");
   check((await visual(admin.page)).viewer.demo.activities.cajas.observed.length === 0, "el telescopio de la proyección no sigue la exploración de nadie");
+  await steer(admin.page, "LL+");
+  // Sin lag: la proyección dibuja la vista local al instante, sin esperar a que la vista quieta se registre.
+  const dibujada = await admin.page.evaluate(() => {
+    const g = (window as any).__PHASER_GAME__;
+    return { escena: g.scene.getScene("TelescopeScene").currentView(), local: g.registry.get("deps").bridge.local.telescope };
+  });
+  check(JSON.stringify(dibujada.escena) === JSON.stringify(dibujada.local), "el telescopio de Vanessa sigue sus flechas al instante (la escena dibuja la vista local)");
+  await waitVisual(admin.page, `v.viewer.demo.activities.cajas.observed.includes("moon")`);
+  check((await visual(ana.page)).viewer.me.activities.cajas.observed.length === 2, "Vanessa también mira la Luna con su propio telescopio, sin cambiar el de Ana");
+  await shot(admin.page, "13b-observatorio-vanessa-proyeccion.png");
 
   // Ana arrastra el visor (lo dibuja su escena al instante).
   const box = (await ana.page.locator("canvas").first().boundingBox())!;

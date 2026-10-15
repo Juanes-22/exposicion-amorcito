@@ -125,19 +125,25 @@ export class TelescopeScene extends Phaser.Scene {
     bridge.emit("game:ready", { sceneKey: TELESCOPE_SCENE, token: this.token });
   }
 
-  /** Solo quien explora mueve su telescopio, y solo mientras la mesa está abierta. La proyección (demostración) solo mira. */
+  /** Solo quien explora mueve su telescopio, y solo mientras la mesa está abierta (en la proyección, Vanessa; la casa solo se mira). */
   private canDrag(): boolean {
     const { bridge } = getDeps(this);
-    return bridge.visual?.viewer.kind === "participant" && bridge.permissions?.canExplore === true;
+    const v = bridge.visual;
+    if (v?.viewer.kind === "participant") return bridge.permissions?.canExplore === true;
+    // Vanessa también explora en la proyección mientras la mesa está abierta (su telescopio es local a la consola).
+    return v?.viewer.kind === "projection" && v.viewer.demo !== null && v.phase === "running" && v.group.round.stage === "exploration";
   }
 
-  /** La vista local mientras se mueve; si no hay (la proyección, o al entrar), la que guardó el servidor. */
+  /**
+   * La vista local mientras se mueve (quien explora, y Vanessa en la proyección mientras la mesa está abierta): se dibuja al instante,
+   * sin esperar a que la vista quieta se registre. Si no hay (la demostración de la casa, o al entrar), la del estado.
+   */
   private currentView(): TelescopeView | null {
     const a = readActivity(this, "telescope");
     if (!a) return null;
     const { bridge } = getDeps(this);
     const exp = (a.config as TelescopeActivityConfig).experiment;
-    const local = bridge.visual?.viewer.kind === "participant" ? bridge.local.telescope : null;
+    const local = bridge.visual?.viewer.kind === "participant" || this.canDrag() ? bridge.local.telescope : null;
     return clampView(local ?? { x: a.state.x, y: a.state.y, zoom: a.state.zoom }, exp);
   }
 
