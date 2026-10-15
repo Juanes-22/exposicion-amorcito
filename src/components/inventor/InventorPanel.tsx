@@ -60,8 +60,8 @@ export function InventorPanel({ config, participant, act, busy, interactive, fin
     <section className="personal" aria-labelledby="inventor-title">
       <header className="personal__head">
         <h2 id="inventor-title">El inventor de preguntas</h2>
-        {/* Como en las mesas: se vuelve al mapa recién después de registrar la pregunta. */}
-        {mine && !finished ? (
+        {/* Como en las mesas: se vuelve al mapa recién después de registrar la pregunta (al terminar, siempre). */}
+        {mine || finished ? (
           <button type="button" className="btn btn--ghost" disabled={busy} onClick={() => void act({ type: "adventure.returnToMap" })}>
             Volver al mapa
           </button>

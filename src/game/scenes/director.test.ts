@@ -105,19 +105,26 @@ describe("qué escena corresponde a lo que ve cada audiencia", () => {
     expect(desiredScene(visual(d, persona(d, "ana")), ACTIVITIES)).toBe("LaboratoryScene");
   });
 
-  it("con la aventura terminada todas siguen viendo al inventor, también en pausa", () => {
+  it("con la aventura terminada la proyección y quien observa ven al inventor (también en pausa); quien juega, el inventor si está dentro y el laboratorio si volvió al mapa", () => {
     const d = sala("cierre");
     d.must(d.admin({ type: "inventor.open" }), "abrir el inventor");
+    d.must(d.act("ana", { type: "station.open", stationId: "inventor", origin: "quickNav" }), "Ana entra");
     d.must(d.admin({ type: "final.confirm", value: { kind: "written", text: "¿Por qué cambia la sombra?" } }), "pregunta final");
     expect(d.room.phase).toBe("finished");
-    expect(desiredScene(visual(d, persona(d, "beto")), ACTIVITIES)).toBe("InventorScene");
+    expect(desiredScene(visual(d, persona(d, "ana")), ACTIVITIES)).toBe("InventorScene");
+    expect(desiredScene(visual(d, persona(d, "beto")), ACTIVITIES)).toBe("LaboratoryScene");
     expect(desiredScene(visual(d, proyeccion(d)), ACTIVITIES)).toBe("InventorScene");
     expect(desiredScene(visual(d, { kind: "observer" }), ACTIVITIES)).toBe("InventorScene");
+    d.must(d.act("ana", { type: "adventure.returnToMap" }), "Ana vuelve al mapa al terminar");
+    expect(desiredScene(visual(d, persona(d, "ana")), ACTIVITIES)).toBe("LaboratoryScene");
+    d.must(d.act("ana", { type: "station.open", stationId: "inventor", origin: "quickNav" }), "y puede volver a mirar la máquina");
+    expect(desiredScene(visual(d, persona(d, "ana")), ACTIVITIES)).toBe("InventorScene");
     d.must(d.admin({ type: "room.pause" }), "pausar");
-    expect(desiredScene(visual(d, persona(d, "beto")), ACTIVITIES)).toBe("InventorScene");
+    expect(desiredScene(visual(d, proyeccion(d)), ACTIVITIES)).toBe("InventorScene");
+    expect(desiredScene(visual(d, persona(d, "ana")), ACTIVITIES)).toBe("InventorScene");
     // La fase terminada basta por sí sola, sin depender de la etapa de la ronda.
     const g = d.room.adventure;
-    const sinCierre: VisualState = { phase: "finished", group: { ...g, round: { ...g.round, stage: "conversation" } }, viewer: persona(d, "beto", mesa("sombras")), characters: [] };
+    const sinCierre: VisualState = { phase: "finished", group: { ...g, round: { ...g.round, stage: "conversation" } }, viewer: proyeccion(d), characters: [] };
     expect(desiredScene(sinCierre, ACTIVITIES)).toBe("InventorScene");
   });
 

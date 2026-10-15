@@ -175,7 +175,7 @@ export const REQUIRED_LABELS = [
 ] as const;
 
 /** Eventos sonoros que la aplicación sabe emitir (SPECS 10.4). `laboratorio.json → audio.events` asigna un recurso a cada uno. */
-export const AUDIO_EVENT_IDS = ["shadows.click", "piece.earned", "inventor.activated", "adventure.finished"] as const;
+export const AUDIO_EVENT_IDS = ["shadows.click", "piece.earned", "inventor.activated", "adventure.finished", "flower.tap"] as const;
 export type AudioEventId = (typeof AUDIO_EVENT_IDS)[number];
 
 export interface AudioConfig {

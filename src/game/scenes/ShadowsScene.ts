@@ -100,6 +100,8 @@ export class ShadowsScene extends Phaser.Scene {
     }
     const vis = visibleStage(this);
     setLabel(this.labels.samples, `Posiciones comparadas: ${Math.min(counted, e.requiredSamples)} de ${e.requiredSamples}`, vis.left + 20, vis.top + 18, 0, 0);
+    // En la proyección la mesa se muestra sin avance de nadie: el contador del grupo está en la esquina de la consola.
+    this.labels.samples.setVisible(getDeps(this).bridge.visual?.viewer.kind === "participant");
     this.jerry.draw();
   }
 }

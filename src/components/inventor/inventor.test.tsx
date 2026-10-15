@@ -114,15 +114,19 @@ describe("InventorPanel: la pregunta de cada persona en su celular", () => {
     expect(enviar).toHaveBeenCalledWith({ type: "adventure.returnToMap" });
   });
 
-  it("con la aventura terminada solo muestra la suya, sin cambiarla ni volver al mapa", () => {
+  it("con la aventura terminada muestra la suya sin poder cambiarla, y siempre se puede volver al mapa", () => {
     const d = dentro();
     d.must(d.act("ana", { type: "inventor.question", question: { kind: "written", text: "¿Qué come Jerry?" } }), "registrar");
-    render(montar(d, { finished: true, interactive: false }).ui());
+    const { act: enviar, ui } = montar(d, { finished: true, interactive: false });
+    render(ui());
     expect(screen.getByText("¿Qué come Jerry?")).toBeTruthy();
-    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Volver al mapa"]);
+    fireEvent.click(screen.getByRole("button", { name: "Volver al mapa" }));
+    expect(enviar).toHaveBeenCalledWith({ type: "adventure.returnToMap" });
     cleanup();
     render(montar(dentro(), { finished: true, interactive: false }).ui()); // sin pregunta registrada
     expect(screen.getByText("La pregunta del grupo ya quedó impresa en el inventor.")).toBeTruthy();
     expect(screen.queryByRole("radio")).toBeNull();
+    expect(screen.getByRole("button", { name: "Volver al mapa" })).toBeTruthy();
   });
 });

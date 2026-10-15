@@ -22,6 +22,8 @@ export interface AudioSignals {
    * (en cualquier parte) empieza. El control lo muestra como activado.
    */
   armed: boolean;
+  /** Un sonido local de esta pantalla, sin texto ni estado (tocar la flor de la esquina). Suena solo si el sonido está activado. */
+  play(event: string): void;
 }
 
 /**
@@ -48,7 +50,7 @@ export function useAudioSignals({ project, state, device, player: injected }: { 
     return () => player.dispose();
   }, [player]);
   const status = useSyncExternalStore(player.subscribe, player.getStatus);
-  const [volume, setVolumeState] = useState(() => loadSoundPreference().volume);
+  const [volume, setVolumeState] = useState(() => loadSoundPreference(device).volume);
   const [signal, setSignal] = useState<Pick<Signal, "id" | "text"> | null>(null);
   const tracker = useMemo(() => createSignalTracker(config), [config]);
 
@@ -60,7 +62,7 @@ export function useAudioSignals({ project, state, device, player: injected }: { 
   }, [config, project]);
 
   // Activado por preferencia (por defecto, sí) y a la espera del primer gesto de la página.
-  const [armed, setArmed] = useState(() => loadSoundPreference().on && !(device === "phone" && config.audio.phoneInitiallyMuted));
+  const [armed, setArmed] = useState(() => loadSoundPreference(device).on && !(device === "phone" && config.audio.phoneInitiallyMuted));
 
   const enable = useCallback(() => {
     setArmed(false);
@@ -77,7 +79,7 @@ export function useAudioSignals({ project, state, device, player: injected }: { 
       setVolumeState(v);
       player.setVolume(v);
       // Cambiar el volumen no enciende ni silencia: se conserva lo que la persona eligió.
-      saveSoundPreference({ ...loadSoundPreference(), volume: v });
+      saveSoundPreference({ ...loadSoundPreference(device), volume: v });
     },
     [player],
   );
@@ -131,5 +133,7 @@ export function useAudioSignals({ project, state, device, player: injected }: { 
     return () => clearTimeout(t);
   }, [signal]);
 
-  return { status, volume, enable, disable, setVolume, signal, armed: armed && status === "off" };
+  const play = useCallback((event: string) => void player.play(event), [player]);
+
+  return { status, volume, enable, disable, setVolume, signal, armed: armed && status === "off", play };
 }

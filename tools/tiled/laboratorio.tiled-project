@@ -112,6 +112,11 @@
                     "name": "depthMode",
                     "type": "string",
                     "value": ""
+                },
+                {
+                    "name": "tapEvent",
+                    "type": "string",
+                    "value": ""
                 }
             ],
             "name": "Decoration",

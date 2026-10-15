@@ -33,6 +33,8 @@ export interface BuiltMap {
   tilemap: Phaser.Tilemaps.Tilemap;
   stations: Map<string, StationView>;
   inventor: { image: Phaser.GameObjects.Image; offKey: string; onKey: string; label: Phaser.GameObjects.Text } | null;
+  /** Decoraciones que reaccionan al tocarlas (`tapEvent` en Tiled). */
+  taps: Array<{ image: Phaser.GameObjects.Image; event: string }>;
   debug: Phaser.GameObjects.Graphics | null;
   destroy(): void;
 }
@@ -71,11 +73,13 @@ export function buildMap(scene: Phaser.Scene, { map, config, assets, debug }: Bu
     created.push(img);
   }
 
+  const taps: BuiltMap["taps"] = [];
   for (const d of map.decorations) {
     if (!d.visible) continue;
     const img = scene.add.image(d.point.x, d.point.y, d.assetId).setOrigin(d.origin.x, d.origin.y).setScale(d.scale);
     img.setDepth(d.depthMode === "back" ? BACKGROUND_DEPTH / 2 : d.depthMode === "front" ? FOREGROUND_DEPTH / 2 : d.point.y);
     created.push(img);
+    if (d.tapEvent) taps.push({ image: img, event: d.tapEvent });
   }
 
   const label = (x: number, y: number, text: string) =>
@@ -127,6 +131,7 @@ export function buildMap(scene: Phaser.Scene, { map, config, assets, debug }: Bu
     tilemap,
     stations,
     inventor,
+    taps,
     debug: overlay,
     destroy() {
       for (const o of created) o.destroy();

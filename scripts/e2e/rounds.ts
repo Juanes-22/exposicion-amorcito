@@ -151,6 +151,18 @@ try {
   await admin.page.locator(".projection__question").getByText(project.config.project.entryQuestion).waitFor();
   check((await admin.page.locator(".projection__question").count()) === 1 && (await admin.page.getByText(project.config.activities.sombras!.openingQuestion).count()) === 0, "al comenzar solo se proyecta la pregunta de entrada: la de Sombras aparece al abrir la mesa");
   await shot(ana.page, "02-telefono-preparacion.png");
+  // La flor de la esquina: tocarla suena y Vanessa y Jerry se preguntan qué pasó; no mueve al personaje. Ana camina cerca para verla.
+  await walkTo(ana.page, { x: 150, y: 400 });
+  const flor = await ana.page.evaluate(() => {
+    const b = (window as any).__PHASER_GAME__.scene.getScene("LaboratoryScene").built.taps[0].image.getBounds();
+    return { x: b.centerX, y: b.centerY };
+  });
+  const planAntes = (await visual(ana.page)).viewer.me.character.plan?.planId ?? "";
+  await tapWorld(ana.page, flor.x, flor.y);
+  await ana.page.waitForFunction(() => (window as any).__PHASER_GAME__.scene.getScene("LaboratoryScene").children.list.filter((o: any) => o.type === "Text" && o.text === "?" && o.visible).length === 2);
+  await ana.page.waitForFunction(() => ((window as any).__AUDIO_LOG__ ?? []).includes("flower.tap"), undefined, { timeout: 3000 });
+  check(((await visual(ana.page)).viewer.me.character.plan?.planId ?? "") === planAntes, "tocar la flor suena, aparece un «?» sobre Vanessa y otro sobre Jerry, y el personaje no se mueve");
+  await shot(ana.page, "02b-flor-telefono.png");
   await shot(admin.page, "03-proyeccion-pregunta-entrada.png");
 
   // ================= SOMBRAS =================
@@ -168,7 +180,10 @@ try {
   await beto.page.getByRole("button", { name: "Ir a la mesa actual" }).click();
   await beto.page.getByRole("heading", { name: "Sombras" }).waitFor();
   check((await scenesAre(ana.page, "ShadowsScene")) && (await scenesAre(beto.page, "ShadowsScene")), "las dos personas exploran a la vez, cada una en su escena de Sombras");
-  check((await scenesAre(admin.page, "LaboratoryScene")), "la proyección sigue mostrando el laboratorio compartido");
+  await waitVisual(admin.page, `v.viewer.demo?.view.activityId === "sombras"`);
+  check(await scenesAre(admin.page, "ShadowsScene"), "al abrir la mesa, la proyección muestra la actividad de Sombras en lugar del mapa");
+  const visibles = await admin.page.evaluate(() => (window as any).__PHASER_GAME__.scene.getScene("ShadowsScene").children.list.filter((o: any) => o.type === "Text" && o.visible).map((o: any) => o.text).join(" | "));
+  check(!/Posiciones comparadas/.test(visibles), "la proyección muestra la mesa sin el avance de nadie");
   await sleep(500);
   await shot(ana.page, "04-sombras-telefono.png");
   await shot(admin.page, "05-sombras-proyeccion-exploracion.png");
@@ -207,6 +222,8 @@ try {
   check(colores.texto === "rgb(59, 42, 26)" && colores.texto !== colores.fondo, `el texto del diálogo se lee: oscuro sobre el fondo claro (${colores.texto} sobre ${colores.fondo})`);
   await shot(admin.page, "07-conversemos-con-pendientes.png");
   await pendientes.getByRole("button", { name: "Conversar ahora" }).click();
+  await waitVisual(admin.page, `v.viewer.demo === null`);
+  check(await scenesAre(admin.page, "LaboratoryScene"), "al conversar, la proyección vuelve al laboratorio");
   await ana.page.getByText("Ya exploramos: deja los controles y mira la proyección para escuchar lo que descubrieron los demás.").first().waitFor();
   await beto.page.getByText("Ya exploramos: deja los controles y mira la proyección para escuchar lo que descubrieron los demás.").first().waitFor();
   check((await ana.page.getByRole("slider").count()) === 0 && (await beto.page.getByRole("slider").count()) === 0, "en la conversación los teléfonos dejan de ofrecer controles y mandan a mirar la proyección");
@@ -260,6 +277,8 @@ try {
   await admin.page.getByRole("button", { name: "Abrir mesa: Rampas" }).click();
   await admin.page.locator(".projection__question").getByText("¿Qué creen que cambiará si inclinamos más esta rampa? ¿Cómo podríamos comprobarlo?").waitFor();
   check(true, "al abrir Rampas su pregunta aparece a la derecha");
+  await admin.page.waitForFunction(() => (window as any).__PHASER_GAME__.scene.isActive("RampsScene"));
+  await sleep(600); // la escena termina de dibujarse antes de la captura
   await shot(admin.page, "09-rampas-pregunta-proyeccion.png");
   const goTable = async (p: Page, title: string) => {
     await p.getByText("Mesas", { exact: true }).click();
@@ -268,7 +287,7 @@ try {
   };
   await goTable(ana.page, "Rampas");
   await goTable(beto.page, "Rampas");
-  check((await scenesAre(ana.page, "RampsScene")) && (await scenesAre(beto.page, "RampsScene")) && (await scenesAre(admin.page, "LaboratoryScene")), "Rampas abre su escena para cada persona, sin escena de docente, y la proyección sigue en el laboratorio");
+  check((await scenesAre(ana.page, "RampsScene")) && (await scenesAre(beto.page, "RampsScene")) && (await scenesAre(admin.page, "RampsScene")), "Rampas abre su escena para cada persona, sin escena de docente, y la proyección muestra la rampa");
   const angle = (p: Page) => p.getByRole("slider", { name: "Inclinación de la rampa" });
   const release = (p: Page) => p.getByRole("button", { name: "Soltar la pelota" });
   // Las dos sueltan a la vez: cada pelota es suya y no se estorban.
@@ -323,7 +342,7 @@ try {
   check(true, "al abrir El observatorio su pregunta aparece a la derecha");
   await goTable(ana.page, "El observatorio");
   await goTable(beto.page, "El observatorio");
-  check((await scenesAre(ana.page, "TelescopeScene")) && (await scenesAre(beto.page, "TelescopeScene")) && (await scenesAre(admin.page, "LaboratoryScene")), "cada persona mira por su propio telescopio y la proyección sigue en el laboratorio");
+  check((await scenesAre(ana.page, "TelescopeScene")) && (await scenesAre(beto.page, "TelescopeScene")) && (await scenesAre(admin.page, "TelescopeScene")), "cada persona mira por su propio telescopio y la proyección muestra el telescopio");
   const scope = async (page: Page) => (await visual(page)).viewer.me.activities.cajas;
   check((await scope(ana.page)).zoom === 0 && (await scope(ana.page)).observed.length === 0 && (await scope(ana.page)).curtain === "open", "el visor empieza en el cielo, con el aumento general");
   // La descripción de lo que se ve existe solo para lectores de pantalla: a la vista, cada persona hace sus propias observaciones.
@@ -351,6 +370,7 @@ try {
   await ana.page.getByText("✓ Estrellas observadas").waitFor();
   await ana.page.getByText("✓ Listo para conversar").waitFor();
   check((await scope(ana.page)).curtain === "open" && !(await ana.page.locator(".personal").innerText()).includes("Galaxia"), "Ana observa la Luna de cerca y el grupo de estrellas con las flechas y queda lista sin acercarse a la casa; la galaxia no se anuncia");
+  check((await visual(admin.page)).viewer.demo.activities.cajas.observed.length === 0, "el telescopio de la proyección no sigue la exploración de nadie");
 
   // Ana arrastra el visor (lo dibuja su escena al instante).
   const box = (await ana.page.locator("canvas").first().boundingBox())!;
@@ -483,6 +503,18 @@ try {
   await admin.page.getByRole("button", { name: "Guardar la corrección" }).click();
   await waitVisual(admin.page, `v.group.notebook.find((n) => n.id === v.group.inventor.finalQuestionId).revision === 2`);
   check(true, "un error de escritura de la pregunta final se corrige y la versión anterior se conserva");
+
+  // Al terminar, quien quedó dentro del inventor puede volver al mapa (y volver a mirar la máquina desde «Mesas»).
+  await ana.page.getByRole("button", { name: "Volver al mapa" }).click();
+  await waitVisual(ana.page, `v.viewer.me.view.kind === "map"`);
+  await ana.page.waitForFunction(() => (window as any).__PHASER_GAME__.scene.isActive("LaboratoryScene"));
+  check(await scenesAre(admin.page, "InventorScene"), "al terminar, Ana vuelve al mapa mientras la proyección sigue mostrando la pregunta impresa");
+  await ana.page.getByText("Mesas", { exact: true }).click();
+  await ana.page.getByRole("button", { name: "Ir al inventor" }).click();
+  await waitVisual(ana.page, `v.viewer.me.view.kind === "inventor"`);
+  await ana.page.getByRole("button", { name: "Volver al mapa" }).click();
+  await waitVisual(ana.page, `v.viewer.me.view.kind === "map"`);
+  check(true, "y puede volver a entrar a mirar la máquina y salir otra vez");
 
   // El cuaderno del celular: mis resultados + lo que anotó el grupo (solo lectura).
   await ana.page.getByText("Cuaderno", { exact: true }).click();

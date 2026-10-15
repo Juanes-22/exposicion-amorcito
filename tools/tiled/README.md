@@ -29,7 +29,7 @@ interfaz gráfica**: queda como comprobación manual (PLAN P1-03).
 | `Spawn` | Punto | `spawnId` | |
 | `Station` | Punto | `activityId`, `assetId` | `interactionRadius` (72), `scale` (1) |
 | `Inventor` | Punto | `assetId` | `interactionRadius`, `scale` (solo uno) |
-| `Decoration` | Punto | `assetId` | `originX`, `originY`, `scale`, `depthMode` (`feet`/`back`/`front`) |
+| `Decoration` | Punto | `assetId` | `originX`, `originY`, `scale`, `depthMode` (`feet`/`back`/`front`), `tapEvent` (evento de audio: tocarla en el celular lo suena y Vanessa y Jerry se preguntan qué pasó; la flor de arriba a la izquierda usa `flower.tap`) |
 | `Collision` | Rectángulo | — (en la capa `collisions` la clase puede quedar vacía) | |
 | `SoundEmitter` | Punto | `soundId`, `assetId` | `volume`, `radius`, `mode` |
 | `EditorOnly` | Punto/rectángulo | — | notas; se ignora en el juego |

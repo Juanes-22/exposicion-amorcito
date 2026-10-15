@@ -37,6 +37,7 @@ export function ParticipantView({ project, state, controller }: { project: Loade
           port={controller}
           camera="follow"
           label="Mapa del laboratorio"
+          onDecorationTap={audio.play}
           panel={(bridge) =>
             state.me && state.group && state.me.participant.view.kind === "activity" && (stage === "exploration" || stage === "preparation") ? (
               <PersonalPanel config={config} adv={state.group.adventure} participant={state.me.participant} act={(a) => controller.act(a)} setLocal={(p) => bridge.setLocal(p)} onLocal={(cb) => bridge.on("app:local", cb)} busy={state.pending > 0} interactive={exploring} />

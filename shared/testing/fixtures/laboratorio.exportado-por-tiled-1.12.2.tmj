@@ -73,6 +73,11 @@
                          "name":"scale",
                          "type":"float",
                          "value":0.06883
+                        }, 
+                        {
+                         "name":"tapEvent",
+                         "type":"string",
+                         "value":"flower.tap"
                         }],
                  "rotation":0,
                  "type":"Decoration",

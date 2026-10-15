@@ -1,5 +1,5 @@
 import type { AdminAction, ParticipantAction } from "../contracts/actions";
-import type { LaboratorioConfig } from "../contracts/config";
+import { INVENTOR_ID, type LaboratorioConfig } from "../contracts/config";
 import type { CommandErrorCode } from "../contracts/limits";
 import type { ResumePhase, RoomPhase, RoomState } from "../contracts/state";
 import type { MapIndex } from "../config/tmj";
@@ -185,7 +185,8 @@ export function applyParticipantAction(room: RoomState, principalId: string, act
   if (isTerminal(room.phase)) return fail("ROOM_UNAVAILABLE", "La aventura ya terminó.");
   if (room.phase === "paused") return fail("ROOM_PAUSED", "La aventura está en pausa.");
   if (room.phase === "welcome") return fail("INVALID_STEP", "La aventura aún no comienza.");
-  if (room.phase === "finished") return fail("INVALID_STEP", "La aventura terminó.");
+  // Terminada, solo se puede salir del inventor al mapa (para revisar el cuaderno) y volver a entrar a mirar la pregunta impresa.
+  if (room.phase === "finished" && action.type !== "adventure.returnToMap" && !(action.type === "station.open" && action.stationId === INVENTOR_ID)) return fail("INVALID_STEP", "La aventura terminó.");
   const result = reduceParticipant(room, principalId, action, ctx);
   if (!result.ok) return fail(result.code as CommandErrorCode, result.message);
   if (!result.changed) return { ok: true, room, changed: false, effects: [] };

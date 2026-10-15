@@ -2,14 +2,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadSoundPreference, saveSoundPreference } from "./preferences";
 
-const KEY = "laboratorio-cosas-cotidianas:v1:sonido";
+const KEY = "laboratorio-cosas-cotidianas:v2:sonido";
 
 beforeEach(() => window.localStorage.clear());
 afterEach(() => vi.restoreAllMocks());
 
 describe("preferencia local de sonido (SPECS 10.4)", () => {
-  it("sin nada guardado: activado y volumen por defecto", () => {
+  it("sin nada guardado: activado; en el celular de quien juega, al máximo", () => {
+    expect(loadSoundPreference("phone")).toEqual({ on: true, volume: 1 });
+    expect(loadSoundPreference("computer")).toEqual({ on: true, volume: 0.8 });
     expect(loadSoundPreference()).toEqual({ on: true, volume: 0.8 });
+  });
+
+  it("lo guardado con la versión anterior (0,8 o silenciado en los ensayos) se ignora: el celular vuelve a empezar activado y al máximo", () => {
+    window.localStorage.setItem("laboratorio-cosas-cotidianas:v1:sonido", JSON.stringify({ on: false, volume: 0.8 }));
+    expect(loadSoundPreference("phone")).toEqual({ on: true, volume: 1 });
   });
 
   it("guarda y recupera «activado» y el volumen", () => {

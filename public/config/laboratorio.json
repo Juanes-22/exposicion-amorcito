@@ -203,7 +203,8 @@
       "shadows.click": "lab.audio.click",
       "piece.earned": "lab.audio.piece",
       "inventor.activated": "lab.audio.inventor",
-      "adventure.finished": "lab.audio.finished"
+      "adventure.finished": "lab.audio.finished",
+      "flower.tap": "lab.audio.lava"
     }
   },
   "session": {
