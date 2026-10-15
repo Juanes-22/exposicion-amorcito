@@ -77,6 +77,26 @@ describe("useAudioSignals (SPECS 10.4)", () => {
     }
   });
 
+  it("un sonido pedido en el mismo primer toque (la flor) suena cuando el audio termina de activarse y cargar, no se pierde", async () => {
+    const player = fakePlayer();
+    let terminar!: () => void;
+    // Como el reproductor real: queda «on» enseguida, pero los archivos terminan de cargar después.
+    player.enable.mockImplementation(async () => {
+      await new Promise<void>((r) => (terminar = r));
+      return "on";
+    });
+    let cargado = false;
+    player.play.mockImplementation(() => cargado);
+    const { result } = renderHook(() => useAudioSignals({ project, state: state(1), device: "computer", player }));
+    fireEvent.pointerDown(window); // el toque sobre la flor es el primer gesto
+    act(() => result.current.play("flower.tap"));
+    expect(player.play).toHaveBeenCalledTimes(1); // todavía no puede sonar
+    cargado = true;
+    await act(async () => terminar());
+    await waitFor(() => expect(player.play).toHaveBeenCalledTimes(2));
+    expect(player.play).toHaveBeenLastCalledWith("flower.tap");
+  });
+
   it("una tecla también cuenta como primer gesto", async () => {
     const player = fakePlayer();
     renderHook(() => useAudioSignals({ project, state: state(1), device: "phone", player }));

@@ -43,7 +43,7 @@ los textos son de prototipo. Detalle y evidencias en PLAN §5.
    imprime en el inventor.
 
 Al terminar, quien quedó dentro del inventor puede volver al mapa para revisar su cuaderno. Y un detalle: tocar la flor de arriba a la
-izquierda suena y a Vanessa y Jerry les aparece un «?» (solo en ese celular).
+izquierda suena y a Vanessa y Jerry les aparece un «?» (solo en esa pantalla; Vanessa también puede tocarla en la proyección).
 
 Los textos del juego siguen la **Guía para Vanessa** (un documento aparte; la consola ya no tiene «Guía para conversar»). Las preguntas
 sugeridas del inventor se editan en `public/config/laboratorio.json → inventor.questions`.
@@ -78,7 +78,7 @@ Cada persona usa su propio navegador/contexto: la credencial se guarda por sala 
 | `npm run typecheck` | Tipos de frontend, `shared/` y servidor. |
 | `npm test` | Dominio, contratos, servidor con Socket.IO real y SQLite temporal, cliente y componentes. |
 | `npm run test:e2e` | Compila y ejecuta los 7 e2e en Chromium (uno de ellos reinicia de verdad el proceso del servidor) con identidades independientes (ver «Pruebas»). Las capturas de evidencia solo se escriben en `docs/` con `E2E_EVIDENCE=1`. |
-| `npm run test:load` | Ensayo de capacidad: 50 participantes + administradora contra un servidor real en otro proceso (entrada, las tres rondas con todas las personas explorando a la vez, 100 pruebas de rampa simultáneas, entradas tardías, desconexiones y regreso de la administradora). Tarda ~1 min. `LOAD_REPORT=1` escribe el informe en `docs/evidencia/fase7/`. Ver «Capacidad». |
+| `npm run test:load` | Ensayo de capacidad: 50 participantes + administradora contra un servidor real en otro proceso (entrada, las tres rondas con todas las personas explorando a la vez, 100 pruebas de rampa simultáneas, entradas tardías, desconexiones y regreso de la administradora). Tarda ~1 min. `LOAD_REPORT=1` escribe el informe en `docs/evidencia/fase7/`; `LOAD_PARTICIPANTS=30` cambia la cantidad y `LOAD_URL=https://…` lo corre contra un servidor publicado (crea una sala de prueba y la cierra al terminar). Ver «Capacidad». |
 | `npm run ensayo` | Sala preparada para **ensayar en celulares reales** de la red local (puertos 3400/3412; ver «Ensayo en dispositivos»). |
 | `npm run build` | Valida, comprueba tipos y compila el frontend en `dist/`. |
 | `npm start` | Servicio de producción: sirve `dist/`, la API y Socket.IO desde el mismo origen. |
@@ -211,6 +211,15 @@ de rampa simultáneas con sus muestras de reloj, las desconexiones y que **nadie
 de presencia. El último informe está en [`docs/evidencia/fase7/capacidad.md`](docs/evidencia/fase7/capacidad.md). **Límite:** clientes y servidor comparten
 computadora y red de bucle local, y los clientes no dibujan: valida el protocolo y el servidor con 51 conexiones, **no** la red
 inalámbrica del lugar ni el rendimiento de los celulares (no se midieron FPS).
+
+**30 jugadores, en local y en Render** (15 de octubre de 2026): con `LOAD_PARTICIPANTS=30` en local todo queda por debajo de 30 ms
+(CPU máx 27 %, 130 MiB; [`capacidad-30.md`](docs/evidencia/fase7/capacidad-30.md)). Contra la instancia gratuita de Render
+(`LOAD_URL=https://exposicion-vanessa.onrender.com LOAD_PARTICIPANTS=30`) también cumple todas las metas
+([`capacidad-remota-30.md`](docs/evidencia/fase7/capacidad-remota-30.md)): cada acción vuelve al propio teléfono en ~0,2 s (casi todo
+es la ida y vuelta por Internet hasta Render), las transiciones de ronda llegan a las 31 pantallas en ≤ 0,4 s, la entrada tarda hasta
+~3 s y soltar la pelota con 30 a la vez, hasta ~0,6 s. Con 50 en Render sigue funcionando pero ya se nota el límite de la instancia
+gratuita (soltar la pelota hasta ~0,9 s y un hueco de ~0,9 s en el reloj). En Render gratuito el disco no es persistente y la instancia
+se duerme tras ~15 min sin tráfico: abre la página unos minutos antes de la exposición y no reinicies el servicio durante ella.
 
 ## Ensayo en dispositivos
 

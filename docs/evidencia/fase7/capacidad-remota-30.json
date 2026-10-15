@@ -1,0 +1,95 @@
+{
+  "fecha": "2026-10-15T21:56:30.019Z",
+  "equipo": {
+    "sistema": "Darwin 25.1.0 (darwin/arm64)",
+    "procesador": "Apple M3 Pro",
+    "nucleos": 11,
+    "memoriaGiB": 18,
+    "node": "v24.20.0"
+  },
+  "red": "Internet hasta https://exposicion-vanessa.onrender.com: los clientes salen de una sola computadora (una IP) y el servidor es el publicado",
+  "escenario": {
+    "participantes": 30,
+    "administradoras": 1,
+    "enLaRonda": 26,
+    "entradasTardias": 4,
+    "desconectadasYReconectadas": 3,
+    "rondas": 3,
+    "enLaRondaDeRampasYObservatorio": 30
+  },
+  "metas": {
+    "entryMs": 5000,
+    "transitionMs": 1000,
+    "reflectMs": 250,
+    "counterMs": 1000,
+    "clockGapP95Ms": 700
+  },
+  "entradaMs": {
+    "n": 26,
+    "min": 954.3183340000005,
+    "p50": 1810.861916,
+    "p95": 3147.4165420000004,
+    "p99": 3148.0779999999995,
+    "max": 3148.0779999999995
+  },
+  "transicionesDeRondaMs": {
+    "n": 7,
+    "min": 192.93999999999505,
+    "p50": 204.7254580000008,
+    "p95": 379.4013330000016,
+    "p99": 379.4013330000016,
+    "max": 379.4013330000016
+  },
+  "acuseRegistroPosicionMs": {
+    "n": 52,
+    "min": 179.5903330000001,
+    "p50": 192.35487499999908,
+    "p95": 211.89608299999963,
+    "p99": 218.00487500000054,
+    "max": 218.00487500000054
+  },
+  "reflejoEnElPropioTelefonoMs": {
+    "n": 52,
+    "min": 179.54970800000046,
+    "p50": 192.00004199999967,
+    "p95": 208.42274999999972,
+    "p99": 217.83679200000006,
+    "max": 217.83679200000006
+  },
+  "acuseSoltarPelotaMs": {
+    "n": 60,
+    "min": 189.53520800000115,
+    "p50": 335.57987499999945,
+    "p95": 506.26629200000025,
+    "p99": 565.1177499999976,
+    "max": 565.1177499999976
+  },
+  "entradasTardiasMs": {
+    "n": 4,
+    "min": 968.6105000000007,
+    "p50": 974.5979159999988,
+    "p95": 1024.6149160000004,
+    "p99": 1024.6149160000004,
+    "max": 1024.6149160000004
+  },
+  "separacionMuestrasDeRelojMs": {
+    "n": 11,
+    "min": 493.7895000000026,
+    "p50": 503.7049169999991,
+    "p95": 602.2039169999989,
+    "p99": 602.2039169999989,
+    "max": 602.2039169999989
+  },
+  "muestrasDeRelojEnLaProyeccion": 12,
+  "contadorLlegaAlTotalMs": 0,
+  "reanudacionTrasCaerLaAdministradoraMs": 226,
+  "servidor": {
+    "remoto": "https://exposicion-vanessa.onrender.com"
+  },
+  "bytes": {
+    "maxPorPersona": 39602,
+    "promedioPorPersona": 36864,
+    "administradora": 1555185
+  },
+  "incumplidas": []
+}

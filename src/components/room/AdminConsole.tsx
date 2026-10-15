@@ -100,6 +100,7 @@ export function AdminConsole({ project, state, controller }: Props) {
           port={controller}
           camera="fit"
           label="Escena de la aventura"
+          onDecorationTap={audio.play}
           demo={houseDemo.participant ?? vanessa.participant}
           overlay={() => (adv ? <ProjectionBadge config={config} adv={adv} counter={state.presence?.round ?? null} /> : null)}
           // Las preguntas y la frase de Freire se proyectan junto al laboratorio, no encima de él; cuando no hay nada que proyectar, el
