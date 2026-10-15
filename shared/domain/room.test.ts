@@ -5,6 +5,9 @@ import { playerAt, spawnPoint } from "./participant";
 import { roundCounter } from "./round";
 import { buildComparisonData, personReadiness, readiness } from "./results";
 import { isFootprintFree } from "./navigation";
+import { CLOSE_ZOOM, fieldRadius, HORIZON_Y, PANORAMA, SKY_VIEW, startView, TELESCOPE_TARGETS } from "./telescope";
+import type { TelescopeState } from "../contracts/state";
+import type { TelescopeActivityConfig } from "../contracts/config";
 
 const cfg = bundle.config;
 
@@ -131,7 +134,7 @@ describe("Sombras: pruebas personales y finalización automática", () => {
     expect(d.act("ana", { type: "shadows.sample", distanceCm: 61 })).toBe(false);
     expect(d.act("ana", { type: "shadows.sample", distanceCm: Number.NaN })).toBe(false);
     expect(d.act("ana", { type: "ramps.trial.start", angleDeg: 20 })).toBe(false);
-    expect(d.act("ana", { type: "boxes.object.inspect", objectId: "lupa" })).toBe(false);
+    expect(d.act("ana", { type: "telescope.aim", x: 560, y: 430, zoom: 1 })).toBe(false);
   });
 
   it("seguir probando no quita el estado «listo»", () => {
@@ -214,31 +217,136 @@ describe("Rampas: pruebas personales y finalización automática", () => {
   });
 });
 
-describe("La caja: exploración en una sola escena", () => {
-  const boxesOpen = () => {
+describe("El observatorio: exploración del cielo con el telescopio", () => {
+  const { moon, stars, window: win } = TELESCOPE_TARGETS;
+  const exp = (cfg.activities.cajas as TelescopeActivityConfig).experiment;
+  const scope = (d: Driver, id = "ana") => d.person(id).activities.cajas as TelescopeState;
+  const telescopeOpen = () => {
     const d = new Driver();
     d.toExploration(2);
     d.openStation("ana", "cajas");
     return d;
   };
 
-  it("queda lista al explorar un objeto compartido; pedir permiso es posible pero nunca obligatorio", () => {
-    const d = boxesOpen();
-    d.must(d.act("ana", { type: "boxes.permission.ask" }), "pedir permiso");
-    expect(personReadiness(d.person("ana"), "cajas", cfg).ready).toBe(false); // pedir permiso no la deja lista
-    d.must(d.act("ana", { type: "boxes.object.inspect", objectId: "campanita" }), "campanita");
-    expect(personReadiness(d.person("ana"), "cajas", cfg).ready).toBe(true);
-    d.openStation("beto", "cajas");
-    d.must(d.act("beto", { type: "boxes.object.inspect", objectId: "piedra" }), "beto sin pedir permiso");
-    expect(personReadiness(d.person("beto"), "cajas", cfg).ready).toBe(true);
+  it("el visor empieza en el cielo, con el aumento general, sin observaciones y con la cortina abierta", () => {
+    const d = telescopeOpen();
+    expect(scope(d)).toEqual({ type: "telescope", ...startView(exp), observed: [], curtain: "open" });
+    expect(scope(d).zoom).toBe(0);
+    expect(scope(d).y).toBeLessThan(HORIZON_Y);
+    expect(personReadiness(d.person("ana"), "cajas", cfg)).toMatchObject({ done: 0, needed: 2, ready: false });
   });
 
-  it("no existe una acción para abrir la caja personal ni se conoce su contenido", () => {
-    const d = boxesOpen();
-    expect(d.act("ana", { type: "boxes.personal.open" } as never)).toBe(false);
-    expect(d.lastError?.code).toBe("INVALID_PAYLOAD");
-    expect(JSON.stringify(d.room)).not.toMatch(/contenido de la caja personal/i);
-    expect(d.act("ana", { type: "boxes.object.inspect", objectId: "caja-personal" })).toBe(false);
+  it("la Luna pide el aumento cercano; el grupo de estrellas se observa con cualquiera; en cualquier orden deja lista a la persona", () => {
+    const d = telescopeOpen();
+    d.must(d.act("ana", { type: "telescope.aim", x: moon.x, y: moon.y, zoom: 0 }), "Luna de lejos");
+    expect(scope(d).observed).toEqual([]); // centrada pero sin acercar: no cuenta
+    d.must(d.act("ana", { type: "telescope.aim", x: stars.x, y: stars.y, zoom: 0 }), "estrellas");
+    expect(personReadiness(d.person("ana"), "cajas", cfg)).toMatchObject({ done: 1, ready: false });
+    d.must(d.act("ana", { type: "telescope.aim", x: moon.x, y: moon.y, zoom: CLOSE_ZOOM }), "Luna de cerca");
+    expect(scope(d).observed).toEqual(["stars", "moon"]);
+    expect(personReadiness(d.person("ana"), "cajas", cfg).ready).toBe(true);
+    d.must(d.act("ana", { type: "telescope.aim", x: moon.x, y: moon.y, zoom: CLOSE_ZOOM }), "otra vez");
+    expect(scope(d).observed).toEqual(["stars", "moon"]); // sin duplicados
+    d.readyTelescope("beto"); // el otro orden: Luna primero
+    expect(scope(d, "beto").observed).toEqual(["moon", "stars"]);
+  });
+
+  it("se queda lista sin acercarse a la casa, y la ventana no suma ni quita nada", () => {
+    const d = telescopeOpen();
+    d.readyTelescope("ana");
+    expect(scope(d).curtain).toBe("open");
+    expect(personReadiness(d.person("ana"), "cajas", cfg).ready).toBe(true);
+    d.openStation("beto", "cajas");
+    d.must(d.act("beto", { type: "telescope.aim", x: win.x, y: win.y, zoom: CLOSE_ZOOM }), "ventana");
+    expect(scope(d, "beto")).toMatchObject({ observed: [], curtain: "closed" });
+    expect(personReadiness(d.person("beto"), "cajas", cfg)).toMatchObject({ done: 0, ready: false });
+  });
+
+  it("la ventana de cerca cierra la cortina una sola vez y queda cerrada al alejarse; con el aumento general no pasa nada", () => {
+    const d = telescopeOpen();
+    d.must(d.act("ana", { type: "telescope.aim", x: win.x, y: win.y, zoom: 0 }), "ventana de lejos");
+    expect(scope(d).curtain).toBe("open");
+    d.must(d.act("ana", { type: "telescope.aim", x: win.x, y: win.y, zoom: CLOSE_ZOOM }), "ventana de cerca");
+    expect(scope(d).curtain).toBe("closed");
+    d.must(d.act("ana", { type: "telescope.aim", ...SKY_VIEW, zoom: 0 }), "volver al cielo");
+    d.must(d.act("ana", { type: "telescope.aim", x: win.x, y: win.y, zoom: CLOSE_ZOOM }), "otra vez");
+    expect(scope(d).curtain).toBe("closed");
+    expect(d.effects.filter((e) => e.kind !== "piece.earned")).toEqual([]); // ni recompensas ni avisos al grupo
+  });
+
+  it("cada persona tiene su propio visor, observaciones y cortina", () => {
+    const d = telescopeOpen();
+    d.openStation("beto", "cajas");
+    d.must(d.act("ana", { type: "telescope.aim", x: win.x, y: win.y, zoom: CLOSE_ZOOM }), "ana mira la ventana");
+    d.must(d.act("beto", { type: "telescope.aim", x: stars.x, y: stars.y, zoom: 0 }), "beto mira las estrellas");
+    expect(scope(d)).toMatchObject({ x: win.x, y: win.y, zoom: CLOSE_ZOOM, observed: [], curtain: "closed" });
+    expect(scope(d, "beto")).toMatchObject({ x: stars.x, y: stars.y, zoom: 0, observed: ["stars"], curtain: "open" });
+  });
+
+  it("el visor no sale del panorama y rechaza direcciones o aumentos inválidos", () => {
+    const d = telescopeOpen();
+    d.must(d.act("ana", { type: "telescope.aim", x: -900, y: 99_999, zoom: 0 }), "fuera del panorama");
+    expect(scope(d)).toMatchObject({ x: fieldRadius(exp, 0), y: PANORAMA.height - fieldRadius(exp, 0) });
+    for (const bad of [
+      { x: Number.NaN, y: 0, zoom: 0 },
+      { x: 0, y: Number.POSITIVE_INFINITY, zoom: 0 },
+      { x: 0, y: 0, zoom: 2 },
+      { x: 0, y: 0, zoom: -1 },
+      { x: 0, y: 0, zoom: 0.5 },
+    ]) {
+      expect(d.act("ana", { type: "telescope.aim", ...bad })).toBe(false);
+      expect(d.lastError?.code).toBe("INVALID_PAYLOAD");
+    }
+    expect(d.act("ana", { type: "shadows.sample", distanceCm: 20 })).toBe(false); // acción de otra mesa
+  });
+
+  it("no hay una acción para ir a la casa ni para declarar la mesa completa", () => {
+    const d = telescopeOpen();
+    for (const type of ["telescope.house", "telescope.complete", "telescope.observe", "boxes.object.inspect"]) {
+      expect(d.act("ana", { type } as never)).toBe(false);
+      expect(d.lastError?.code).toBe("INVALID_PAYLOAD");
+    }
+  });
+
+  it("en la conversación y en la pausa el telescopio se detiene; lo observado y la cortina se conservan", () => {
+    const d = telescopeOpen();
+    d.must(d.act("ana", { type: "telescope.aim", x: win.x, y: win.y, zoom: CLOSE_ZOOM }), "ventana");
+    d.must(d.admin({ type: "room.pause" }), "pausar");
+    expect(d.act("ana", { type: "telescope.aim", x: moon.x, y: moon.y, zoom: CLOSE_ZOOM })).toBe(false);
+    expect(d.lastError?.code).toBe("ROOM_PAUSED");
+    d.must(d.admin({ type: "room.resume" }), "reanudar");
+    d.must(d.admin({ type: "round.converse", withPending: true }), "reunir");
+    expect(d.act("ana", { type: "telescope.aim", x: moon.x, y: moon.y, zoom: CLOSE_ZOOM })).toBe(false);
+    expect(d.lastError?.message).toContain("conversando");
+    expect(scope(d)).toMatchObject({ observed: [], curtain: "closed" });
+    expect(d.round.pendingAtConversation).toContain("ana");
+  });
+
+  it("no se proyecta la exploración de nadie: en esta mesa se proyecta la demostración de Vanessa", () => {
+    const d = telescopeOpen();
+    d.readyTelescope("ana");
+    d.must(d.admin({ type: "round.converse", withPending: true }), "reunir");
+    expect(d.admin({ type: "present.select", principalId: "ana" })).toBe(false);
+    expect(d.lastError?.message).toContain("demostración de Vanessa");
+    expect(buildComparisonData(d.person("ana"), "cajas", cfg)).toBeNull();
+    expect(d.room.adventure.notebook).toEqual([]);
+  });
+
+  it("el corazón se incorpora una sola vez al avanzar; reiniciar devuelve el cielo y la cortina abierta", () => {
+    const d = telescopeOpen();
+    d.readyTelescope("ana");
+    d.must(d.act("ana", { type: "telescope.aim", x: win.x, y: win.y, zoom: CLOSE_ZOOM }), "ventana");
+    d.must(d.admin({ type: "round.converse", withPending: true }), "reunir");
+    d.must(d.admin({ type: "round.next" }), "al inventor");
+    expect(d.room.adventure.pieces).toEqual(["lupa", "dialogo", "corazon"]);
+    expect(d.admin({ type: "round.next" })).toBe(false);
+    expect(d.room.adventure.pieces.filter((p) => p === "corazon")).toHaveLength(1);
+    expect(scope(d)).toMatchObject({ curtain: "closed" }); // el cierre no borra lo de cada persona
+    d.must(d.admin({ type: "room.reset", confirm: true }), "reiniciar");
+    expect(scope(d)).toEqual({ type: "telescope", ...startView(exp), observed: [], curtain: "open" });
+    d.toExploration(2);
+    d.openStation("ana", "cajas");
+    expect(scope(d)).toMatchObject({ observed: [], curtain: "open", zoom: 0 });
   });
 });
 
@@ -450,7 +558,7 @@ describe("presentación, cuaderno común y pregunta final", () => {
     d.must(d.admin({ type: "room.start" }), "comenzar");
     expect(d.admin({ type: "note.save", activityId: "sombras", kind: "synthesis", text: "   " })).toBe(false);
     expect(d.admin({ type: "note.save", activityId: "sombras", kind: "synthesis", text: "x".repeat(281) })).toBe(false);
-    expect(d.admin({ type: "note.save", activityId: "cajas", kind: "question", text: "¿Y la caja?" })).toBe(false); // todavía no se alcanza
+    expect(d.admin({ type: "note.save", activityId: "cajas", kind: "question", text: "¿Y el telescopio?" })).toBe(false); // todavía no se alcanza
     d.toExploration(1);
     expect(d.admin({ type: "note.save", activityId: "rampas", kind: "initialIdea", text: "predicción" })).toBe(false);
     expect(d.admin({ type: "note.save", activityId: "ghost", kind: "question", text: "?" })).toBe(false);
@@ -596,6 +704,6 @@ describe("reloj y simulación", () => {
     const empty = readiness(undefined, cfg.activities.sombras!);
     expect(empty).toEqual({ done: 0, needed: 2, ready: false });
     expect(readiness(undefined, cfg.activities.rampas!).needed).toBe(2);
-    expect(readiness(undefined, cfg.activities.cajas!).needed).toBe(1);
+    expect(readiness(undefined, cfg.activities.cajas!).needed).toBe(2);
   });
 });

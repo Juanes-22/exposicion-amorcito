@@ -236,19 +236,19 @@
         "y": 1
       }
     },
-    "lab.station.boxes": {
-      "path": "stations/laboratorio/station-boxes.png",
+    "lab.station.telescope": {
+      "path": "stations/laboratorio/station-telescope.png",
       "type": "image",
       "format": "png",
       "category": "stations",
-      "label": "Mesa La caja de las sorpresas (provisional)",
+      "label": "Mesa El observatorio: telescopio sobre trípode (provisional)",
       "kind": "station-item",
       "width": 192,
       "height": 160,
       "hasAlphaChannel": true,
       "transparent": true,
-      "sizeBytes": 795,
-      "sha256": "d5d2a201945d8b328dc60550b480900287e268f0e74f5d5db557b5e3668dece3",
+      "sizeBytes": 2970,
+      "sha256": "12c473cdc2eb09169271b833b29267d8f892ec995a00b165fd40487841c5b1b2",
       "placeholder": true,
       "provenance": "Generado para el prototipo (formas provisionales, sin licencia externa). Sustituir por arte real antes de mode: presentation.",
       "origin": {

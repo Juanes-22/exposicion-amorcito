@@ -40,7 +40,7 @@ const waitVisual = (page: Page, pred: string, timeout = 8000) =>
 const activeScenes = (page: Page): Promise<string[]> =>
   page.evaluate(() => {
     const g = (window as any).__PHASER_GAME__;
-    return ["LaboratoryScene", "ShadowsScene", "RampsScene", "BoxesScene", "InventorScene"].filter((k) => g.scene.isActive(k));
+    return ["LaboratoryScene", "ShadowsScene", "RampsScene", "TelescopeScene", "InventorScene"].filter((k) => g.scene.isActive(k));
   });
 const scenesAre = async (page: Page, ...keys: string[]) => {
   const deadline = Date.now() + 6000;
@@ -241,35 +241,79 @@ try {
   await admin.page.locator(".projection__freire").getByText(/Para Freire, dialogar incluye preguntar y escuchar/).waitFor();
   check(true, "se proyectan los resultados de Beto y la frase de Freire de Rampas");
   await shot(admin.page, "12-rampas-conversacion-proyeccion.png");
-  await admin.page.getByRole("button", { name: "Abrir siguiente mesa: La caja de las sorpresas" }).click();
+  await admin.page.getByRole("button", { name: "Abrir siguiente mesa: El observatorio" }).click();
   await waitVisual(admin.page, `v.group.pieces.includes("dialogo") && v.group.round.index === 2`);
   check(true, "al abrir la siguiente mesa se incorpora la pieza Bocadillo");
 
-  // ================= LA CAJA DE LAS SORPRESAS =================
-  console.log("\nLa caja de las sorpresas");
-  await admin.page.getByRole("button", { name: "Abrir mesa: La caja de las sorpresas" }).click();
-  await goTable(ana.page, "La caja de las sorpresas");
-  await goTable(beto.page, "La caja de las sorpresas");
-  check((await scenesAre(ana.page, "BoxesScene")) && (await scenesAre(beto.page, "BoxesScene")), "una sola escena de La caja para todas las personas");
-  check((await ana.page.getByRole("button", { name: /Abrir la caja personal|Abrir/ }).count()) === 0, "no existe ninguna acción para abrir la caja personal");
-  await ana.page.getByRole("button", { name: "Campanita" }).click();
+  // ================= EL OBSERVATORIO =================
+  console.log("\nEl observatorio");
+  await admin.page.getByRole("button", { name: "Abrir mesa: El observatorio" }).click();
+  await goTable(ana.page, "El observatorio");
+  await goTable(beto.page, "El observatorio");
+  check((await scenesAre(ana.page, "TelescopeScene")) && (await scenesAre(beto.page, "TelescopeScene")) && (await scenesAre(admin.page, "LaboratoryScene")), "cada persona mira por su propio telescopio y la proyección sigue en el laboratorio");
+  const scope = async (page: Page) => (await visual(page)).viewer.me.activities.cajas;
+  check((await scope(ana.page)).zoom === 0 && (await scope(ana.page)).observed.length === 0 && (await scope(ana.page)).curtain === "open", "el visor empieza en el cielo, con el aumento general");
+  const readout = (page: Page) => page.locator(".experiment__readout [aria-hidden=true]");
+  check((await ana.page.getByRole("button", { name: /espiar|casa|ventana/i }).count()) === 0, "ninguna zona ni botón lleva a la casa ni se llama «Espiar»");
+
+  // Ana: la Luna de cerca y después el grupo de estrellas, con los controles accesibles.
+  await ana.page.getByRole("button", { name: "Luna", exact: true }).click();
+  await ana.page.getByRole("button", { name: "Acercar la vista: aumento cercano" }).click();
+  await readout(ana.page).getByText(/La Luna de cerca: zonas claras y oscuras/).waitFor();
+  await ana.page.getByText("✓ Luna observada").waitFor();
+  await shot(ana.page, "13-observatorio-luna-telefono.png");
+  await ana.page.getByRole("button", { name: "Estrellas", exact: true }).click();
+  await ana.page.getByText("✓ Estrellas observadas").waitFor();
   await ana.page.getByText("✓ Listo para conversar").waitFor();
-  check(true, "explorar un objeto compartido basta para quedar lista; pedir permiso es opcional");
-  await ana.page.getByRole("button", { name: "Pedir permiso para abrir la caja personal" }).click();
-  await ana.page.getByText("Prefiero guardar esas cosas para mí").waitFor();
-  check(true, "quien pide permiso recibe la negativa completa: «Prefiero guardar esas cosas para mí»");
-  check((await ana.page.getByText("La caja personal sigue cerrada").count()) === 1, "la caja personal sigue cerrada y se dice con texto");
-  await shot(ana.page, "13-caja-negativa-telefono.png");
-  await beto.page.getByRole("button", { name: "Lupa" }).click();
+  check((await scope(ana.page)).curtain === "open", "Ana observa la Luna de cerca y el grupo de estrellas con los botones y queda lista sin acercarse a la casa");
+
+  // Beto arrastra el visor (lo dibuja su escena al instante) y después llega a la casa con las flechas.
+  const box = (await beto.page.locator("canvas").first().boundingBox())!;
+  const [cx, cy] = [box.x + box.width / 2, box.y + box.height / 2];
+  const before = await beto.page.evaluate(() => (window as any).__PHASER_GAME__.registry.get("deps").bridge.local.telescope);
+  await beto.page.mouse.move(cx, cy);
+  await beto.page.mouse.down();
+  await beto.page.mouse.move(cx - 60, cy + 40, { steps: 6 });
+  await beto.page.mouse.up();
+  const after = await beto.page.evaluate(() => (window as any).__PHASER_GAME__.registry.get("deps").bridge.local.telescope);
+  check(after.x > before.x && after.y < before.y, "arrastrar dentro del visor mueve el cielo con el dedo, como un mapa (a la izquierda y abajo: la vista va a la derecha y arriba)");
+  for (const name of ["Horizonte", "Mirar a la derecha", "Mirar a la derecha", "Acercar la vista: aumento cercano", "Mirar más abajo", "Mirar más abajo"]) await beto.page.getByRole("button", { name, exact: true }).click();
+  await readout(beto.page).getByText("Ventana iluminada; dos siluetas gesticulan como si discutieran.").waitFor();
+  await shot(beto.page, "14-observatorio-siluetas-telefono.png");
+  await waitVisual(beto.page, `v.viewer.me.activities.cajas.curtain === "closed"`);
+  await readout(beto.page).getByText("Una persona cierra la cortina.").waitFor();
+  check((await scope(ana.page)).curtain === "open", "la ventana de cerca hace que una silueta cierre la cortina para Beto, y solo para él");
+  check((await scope(beto.page)).observed.length === 0 && (await beto.page.getByText("✓ Listo para conversar").count()) === 0, "mirar la casa no suma ni resta nada");
+  await sleep(2200); // la animación de la cortina termina
+  await shot(beto.page, "15-observatorio-cortina-telefono.png");
+  await beto.page.getByRole("button", { name: "Volver al cielo" }).click();
+  for (const name of ["Horizonte", "Mirar a la derecha", "Mirar a la derecha", "Acercar la vista: aumento cercano", "Mirar más abajo", "Mirar más abajo"]) await beto.page.getByRole("button", { name, exact: true }).click();
+  await readout(beto.page).getByText("La ventana tiene la cortina cerrada.").waitFor();
+  check((await scope(beto.page)).curtain === "closed", "«Volver al cielo» sigue disponible y, al regresar, la cortina sigue cerrada: no se repite");
+  await beto.page.getByRole("button", { name: "Luna", exact: true }).click();
+  await beto.page.getByText("✓ Luna observada").waitFor();
+  await beto.page.getByRole("button", { name: "Estrellas", exact: true }).click();
   await beto.page.getByText("✓ Listo para conversar").waitFor();
   await admin.page.getByText("2 de 2").first().waitFor();
+  await admin.page.getByText("✓ Todas las personas están listas").waitFor();
+  check(!/casa|ventana|cortina/i.test((await admin.page.locator("ul.participants").textContent()) ?? ""), "la consola avisa que todas están listas y no identifica quién miró la casa");
+
+  // Conversación: no se proyecta la exploración de nadie; Vanessa muestra la casa con su demostración.
   await admin.page.getByRole("button", { name: "Conversemos" }).click();
-  await admin.page.getByRole("button", { name: "Proyectar resultados de Ana" }).click();
-  await admin.page.locator(".comparison").getByText(/Pidió permiso para la caja personal/).waitFor();
+  await admin.page.getByRole("button", { name: "Mostrar la casa" }).waitFor();
+  check((await admin.page.getByRole("button", { name: /Proyectar resultados de/ }).count()) === 0, "en el observatorio no se ofrece proyectar los resultados de una persona");
+  await admin.page.getByRole("button", { name: "Mostrar la casa" }).click();
+  check(await scenesAre(admin.page, "TelescopeScene"), "«Mostrar la casa» lleva la proyección a la ventana con las siluetas");
+  await shot(admin.page, "16-observatorio-demostracion-siluetas.png");
+  await sleep(3000 + 2200); // las siluetas, el giro y la cortina
+  await shot(admin.page, "17-observatorio-demostracion-cortina.png");
+  check((await scope(beto.page)).curtain === "closed" && (await scope(ana.page)).curtain === "open", "la demostración tiene su propio estado: no cambia la cortina de nadie");
+  await admin.page.getByRole("button", { name: "Volver al laboratorio" }).click();
+  check(await scenesAre(admin.page, "LaboratoryScene"), "«Volver al laboratorio» regresa la proyección al mapa");
   await admin.page.getByRole("button", { name: "Mostrar la frase de Freire" }).click();
-  await admin.page.locator(".projection__freire").getByText(/curiosidad debe respetar la privacidad/).waitFor();
-  check(true, "la proyección muestra qué exploró Ana, que pidió permiso y la frase de Freire sobre la privacidad");
-  await shot(admin.page, "14-caja-conversacion-proyeccion.png");
+  await admin.page.locator(".projection__freire").getByText(/no nos da derecho a invadir la privacidad/).waitFor();
+  check(true, "se proyecta la frase de Freire sobre la curiosidad y la privacidad");
+  await shot(admin.page, "18-observatorio-conversacion-proyeccion.png");
   await openPanel(admin.page, /Cuaderno del grupo/);
   await admin.page.getByLabel("Pregunta que el grupo quiere conservar").fill("¿Cómo podemos investigar respetando lo que otras personas quieren guardar?");
   await admin.page.getByRole("button", { name: "Guardar la pregunta" }).click();
@@ -279,8 +323,8 @@ try {
   check((await scenesAre(admin.page, "InventorScene")) && (await scenesAre(ana.page, "InventorScene")) && (await scenesAre(beto.page, "InventorScene")), "en el cierre todas las pantallas ven al inventor con sus tres piezas");
   await ana.page.getByText(/el inventor ya tiene sus tres piezas/).first().waitFor();
   await admin.page.getByText(config_prompt()).first().waitFor();
-  await shot(admin.page, "15-inventor-proyeccion.png");
-  await shot(ana.page, "16-inventor-telefono.png");
+  await shot(admin.page, "19-inventor-proyeccion.png");
+  await shot(ana.page, "20-inventor-telefono.png");
 
 
   // Pregunta final: Vanessa elige la pregunta que el grupo guardó y la confirma antes de imprimirla.
@@ -289,14 +333,14 @@ try {
   await admin.page.getByRole("button", { name: "Revisar y confirmar" }).click();
   await admin.page.getByRole("alertdialog").getByText(/respetando lo que otras personas/).waitFor();
   check((await visual(admin.page)).group.inventor.finalQuestionId === undefined, "antes de confirmar, la pregunta no está impresa en el inventor");
-  await shot(admin.page, "17-pregunta-final-confirmar.png");
+  await shot(admin.page, "21-pregunta-final-confirmar.png");
   await admin.page.getByRole("button", { name: "Sí, imprimirla en el inventor" }).click();
   await waitVisual(admin.page, `v.phase === "finished" && !!v.group.inventor.finalQuestionId`);
   await admin.page.locator(".projection__question").getByText(/respetando lo que otras personas/).waitFor();
   await ana.page.getByText("Terminamos la aventura. Puedes revisar tus resultados.").first().waitFor();
   await vero.page.getByText("Terminamos la aventura.", { exact: true }).first().waitFor();
   check(true, "al confirmar, la pregunta se imprime en la proyección y los teléfonos (también el de quien observa) dicen que terminamos");
-  await shot(admin.page, "18-final-proyeccion.png");
+  await shot(admin.page, "22-final-proyeccion.png");
   await admin.page.getByRole("button", { name: "Corregir un error de escritura" }).click();
   await admin.page.getByLabel("Corregir la pregunta final").fill("¿Cómo investigamos respetando lo que otras personas quieren guardar?");
   await admin.page.getByRole("button", { name: "Guardar la corrección" }).click();
@@ -307,7 +351,7 @@ try {
   await ana.page.getByText("Cuaderno", { exact: true }).click();
   await ana.page.getByText("Mis resultados").waitFor();
   check((await ana.page.locator(".notebook").getByText(/Posición 1: linterna a 40 cm/).count()) === 1 && (await ana.page.locator(".notebook").getByText("Idea inicial del grupo").count()) === 1 && (await ana.page.locator(".notebook textarea").count()) === 0, "el cuaderno de Ana tiene sus resultados y las notas del grupo, sin ningún formulario");
-  await shot(ana.page, "19-cuaderno-telefono.png");
+  await shot(ana.page, "23-cuaderno-telefono.png");
 
   // Recarga de Vanessa: recupera la conducción con la sala pausada y todo lo anterior intacto.
   await admin.page.reload();

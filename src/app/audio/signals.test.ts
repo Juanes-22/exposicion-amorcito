@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { AdminAction } from "../../../shared/contracts/actions";
 import type { EffectEvent, GroupSnapshot, MeSnapshot } from "../../../shared/contracts/events";
-import type { BoxesState, ShadowsState } from "../../../shared/contracts/state";
+import type { ShadowsState, TelescopeState } from "../../../shared/contracts/state";
+import { CLOSE_ZOOM, TELESCOPE_TARGETS } from "../../../shared/domain/telescope";
 import { bundle, Driver } from "../../../shared/testing/drive";
 import { createSignalTracker } from "./signals";
 
@@ -32,15 +33,16 @@ function sombras(): Driver {
   d.openStation("ana", "sombras");
   return d;
 }
-/** Una sala en la tercera mesa con Ana ya en La caja de las sorpresas. */
-function cajas(): Driver {
+/** Una sala en la tercera mesa con Ana ya mirando por el telescopio del observatorio. */
+function observatorio(): Driver {
   const d = new Driver(["ana", "beto"]);
   d.toExploration(2);
   d.openStation("ana", "cajas");
   return d;
 }
 const muestra = (d: Driver, cm: number) => d.must(d.act("ana", { type: "shadows.sample", distanceCm: cm }), `posición ${cm}`);
-const mirar = (d: Driver, objectId: string) => d.must(d.act("ana", { type: "boxes.object.inspect", objectId }), `mirar ${objectId}`);
+const apuntar = (d: Driver, target: keyof typeof TELESCOPE_TARGETS, zoom = CLOSE_ZOOM) =>
+  d.must(d.act("ana", { type: "telescope.aim", x: TELESCOPE_TARGETS[target].x, y: TELESCOPE_TARGETS[target].y, zoom }), `mirar ${target}`);
 
 describe("señales de grupo: efectos del servidor (SPECS 10.4)", () => {
   it("el primer estado solo fija la línea de base: no hay celebraciones históricas al abrir o reabrir el juego", () => {
@@ -92,7 +94,7 @@ describe("señales de grupo: efectos del servidor (SPECS 10.4)", () => {
     expect(admin({ type: "round.next" }).map((s) => s.text)).toEqual(["Pieza conseguida: Bocadillo."]);
 
     admin({ type: "round.open" });
-    d.readyBoxes("ana");
+    d.readyTelescope("ana");
     admin({ type: "round.converse" });
     expect(admin({ type: "round.next" }).map((s) => [s.event, s.text])).toEqual([
       ["piece.earned", "Pieza conseguida: Corazón."],
@@ -197,19 +199,17 @@ describe("señales personales: lo que hice yo, por comparación de mi propio est
     expect(t.me(mio(d, "ana", 5))).toEqual([]);
   });
 
-  it("la campanita suena al mirarla (una vez por mirada) y los otros objetos no", () => {
-    const d = cajas();
+  it("el observatorio funciona sin sonido: observar la Luna o las estrellas, o que se cierre la cortina, no producen señales", () => {
+    const d = observatorio();
     const t = createSignalTracker(config);
     t.me(mio(d, "ana", 10));
-    mirar(d, "lupa");
+    apuntar(d, "moon");
     expect(t.me(mio(d, "ana", 11))).toEqual([]);
-    mirar(d, "campanita");
-    expect(t.me(mio(d, "ana", 12))).toMatchObject([{ event: "boxes.bell", text: "Suena la campanita." }]);
-    expect(t.me(mio(d, "ana", 13))).toEqual([]); // sigue seleccionada: no vuelve a sonar
-    mirar(d, "piedra");
-    expect(t.me(mio(d, "ana", 14))).toEqual([]);
-    mirar(d, "campanita");
-    expect(t.me(mio(d, "ana", 15))).toHaveLength(1); // otra mirada, otra campanada
+    apuntar(d, "stars", 0);
+    expect(t.me(mio(d, "ana", 12))).toEqual([]);
+    apuntar(d, "window");
+    expect((d.person("ana").activities.cajas as TelescopeState).curtain).toBe("closed");
+    expect(t.me(mio(d, "ana", 13))).toEqual([]); // la casa no tiene recompensas ni avisos
   });
 
   it("mi estado y el del grupo tienen cada uno su línea de base: ninguno fija la del otro", () => {
@@ -269,10 +269,9 @@ describe("señales personales: lo que hice yo, por comparación de mi propio est
     const antes = mio(d, "ana", 1);
     t.me(antes);
     const despues = structuredClone(antes.participant);
-    (despues.activities.sombras as ShadowsState).samples.push({ distanceCm: 20, shadowCm: 10, counts: true, atActiveMs: 0 });
-    (despues.activities.cajas as BoxesState).selectedObjectId = "campanita";
+    (despues.activities.sombras as ShadowsState).samples.push({ distanceCm: 20, shadowCm: 10, counts: true, atActiveMs: 0 }, { distanceCm: 50, shadowCm: 6, counts: true, atActiveMs: 1 });
+    Object.assign(despues.activities.cajas as TelescopeState, { observed: ["moon"], curtain: "closed" });
     const out = t.me({ ...antes, stateVersion: 3, participant: despues });
-    expect(out.map((s) => s.event).sort()).toEqual(["boxes.bell", "shadows.click"]);
-    expect(new Set(out.map((s) => s.id)).size).toBe(2);
+    expect(out.map((s) => s.event)).toEqual(["shadows.click"]); // dos posiciones nuevas, un solo «clic»; el telescopio no suena
   });
 });

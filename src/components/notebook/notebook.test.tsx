@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CommandResult, FinalQuestionInput, SavableNoteKind } from "../../../shared/contracts/actions";
 import type { Comparison, GroupNote, NoteKind } from "../../../shared/contracts/state";
 import { formatNumber, rampDurationMs, shadowHeightCm } from "../../../shared/domain/models";
+import { CLOSE_ZOOM, TELESCOPE_TARGETS } from "../../../shared/domain/telescope";
 import type { Driver } from "../../../shared/testing/drive";
 import { config, denied, enEtapa, mesaAbierta, OK, sala } from "../../testing/clientState";
 import { ComparisonView } from "../admin/ComparisonView";
@@ -82,14 +83,14 @@ describe("notes.ts", () => {
   it("el texto de una nota escrita es el que Vanessa guardó", () => {
     const d = mesaAbierta(0);
     guardar(d, "synthesis", "La luz y la distancia cambian la sombra");
-    expect(noteText(note(d, "synthesis"), config)).toBe("La luz y la distancia cambian la sombra");
+    expect(noteText(note(d, "synthesis"))).toBe("La luz y la distancia cambian la sombra");
   });
 
   it("una comparación se escribe con el nombre de quien la hizo y sus datos, para lectores de pantalla", () => {
     const d = mesaAbierta(0, ["ana", "beto"]);
     d.must(d.admin({ type: "round.converse" }), "conversar");
     d.must(d.admin({ type: "present.select", principalId: "ana" }), "proyectar");
-    const texto = noteText(note(d, "comparison"), config);
+    const texto = noteText(note(d, "comparison"));
     expect(texto.startsWith("Ana: ")).toBe(true); // el nombre visible que dio la sala
     expect(texto).toContain(posicion(20));
     expect(texto).toContain(posicion(50));
@@ -97,19 +98,19 @@ describe("notes.ts", () => {
 
   it("una nota sin texto ni comparación queda vacía en lugar de «null»", () => {
     const vacia: GroupNote = { id: "n9", activityId: "sombras", kind: "synthesis", text: null, revision: 1, createdAt: "", updatedAt: "", history: [] };
-    expect(noteText(vacia, config)).toBe("");
+    expect(noteText(vacia)).toBe("");
   });
 
   describe("personalLines: solo lo que el juego registró", () => {
     it("sin estado no hay líneas", () => {
-      expect(personalLines(undefined, config.activities.sombras!)).toEqual([]);
+      expect(personalLines(undefined)).toEqual([]);
     });
 
     it("Sombras: una línea por posición que cuenta; las muy parecidas no aparecen", () => {
       const d = mesaAbierta(0);
       d.openStation("ana", "sombras");
       for (const cm of [20, 22, 50]) d.must(d.act("ana", { type: "shadows.sample", distanceCm: cm }), `posición ${cm}`);
-      const lineas = personalLines(d.person("ana").activities.sombras, config.activities.sombras!);
+      const lineas = personalLines(d.person("ana").activities.sombras);
       expect(lineas).toEqual([`Posición 1: ${posicion(20)}`, `Posición 2: ${posicion(50)}`]);
     });
 
@@ -117,10 +118,10 @@ describe("notes.ts", () => {
       const d = mesaAbierta(1);
       d.openStation("ana", "rampas");
       d.must(d.act("ana", { type: "ramps.trial.start", angleDeg: 20 }), "prueba 1");
-      expect(personalLines(d.person("ana").activities.rampas, config.activities.rampas!)).toEqual([]); // todavía rueda
+      expect(personalLines(d.person("ana").activities.rampas)).toEqual([]); // todavía rueda
       d.tick(6000);
       d.must(d.act("ana", { type: "ramps.trial.start", angleDeg: 40 }), "prueba 2"); // rodando
-      const lineas = personalLines(d.person("ana").activities.rampas, config.activities.rampas!);
+      const lineas = personalLines(d.person("ana").activities.rampas);
       const t1 = d.person("ana").activities.rampas as { trials: Array<{ durationMs: number }> };
       expect(lineas).toEqual([`Prueba 1: 20° → ${formatNumber(t1.trials[0]!.durationMs / 1000, 1)} s (simulación)`]);
       expect(t1.trials[0]!.durationMs).toBe(rampDurationMs(20, 2, 2.4));
@@ -131,26 +132,25 @@ describe("notes.ts", () => {
       d.openStation("ana", "rampas");
       d.must(d.act("ana", { type: "ramps.trial.start", angleDeg: 20 }), "prueba");
       d.must(d.admin({ type: "round.converse", withPending: true }), "conversar");
-      expect(personalLines(d.person("ana").activities.rampas, config.activities.rampas!)).toEqual([]);
+      expect(personalLines(d.person("ana").activities.rampas)).toEqual([]);
     });
 
-    it("La caja: los objetos explorados y, solo si la pidió, que pidió permiso y se respetó la respuesta", () => {
+    it("El observatorio: solo «Luna observada» y «Estrellas observadas», en ese orden, sin importar cuál se observó primero", () => {
       const d = mesaAbierta(2);
       d.openStation("ana", "cajas");
-      const cfg = config.activities.cajas!;
-      expect(personalLines(d.person("ana").activities.cajas, cfg)).toEqual([]);
-      d.must(d.act("ana", { type: "boxes.object.inspect", objectId: "lupa" }), "lupa");
-      d.must(d.act("ana", { type: "boxes.object.inspect", objectId: "campanita" }), "campanita");
-      expect(personalLines(d.person("ana").activities.cajas, cfg)).toEqual(["Exploraste: Lupa, Campanita"]);
-      d.must(d.act("ana", { type: "boxes.permission.ask" }), "pedir permiso");
-      expect(personalLines(d.person("ana").activities.cajas, cfg)).toEqual(["Exploraste: Lupa, Campanita", "Pediste permiso para abrir la caja personal: se respetó su respuesta."]);
+      expect(personalLines(d.person("ana").activities.cajas)).toEqual([]);
+      d.must(d.act("ana", { type: "telescope.aim", x: TELESCOPE_TARGETS.stars.x, y: TELESCOPE_TARGETS.stars.y, zoom: 0 }), "estrellas");
+      expect(personalLines(d.person("ana").activities.cajas)).toEqual(["Estrellas observadas"]);
+      d.must(d.act("ana", { type: "telescope.aim", x: TELESCOPE_TARGETS.moon.x, y: TELESCOPE_TARGETS.moon.y, zoom: CLOSE_ZOOM }), "Luna");
+      expect(personalLines(d.person("ana").activities.cajas)).toEqual(["Luna observada", "Estrellas observadas"]);
     });
 
-    it("el estado de una mesa que no corresponde al tipo de la configuración no produce líneas", () => {
+    it("El observatorio: la ventana y la cortina nunca se anotan en el cuaderno", () => {
       const d = mesaAbierta(2);
       d.openStation("ana", "cajas");
-      d.must(d.act("ana", { type: "boxes.permission.ask" }), "pedir permiso");
-      expect(personalLines(d.person("ana").activities.cajas, config.activities.sombras!)).toEqual([]);
+      d.must(d.act("ana", { type: "telescope.aim", x: TELESCOPE_TARGETS.window.x, y: TELESCOPE_TARGETS.window.y, zoom: CLOSE_ZOOM }), "ventana");
+      expect(d.person("ana").activities.cajas).toMatchObject({ curtain: "closed" });
+      expect(personalLines(d.person("ana").activities.cajas)).toEqual([]);
     });
   });
 });
@@ -164,10 +164,11 @@ describe("NotebookView: «Mis resultados» y «Lo que anotó el grupo»", () => 
 
   it("agrupa los resultados propios por mesa, en el orden del recorrido", () => {
     render(cuaderno(alCierre()));
-    expect(within(misResultados()).getAllByRole("heading", { level: 4 }).map((h) => h.textContent)).toEqual(["Sombras", "Rampas", "La caja de las sorpresas"]);
+    expect(within(misResultados()).getAllByRole("heading", { level: 4 }).map((h) => h.textContent)).toEqual(["Sombras", "Rampas", "El observatorio"]);
     expect(within(misResultados()).getByText(`Posición 1: ${posicion(20)}`)).toBeTruthy();
     expect(within(misResultados()).getByText(/^Prueba 2: 40° → /)).toBeTruthy();
-    expect(within(misResultados()).getByText("Exploraste: Lupa")).toBeTruthy();
+    expect(within(misResultados()).getByText("Luna observada")).toBeTruthy();
+    expect(within(misResultados()).getByText("Estrellas observadas")).toBeTruthy();
   });
 
   it("solo aparecen las mesas donde la persona ya tiene algo", () => {
@@ -693,9 +694,9 @@ describe("ProjectionPanel y ProjectionBadge: lo que se proyecta en cada fase", (
     d.toExploration(1);
     d.must(d.admin({ type: "round.converse", withPending: true }), "conversar");
     d.must(d.admin({ type: "round.next" }), "siguiente");
-    render(panel(d)); // Caja, en preparación
+    render(panel(d)); // El observatorio, en preparación
     expect(screen.getByRole("heading", { name: config.activities.cajas!.openingQuestion })).toBeTruthy();
-    expect(screen.getByText("Mesa 3 de 3 · La caja de las sorpresas")).toBeTruthy();
+    expect(screen.getByText("Mesa 3 de 3 · El observatorio")).toBeTruthy();
   });
 
   it("exploración: el panel no proyecta nada y la esquina solo dice «N de M listos»", () => {
@@ -800,7 +801,7 @@ describe("ComparisonView", () => {
     const d = mesaAbierta(0, ["ana", "beto"]);
     d.must(d.admin({ type: "round.converse" }), "conversar");
     const c = de(d, "ana");
-    const { container } = render(<ComparisonView comparison={c} config={config} />);
+    const { container } = render(<ComparisonView comparison={c} />);
     expect(screen.getByText("Resultados de Ana")).toBeTruthy();
     const filas = [...container.querySelectorAll(".comparison__rows li")];
     expect(filas).toHaveLength(2);
@@ -818,7 +819,7 @@ describe("ComparisonView", () => {
   it("las barras son decoración (aria-hidden): el valor siempre está escrito junto a cada una", () => {
     const d = mesaAbierta(0, ["ana", "beto"]);
     d.must(d.admin({ type: "round.converse" }), "conversar");
-    const { container } = render(<ComparisonView comparison={de(d, "ana")} config={config} />);
+    const { container } = render(<ComparisonView comparison={de(d, "ana")} />);
     for (const barra of container.querySelectorAll(".comparison__bar")) expect(barra.getAttribute("aria-hidden")).toBe("true");
     for (const fila of container.querySelectorAll(".comparison__rows li")) {
       expect(fila.querySelector(".comparison__label")!.textContent).toMatch(/Linterna a \d+ cm/);
@@ -830,7 +831,7 @@ describe("ComparisonView", () => {
     const d = mesaAbierta(1, ["ana", "beto"]);
     d.must(d.admin({ type: "round.converse" }), "conversar");
     const c = de(d, "ana");
-    const { container } = render(<ComparisonView comparison={c} config={config} />);
+    const { container } = render(<ComparisonView comparison={c} />);
     const filas = [...container.querySelectorAll(".comparison__rows li")];
     expect(filas).toHaveLength(2);
     expect(filas[0]!.textContent).toContain("Inclinación de 20°");
@@ -840,33 +841,6 @@ describe("ComparisonView", () => {
     expect(leido(container)).toMatch(/Inclinación de 20°.* s en la simulación.*Inclinación de 40°.* s en la simulación/);
   });
 
-  it("La caja: los objetos que exploró como lista con nombre y si pidió permiso, también en el texto equivalente", () => {
-    const d = mesaAbierta(2);
-    d.openStation("ana", "cajas");
-    d.must(d.act("ana", { type: "boxes.object.inspect", objectId: "lupa" }), "lupa");
-    d.must(d.act("ana", { type: "boxes.object.inspect", objectId: "piedra" }), "piedra");
-    d.must(d.act("ana", { type: "boxes.permission.ask" }), "pedir permiso");
-    d.readyBoxes("beto");
-    d.must(d.admin({ type: "round.converse" }), "conversar");
-    const c = de(d, "ana");
-    const { container } = render(<ComparisonView comparison={c} config={config} />);
-    const objetos = screen.getByRole("list", { name: "Objetos que exploró" });
-    expect(within(objetos).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Lupa", "Piedra"]);
-    expect(screen.getByText("Pidió permiso para la caja personal y se respetó su respuesta.")).toBeTruthy();
-    expect(container.querySelector("p.visually-hidden")).toBeNull();
-    expect(leido(container)).toContain("LupaPiedra");
-  });
-
-  it("La caja sin pedir permiso lo dice, y sin objetos el texto equivalente también", () => {
-    const sinPermiso: Comparison = { activityId: "cajas", authorId: "ana", authorName: "Ana", data: { type: "boxes", inspected: ["campanita"], askedPermission: false } };
-    const { container, rerender } = render(<ComparisonView comparison={sinPermiso} config={config} />);
-    expect(screen.getByText("No pidió permiso para la caja personal.")).toBeTruthy();
-    expect(leido(container)).toContain("Campanita");
-    rerender(<ComparisonView comparison={{ ...sinPermiso, data: { type: "boxes", inspected: [], askedPermission: true } }} config={config} />);
-    expect(screen.getByText("Pidió permiso para la caja personal y se respetó su respuesta.")).toBeTruthy();
-    expect(screen.queryAllByRole("listitem")).toHaveLength(0);
-  });
-
   it("los resultados siempre están escritos (no solo dibujados), para cualquier tipo de resultado", () => {
     const d = mesaAbierta(0, ["ana", "beto"]);
     d.must(d.admin({ type: "round.converse" }), "conversar");
@@ -874,10 +848,9 @@ describe("ComparisonView", () => {
     const casos: Comparison[] = [
       sombras,
       { activityId: "rampas", authorId: "x", authorName: "X", data: { type: "ramps", trials: [{ angleDeg: 15, durationMs: 3200 }] } },
-      { activityId: "cajas", authorId: "x", authorName: "X", data: { type: "boxes", inspected: [], askedPermission: false } },
     ];
     for (const c of casos) {
-      const { container, unmount } = render(<ComparisonView comparison={c} config={config} />);
+      const { container, unmount } = render(<ComparisonView comparison={c} />);
       expect(leido(container).length, c.data.type).toBeGreaterThan(`Resultados de ${c.authorName}`.length + 10);
       expect(container.querySelector("figure figcaption")!.textContent).toBe(`Resultados de ${c.authorName}`);
       unmount();
@@ -886,9 +859,9 @@ describe("ComparisonView", () => {
 
   it("una sola prueba de rampa ocupa todo el ancho, y una barra mínima nunca desaparece", () => {
     const una: Comparison = { activityId: "rampas", authorId: "x", authorName: "X", data: { type: "ramps", trials: [{ angleDeg: 15, durationMs: 4000 }] } };
-    const { container, rerender } = render(<ComparisonView comparison={una} config={config} />);
+    const { container, rerender } = render(<ComparisonView comparison={una} />);
     expect(container.querySelector<HTMLElement>(".comparison__bar > span")!.style.width).toBe("100%");
-    rerender(<ComparisonView comparison={{ ...una, data: { type: "ramps", trials: [{ angleDeg: 15, durationMs: 4000 }, { angleDeg: 45, durationMs: 10 }] } }} config={config} />);
+    rerender(<ComparisonView comparison={{ ...una, data: { type: "ramps", trials: [{ angleDeg: 15, durationMs: 4000 }, { angleDeg: 45, durationMs: 10 }] } }} />);
     expect(container.querySelectorAll<HTMLElement>(".comparison__bar > span")[1]!.style.width).toBe("8%");
   });
 });
@@ -897,10 +870,18 @@ describe("ComparisonView", () => {
 
 describe("RoundControls", () => {
   type Demo = { active: boolean; start: () => void; stop: () => void };
-  const montar = (d: Driver, over: { counter?: { ready: number; total: number } | null; pending?: string[]; disabled?: boolean; demo?: Demo | null } = {}) => {
+  const montar = (d: Driver, over: { counter?: { ready: number; total: number } | null; pending?: string[]; disabled?: boolean; houseDemo?: Demo } = {}) => {
     const admin = vi.fn(async () => OK as unknown);
     const ui = (dd: Driver = d, extra = over) => (
-      <RoundControls config={config} adv={adv(dd)} counter={extra.counter === undefined ? { ready: 0, total: 2 } : extra.counter} pending={extra.pending ?? []} disabled={extra.disabled ?? false} admin={admin} demo={extra.demo ?? null} />
+      <RoundControls
+        config={config}
+        adv={adv(dd)}
+        counter={extra.counter === undefined ? { ready: 0, total: 2 } : extra.counter}
+        pending={extra.pending ?? []}
+        disabled={extra.disabled ?? false}
+        admin={admin}
+        houseDemo={extra.houseDemo}
+      />
     );
     return { admin, ui };
   };
@@ -922,6 +903,38 @@ describe("RoundControls", () => {
     rerender(ui(mesaAbierta(0), { counter: null }));
     expect(container.querySelector(".round-controls__counter")!.textContent).toBe("— listos");
     expect(boton("Conversemos")).toBeTruthy();
+  });
+
+  it("exploración: avisa cuando todas las personas de la ronda están listas; Vanessa decide cuándo conversar", () => {
+    const { ui } = montar(mesaAbierta(0, ["ana"]), { counter: { ready: 1, total: 2 } });
+    const { rerender } = render(ui());
+    expect(screen.queryByText("✓ Todas las personas están listas")).toBeNull();
+    rerender(ui(mesaAbierta(0, ["ana", "beto"]), { counter: { ready: 2, total: 2 } }));
+    expect(screen.getByText("✓ Todas las personas están listas")).toBeTruthy();
+    rerender(ui(mesaAbierta(0), { counter: { ready: 0, total: 0 } }));
+    expect(screen.queryByText("✓ Todas las personas están listas")).toBeNull(); // sin nadie en la ronda no hay nada que avisar
+  });
+
+  it("observatorio, conversación: «Mostrar la casa» y «Volver al laboratorio» manejan la demostración sin enviar nada a la sala", () => {
+    const d = mesaAbierta(2, ["ana", "beto"]);
+    d.must(d.admin({ type: "round.converse" }), "conversar");
+    const demo = { active: false, start: vi.fn(), stop: vi.fn() };
+    const { admin, ui } = montar(d, { houseDemo: demo });
+    const { rerender } = render(ui());
+    fireEvent.click(boton("Mostrar la casa"));
+    expect(demo.start).toHaveBeenCalledTimes(1);
+    rerender(ui(d, { houseDemo: { ...demo, active: true } }));
+    expect(screen.queryByRole("button", { name: "Mostrar la casa" })).toBeNull();
+    fireEvent.click(boton("Volver al laboratorio"));
+    expect(demo.stop).toHaveBeenCalledTimes(1);
+    expect(admin).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: /Espiar/ })).toBeNull();
+  });
+
+  it("sin demostración (otras mesas o fuera de la conversación) no aparece «Mostrar la casa»", () => {
+    const { ui } = montar(enEtapa("conversation"));
+    render(ui());
+    expect(screen.queryByRole("button", { name: "Mostrar la casa" })).toBeNull();
   });
 
   it("exploración sin pendientes envía round.converse directamente, sin withPending", () => {
@@ -980,11 +993,11 @@ describe("RoundControls", () => {
     rampas.must(rampas.admin({ type: "round.converse" }), "conversar");
     const a = montar(rampas);
     const { unmount } = render(a.ui());
-    expect(boton("Abrir siguiente mesa: La caja de las sorpresas")).toBeTruthy();
+    expect(boton("Abrir siguiente mesa: El observatorio")).toBeTruthy();
     unmount();
-    const caja = mesaAbierta(2, ["ana", "beto"]);
-    caja.must(caja.admin({ type: "round.converse" }), "conversar");
-    const b = montar(caja);
+    const observatorio = mesaAbierta(2, ["ana", "beto"]);
+    observatorio.must(observatorio.admin({ type: "round.converse" }), "conversar");
+    const b = montar(observatorio);
     render(b.ui());
     expect(screen.queryByRole("button", { name: /siguiente mesa/ })).toBeNull();
     fireEvent.click(boton("Pasar al inventor"));
@@ -1029,29 +1042,12 @@ describe("RoundControls", () => {
     expect(boton("Abrir mesa: Sombras").disabled).toBe(false);
   });
 
-  describe("demostración de Vanessa", () => {
-    it("antes de la conversación ofrece probar la mesa, y activa ofrece terminarla", () => {
-      const start = vi.fn();
-      const stop = vi.fn();
-      const d = mesaAbierta(0);
-      const { ui } = montar(d, { demo: { active: false, start, stop } });
-      const { rerender } = render(ui());
-      fireEvent.click(boton("Probar la mesa yo misma"));
-      expect(start).toHaveBeenCalledTimes(1);
-      rerender(ui(d, { demo: { active: true, start, stop } }));
-      expect(screen.queryByRole("button", { name: "Probar la mesa yo misma" })).toBeNull();
-      fireEvent.click(boton("Terminar la demostración"));
-      expect(stop).toHaveBeenCalledTimes(1);
-    });
-
-    it("también en la preparación, y nunca en la conversación", () => {
-      const demo: Demo = { active: false, start: vi.fn(), stop: vi.fn() };
-      const { unmount } = render(montar(enEtapa("preparation"), { demo }).ui());
-      expect(boton("Probar la mesa yo misma")).toBeTruthy();
+  it("no ofrece «Probar la mesa yo misma» en ninguna fase", () => {
+    for (const etapa of ["preparation", "exploration", "conversation", "closing"] as const) {
+      const { unmount } = render(montar(enEtapa(etapa)).ui());
+      expect(screen.queryByRole("button", { name: /Probar la mesa|Terminar la demostración/ }), etapa).toBeNull();
       unmount();
-      render(montar(enEtapa("conversation"), { demo }).ui());
-      expect(screen.queryByRole("button", { name: /Probar la mesa|Terminar la demostración/ })).toBeNull();
-    });
+    }
   });
 });
 

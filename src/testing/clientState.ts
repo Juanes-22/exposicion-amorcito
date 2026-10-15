@@ -45,14 +45,14 @@ export function enEtapa(etapa: Etapa, people?: Record<string, string>): Driver {
   return d;
 }
 
-/** La mesa `n` (0 Sombras, 1 Rampas, 2 La caja de las sorpresas) abierta en exploración, con quienes se indican ya listos en ella. */
+/** La mesa `n` (0 Sombras, 1 Rampas, 2 El observatorio) abierta en exploración, con quienes se indican ya listos en ella. */
 export function mesaAbierta(n: 0 | 1 | 2, listas: string[] = [], people?: Record<string, string>): Driver {
   const d = sala(people);
   d.toExploration(n);
   for (const id of listas) {
     if (n === 0) d.readyShadows(id);
     else if (n === 1) d.readyRamps(id);
-    else d.readyBoxes(id);
+    else d.readyTelescope(id);
   }
   return d;
 }

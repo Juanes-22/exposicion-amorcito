@@ -5,11 +5,11 @@ import type { VisualState } from "../bridge/events";
 export const LABORATORY_SCENE = "LaboratoryScene";
 export const SHADOWS_SCENE = "ShadowsScene";
 export const RAMPS_SCENE = "RampsScene";
-export const BOXES_SCENE = "BoxesScene";
+export const TELESCOPE_SCENE = "TelescopeScene";
 export const INVENTOR_SCENE = "InventorScene";
 
-export const SCENE_BY_ACTIVITY_TYPE: Record<ActivityConfig["type"], string> = { shadows: SHADOWS_SCENE, ramps: RAMPS_SCENE, boxes: BOXES_SCENE };
-export const ALL_SCENES = [LABORATORY_SCENE, SHADOWS_SCENE, RAMPS_SCENE, BOXES_SCENE, INVENTOR_SCENE] as const;
+export const SCENE_BY_ACTIVITY_TYPE: Record<ActivityConfig["type"], string> = { shadows: SHADOWS_SCENE, ramps: RAMPS_SCENE, telescope: TELESCOPE_SCENE };
+export const ALL_SCENES = [LABORATORY_SCENE, SHADOWS_SCENE, RAMPS_SCENE, TELESCOPE_SCENE, INVENTOR_SCENE] as const;
 
 /**
  * Qué escena corresponde a lo que ve esta audiencia:

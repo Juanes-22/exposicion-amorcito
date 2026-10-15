@@ -77,7 +77,7 @@ describe("useLocalDemo: abrir y cerrar la demostración", () => {
     act(() => result.current.start("cajas", sala));
     expect(result.current.active).toBe(true);
     expect(vivo(result.current.player!)).toBe(true);
-    expect(result.current.participant!.activities.cajas).toMatchObject({ inspected: [] }); // una persona nueva, sin lo de la anterior
+    expect(result.current.participant!.activities.cajas).toMatchObject({ observed: [], curtain: "open" }); // una persona nueva, sin lo de la anterior
   });
 
   it("abrir otra mesa libera el jugador anterior: nunca quedan dos temporizadores", () => {

@@ -13,7 +13,7 @@ export class GameBridge {
   private activeToken = 0;
   private lastVisual: VisualState | null = null;
   private lastPermissions: BridgePermissions | null = null;
-  private lastLocal: LocalExperiment = { lanternCm: null, angleDeg: null };
+  private lastLocal: LocalExperiment = { lanternCm: null, angleDeg: null, telescope: null };
   /** Reloj de simulación del cliente: lo ajustan el estado y las muestras del servidor; la escena dibuja desde él. */
   readonly clock: ClientClock;
 
@@ -82,7 +82,7 @@ export class GameBridge {
     this.handlers.clear();
     this.lastVisual = null;
     this.lastPermissions = null;
-    this.lastLocal = { lanternCm: null, angleDeg: null };
+    this.lastLocal = { lanternCm: null, angleDeg: null, telescope: null };
     this.activeToken = 0;
     this.clock.freeze();
   }

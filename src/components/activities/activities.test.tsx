@@ -2,17 +2,19 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PARTICIPANT_ACTION_TYPES, type CommandResult, type ParticipantAction } from "../../../shared/contracts/actions";
-import type { BoxesActivityConfig, RampsActivityConfig, ShadowsActivityConfig } from "../../../shared/contracts/config";
-import type { BoxesState, RampsState, ShadowsState } from "../../../shared/contracts/state";
+import type { RampsActivityConfig, ShadowsActivityConfig, TelescopeActivityConfig } from "../../../shared/contracts/config";
+import type { RampsState, ShadowsState, TelescopeState } from "../../../shared/contracts/state";
 import { describeShadow, formatNumber, rampDurationMs, shadowHeightCm } from "../../../shared/domain/models";
 import { readiness } from "../../../shared/domain/results";
+import { CLOSE_ZOOM, startView, TELESCOPE_TARGETS } from "../../../shared/domain/telescope";
 import type { Driver } from "../../../shared/testing/drive";
 import { config, denied, mesaAbierta, OK } from "../../testing/clientState";
-import { BoxesControls } from "./BoxesControls";
 import { LightControls } from "./LightControls";
 import { PersonalPanel } from "./PersonalPanel";
 import { RampsControls } from "./RampsControls";
 import { ShadowsControls } from "./ShadowsControls";
+import { TelescopeControls } from "./TelescopeControls";
+import type { LocalExperiment } from "../../game/bridge/events";
 import type { PersonalActions } from "./types";
 
 afterEach(() => {
@@ -22,17 +24,17 @@ afterEach(() => {
 
 const sombras = config.activities.sombras as ShadowsActivityConfig;
 const rampas = config.activities.rampas as RampsActivityConfig;
-const cajas = config.activities.cajas as BoxesActivityConfig;
+const observatorio = config.activities.cajas as TelescopeActivityConfig;
 const exp = sombras.experiment;
 
-/** La persona «ana» con su mesa abierta (0 Sombras, 1 Rampas, 2 La caja) en una sala conducida de verdad. */
+/** La persona «ana» con su mesa abierta (0 Sombras, 1 Rampas, 2 El observatorio) en una sala conducida de verdad. */
 function conMesa(n: 0 | 1 | 2, listas: string[] = []): Driver {
   const d = mesaAbierta(n, listas);
   d.openStation("ana", ["sombras", "rampas", "cajas"][n]!);
   return d;
 }
 const ana = (d: Driver) => d.person("ana");
-const estado = <T extends "shadows" | "ramps" | "boxes">(d: Driver, id: string, _tipo: T) => d.person("ana").activities[id] as Extract<ShadowsState | RampsState | BoxesState, { type: T }>;
+const estado = <T extends "shadows" | "ramps" | "telescope">(d: Driver, id: string, _tipo: T) => d.person("ana").activities[id] as Extract<ShadowsState | RampsState | TelescopeState, { type: T }>;
 
 /** Las acciones personales de una persona llevadas al dominio real: lo que el servidor haría con ellas. */
 function alDominio(d: Driver, id = "ana") {
@@ -164,18 +166,21 @@ describe("PersonalPanel", () => {
       expect(screen.getByText("Explorando · 0 de 2")).toBeTruthy();
     });
 
-    it("La caja: explorar un objeto compartido basta; pedir permiso no es necesario ni cuenta", () => {
+    it("El observatorio: la Luna de cerca y el grupo de estrellas; acercarse a la ventana no cuenta", () => {
       const d = conMesa(2);
       const { ui } = panel(d);
       const { rerender } = render(ui());
-      expect(screen.getByText("Explorando · 0 de 1")).toBeTruthy();
-      d.must(d.act("ana", { type: "boxes.permission.ask" }), "pedir permiso");
+      expect(screen.getByText("Explorando · 0 de 2")).toBeTruthy();
+      const { moon, stars, window: win } = TELESCOPE_TARGETS;
+      d.must(d.act("ana", { type: "telescope.aim", x: win.x, y: win.y, zoom: CLOSE_ZOOM }), "ventana");
       rerender(ui(d));
-      expect(screen.getByText("Explorando · 0 de 1")).toBeTruthy();
-      d.must(d.act("ana", { type: "boxes.object.inspect", objectId: "piedra" }), "objeto");
+      expect(screen.getByText("Explorando · 0 de 2")).toBeTruthy();
+      d.must(d.act("ana", { type: "telescope.aim", x: moon.x, y: moon.y, zoom: CLOSE_ZOOM }), "Luna");
+      d.must(d.act("ana", { type: "telescope.aim", x: stars.x, y: stars.y, zoom: 0 }), "estrellas");
       rerender(ui(d));
-      expect(leer(d, "cajas")).toEqual({ done: 1, needed: 1, ready: true });
+      expect(leer(d, "cajas")).toEqual({ done: 2, needed: 2, ready: true });
       expect(screen.getByText("✓ Listo para conversar")).toBeTruthy();
+      expect(screen.getByText(observatorio.readyText!)).toBeTruthy(); // el texto propio de la mesa: puede seguir mirando
     });
 
     it("seguir probando no quita lo ya conseguido", () => {
@@ -232,7 +237,7 @@ describe("PersonalPanel", () => {
     });
 
     it("las únicas acciones personales de las mesas son las del juego: no hay acciones de formularios ni de «anotar»", () => {
-      expect([...PARTICIPANT_ACTION_TYPES].sort()).toEqual(["adventure.returnToMap", "boxes.object.inspect", "boxes.permission.ask", "player.moveTo", "ramps.trial.start", "shadows.sample", "station.open"].sort());
+      expect([...PARTICIPANT_ACTION_TYPES].sort()).toEqual(["adventure.returnToMap", "player.moveTo", "ramps.trial.start", "shadows.sample", "station.open", "telescope.aim"].sort());
     });
   });
 });
@@ -698,122 +703,151 @@ describe("RampsControls", () => {
   });
 });
 
-// ---- La caja de las sorpresas ------------------------------------------------------------------------------------------------
+// ---- El observatorio ----------------------------------------------------------------------------------------------------------
 
-describe("BoxesControls", () => {
-  const actions = (over: Partial<PersonalActions> = {}) => ({ act: vi.fn(async (_a: ParticipantAction) => OK), setLocal: vi.fn(), busy: false, interactive: true, config, ...over });
-  const vista = (d: Driver, a = actions()) => ({ a, ui: (dd: Driver = d) => <BoxesControls cfg={cajas} st={estado(dd, "cajas", "boxes")} a={a} /> });
-  const NEGATIVA = "Prefiero guardar esas cosas para mí";
+describe("TelescopeControls", () => {
+  const { moon, stars, window: win } = TELESCOPE_TARGETS;
+  const e = observatorio.experiment;
+  /** Acciones de la mesa con `onLocal`: `arrastrar` simula lo que la escena avisa cuando la persona arrastra el visor. */
+  const actions = (over: { act?: (a: ParticipantAction) => Promise<CommandResult>; interactive?: boolean } = {}) => {
+    let listener: ((l: LocalExperiment) => void) | null = null;
+    const enviar = vi.fn(over.act ?? (async (_a: ParticipantAction) => OK));
+    const setLocal = vi.fn();
+    const a: PersonalActions = {
+      act: enviar,
+      setLocal,
+      onLocal: (fn) => ((listener = fn), () => (listener = null)),
+      busy: false,
+      interactive: over.interactive ?? true,
+      config,
+    };
+    const arrastrar = (x: number, y: number, zoom: number) => act(() => listener!({ lanternCm: null, angleDeg: null, telescope: { x, y, zoom } }));
+    return { a: { ...a, act: enviar, setLocal }, arrastrar };
+  };
+  const vista = (d: Driver, acc = actions()) => ({ ...acc, ui: (dd: Driver = d) => <TelescopeControls cfg={observatorio} st={estado(dd, "cajas", "telescope")} a={acc.a} /> });
+  /** Lo que se ve, escrito (la versión visible; la anunciada espera a que la vista se asiente). */
+  const descripcion = (container: HTMLElement) => container.querySelector(".experiment__readout [aria-hidden=true]")!.textContent!;
+  const pasar = (ms: number) => act(() => void vi.advanceTimersByTime(ms));
 
-  it("lista los objetos de la caja compartida como botones y, al elegir uno, pide conocerlo con boxes.object.inspect", () => {
+  it("empieza en el cielo con el aumento general, lo describe con palabras y le pasa la vista a la escena", () => {
+    vi.useFakeTimers();
+    const { a, ui } = vista(conMesa(2));
+    const { container, unmount } = render(ui());
+    expect(descripcion(container)).toBe("Aumento general. La Luna está a la vista. Abajo se ven los tejados de unas casas.");
+    expect(within(screen.getByRole("list", { name: "Observaciones del cielo" })).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Luna: acércala y céntrala", "Grupo de estrellas: búscalo y céntralo"]);
+    expect(a.setLocal).toHaveBeenCalledWith({ telescope: startView(e) });
+    pasar(5000);
+    expect(a.act).not.toHaveBeenCalled(); // sin moverse no hay nada que enviar
+    unmount();
+    expect(a.setLocal).toHaveBeenLastCalledWith({ telescope: null }); // al salir la escena deja de usar la vista local
+  });
+
+  it("moverse es local; al quedarse quieta con la Luna de cerca centrada, se envía telescope.aim tras la pausa de observación", () => {
+    vi.useFakeTimers();
+    const { a, ui } = vista(conMesa(2));
+    const { container } = render(ui());
+    fireEvent.click(boton("Luna"));
+    pasar(e.dwellMs);
+    expect(a.act).not.toHaveBeenCalled(); // centrada con el aumento general no es una observación de la Luna
+    fireEvent.click(boton("Acercar la vista: aumento cercano"));
+    expect(descripcion(container)).toBe("Aumento cercano. La Luna de cerca: zonas claras y oscuras y algunos cráteres.");
+    expect(a.setLocal).toHaveBeenLastCalledWith({ telescope: { x: moon.x, y: moon.y, zoom: CLOSE_ZOOM } });
+    pasar(e.dwellMs - 1);
+    expect(a.act).not.toHaveBeenCalled();
+    pasar(1);
+    expect(a.act.mock.calls).toEqual([[{ type: "telescope.aim", x: moon.x, y: moon.y, zoom: CLOSE_ZOOM }]]);
+  });
+
+  it("las flechas recorren el panorama; sin observar nada, la vista quieta se guarda un poco después", () => {
+    vi.useFakeTimers();
     const { a, ui } = vista(conMesa(2));
     render(ui());
-    const lista = screen.getByRole("list", { name: "Objetos de la caja compartida" });
-    expect(within(lista).getAllByRole("button").map((b) => b.textContent)).toEqual(["Campanita", "Lupa", "Piedra"]);
-    fireEvent.click(within(lista).getByRole("button", { name: "Lupa" }));
-    expect(a.act).toHaveBeenCalledTimes(1);
-    expect(a.act).toHaveBeenCalledWith({ type: "boxes.object.inspect", objectId: "lupa" });
+    fireEvent.click(boton("Mirar más abajo"));
+    fireEvent.click(boton("Mirar más abajo"));
+    fireEvent.click(boton("Mirar a la derecha"));
+    const [{ telescope: v }] = a.setLocal.mock.lastCall as [{ telescope: { x: number; y: number; zoom: number } }];
+    expect(v.y).toBeGreaterThan(startView(e).y);
+    expect(v.x).toBeGreaterThan(startView(e).x);
+    pasar(e.dwellMs);
+    expect(a.act).not.toHaveBeenCalled();
+    pasar(2000);
+    expect(a.act.mock.calls).toEqual([[{ type: "telescope.aim", ...v }]]);
   });
 
-  it("el objeto elegido muestra su descripción, queda marcado como pulsado y los explorados llevan ✓", () => {
+  it("zonas accesibles: Luna, Estrellas, Horizonte y Volver al cielo; ninguna lleva a la ventana ni se llama «Espiar»", () => {
+    vi.useFakeTimers();
+    const { ui } = vista(conMesa(2));
+    const { container } = render(ui());
+    const zonas = within(screen.getByRole("group", { name: "Ir a una zona del panorama" })).getAllByRole("button").map((b) => b.textContent);
+    expect(zonas).toEqual(["Luna", "Estrellas", "Horizonte", "Volver al cielo"]);
+    expect(screen.queryByRole("button", { name: /espiar|casa|ventana/i })).toBeNull();
+    fireEvent.click(boton("Horizonte"));
+    expect(descripcion(container)).toContain("Abajo se ven los tejados de unas casas.");
+    expect(descripcion(container)).toContain("Ventana iluminada; dos siluetas gesticulan como si discutieran.");
+    fireEvent.click(boton("Estrellas"));
+    expect(descripcion(container)).toContain("Un grupo de estrellas brillantes, muy juntas.");
+    fireEvent.click(boton("Volver al cielo"));
+    expect(descripcion(container)).toBe("Aumento general. La Luna está a la vista. Abajo se ven los tejados de unas casas.");
+  });
+
+  it("la ventana de cerca: tras la pausa se envía; «Una persona cierra la cortina» se dice una vez y después queda cerrada", async () => {
+    vi.useFakeTimers();
     const d = conMesa(2);
-    d.must(d.act("ana", { type: "boxes.object.inspect", objectId: "campanita" }), "campanita");
-    d.must(d.act("ana", { type: "boxes.object.inspect", objectId: "piedra" }), "piedra");
-    render(vista(d).ui());
-    expect(screen.getByRole("status").textContent).toBe(cajas.sharedObjects.find((o) => o.id === "piedra")!.description);
-    expect(boton("✓ Piedra").getAttribute("aria-pressed")).toBe("true");
-    expect(boton("✓ Campanita").getAttribute("aria-pressed")).toBe("false");
-    expect(boton("Lupa").getAttribute("aria-pressed")).toBe("false");
+    const acc = actions({ act: alDominio(d) });
+    const { ui, arrastrar } = vista(d, acc);
+    const { container, rerender } = render(ui());
+    arrastrar(win.x, win.y, CLOSE_ZOOM); // la persona arrastró el visor hasta la ventana
+    expect(descripcion(container)).toContain("Ventana iluminada; dos siluetas gesticulan como si discutieran.");
+    pasar(e.curtainDelayMs);
+    expect(acc.a.act).toHaveBeenCalledWith({ type: "telescope.aim", x: win.x, y: win.y, zoom: CLOSE_ZOOM });
+    expect(estado(d, "cajas", "telescope").curtain).toBe("closed");
+    rerender(ui(d));
+    expect(descripcion(container)).toContain("Una persona cierra la cortina.");
+    pasar(4000);
+    expect(descripcion(container)).toContain("La ventana tiene la cortina cerrada.");
+    vi.mocked(acc.a.act).mockClear();
+    fireEvent.click(boton("Volver al cielo")); // sigue disponible después
+    arrastrar(win.x, win.y, CLOSE_ZOOM);
+    pasar(e.curtainDelayMs);
+    expect(acc.a.act).not.toHaveBeenCalled(); // ya está cerrada: no se repite nada
   });
 
-  it("sin objeto elegido no hay descripción", () => {
-    render(vista(conMesa(2)).ui());
-    expect(screen.queryByRole("status")).toBeNull();
+  it("al reabrir la mesa parte de la vista y la cortina que guardó el servidor", () => {
+    vi.useFakeTimers();
+    const d = conMesa(2);
+    d.must(d.act("ana", { type: "telescope.aim", x: win.x, y: win.y, zoom: CLOSE_ZOOM }), "ventana");
+    const { a, ui } = vista(d);
+    const { container } = render(ui());
+    expect(a.setLocal).toHaveBeenCalledWith({ telescope: { x: win.x, y: win.y, zoom: CLOSE_ZOOM } });
+    expect(descripcion(container)).toBe("Aumento cercano. Abajo se ven los tejados de unas casas. La ventana tiene la cortina cerrada.");
+    expect(screen.queryByText(/cierra la cortina/)).toBeNull(); // la cortina ya estaba cerrada: no se vuelve a anunciar
   });
 
-  describe("la caja personal", () => {
-    it("está cerrada y se puede pedir permiso, pero nunca es obligatorio; hasta pedirlo no hay ninguna negativa", () => {
-      const { a, ui } = vista(conMesa(2));
-      render(ui());
-      expect(screen.getByText("Caja personal: pertenece a una compañera. Está cerrada.")).toBeTruthy();
-      expect(screen.queryByText(new RegExp(NEGATIVA))).toBeNull();
-      fireEvent.click(boton("Pedir permiso para abrir la caja personal"));
-      expect(a.act).toHaveBeenCalledWith({ type: "boxes.permission.ask" });
-    });
-
-    it("tras pedir permiso aparece la negativa completa de su dueña y la caja sigue cerrada", () => {
-      const d = conMesa(2);
-      const { ui } = vista(d);
-      const { rerender } = render(ui());
-      d.must(d.act("ana", { type: "boxes.permission.ask" }), "pedir permiso");
-      rerender(ui(d));
-      const negativa = screen.getByText(NEGATIVA, { exact: false }).closest("blockquote")!;
-      expect(negativa.textContent).toBe(`Una compañera: «${NEGATIVA}»`);
-      expect(screen.getByText("La caja personal sigue cerrada. Puedes seguir investigando con los objetos compartidos.")).toBeTruthy();
-      expect(screen.queryByRole("button", { name: "Pedir permiso para abrir la caja personal" })).toBeNull();
-      // Ninguna otra forma de pedirla de nuevo ni de abrirla.
-      expect(screen.queryByRole("button", { name: /abrir|permiso/i })).toBeNull();
-      expect(estado(d, "cajas", "boxes").askedPermission).toBe(true);
-    });
-
-    it("la caja personal sigue siendo un botón «(cerrada)» que solo recuerda que su contenido es personal, sin enviar nada", () => {
-      const d = conMesa(2);
-      d.must(d.act("ana", { type: "boxes.permission.ask" }), "pedir permiso");
-      const { a, ui } = vista(d);
-      render(ui());
-      expect(screen.queryByText(config.dialogues[cajas.personalTouchDialogueId]!)).toBeNull();
-      fireEvent.click(boton("Caja personal (cerrada)"));
-      expect(screen.getByText(config.dialogues[cajas.personalTouchDialogueId]!)).toBeTruthy();
-      expect(a.act).not.toHaveBeenCalled();
-    });
-
-    it("no existe ninguna acción para abrirla: las acciones de la caja son solo explorar un objeto y pedir permiso", () => {
-      expect(PARTICIPANT_ACTION_TYPES.filter((t) => t.startsWith("boxes."))).toEqual(["boxes.object.inspect", "boxes.permission.ask"]);
-      const d = conMesa(2);
-      d.must(d.act("ana", { type: "boxes.permission.ask" }), "pedir permiso");
-      for (const tipo of ["boxes.personal.open", "boxes.openPersonal", "openPersonalBox", "boxes.permission.grant"]) {
-        expect(d.act("ana", { type: tipo } as unknown as ParticipantAction), tipo).toBe(false);
-      }
-      expect(Object.keys(estado(d, "cajas", "boxes")).sort()).toEqual(["askedPermission", "inspected", "type"]);
-    });
-
-    it("recorriendo todos los botones de la mesa solo se piden las dos acciones permitidas", () => {
-      const d = conMesa(2);
-      const { a, ui } = vista(d);
-      const { rerender } = render(ui());
-      for (const nombre of [/Campanita/, /Lupa/, /Piedra/, /Pedir permiso/]) fireEvent.click(screen.getAllByRole("button", { name: nombre })[0]!);
-      expect(vi.mocked(a.act).mock.calls.map(([x]) => x.type)).toEqual(["boxes.object.inspect", "boxes.object.inspect", "boxes.object.inspect", "boxes.permission.ask"]);
-      d.must(d.act("ana", { type: "boxes.permission.ask" }), "pedir permiso");
-      rerender(ui(d));
-      fireEvent.click(boton("Caja personal (cerrada)"));
-      expect(a.act).toHaveBeenCalledTimes(4);
-    });
+  it("fuera de la exploración los controles se detienen y no se envía nada", () => {
+    vi.useFakeTimers();
+    const { a, ui } = vista(conMesa(2), actions({ interactive: false }));
+    render(ui());
+    for (const b of screen.getAllByRole("button")) expect((b as HTMLButtonElement).disabled, b.textContent!).toBe(true);
+    pasar(5000);
+    expect(a.act).not.toHaveBeenCalled();
   });
 
-  it("con un comando en vuelo o fuera de la exploración los objetos y el permiso se detienen", () => {
-    for (const over of [{ busy: true }, { interactive: false }]) {
-      const { a, ui } = vista(conMesa(2), actions(over));
-      const { unmount } = render(ui());
-      for (const nombre of ["Campanita", "Lupa", "Piedra", "Pedir permiso para abrir la caja personal"]) expect(boton(nombre).disabled, `${nombre} ${JSON.stringify(over)}`).toBe(true);
-      fireEvent.click(boton("Lupa"));
-      expect(a.act).not.toHaveBeenCalled();
-      unmount();
-    }
-  });
-
-  it("de punta a punta: explorar un objeto deja lista a la persona y pedir permiso no cambia eso", async () => {
+  it("de punta a punta: la Luna de cerca y el grupo de estrellas, con los controles, dejan lista a la persona", async () => {
+    vi.useFakeTimers();
     const d = conMesa(2);
     const { act: enviar, ui } = panel(d, { act: alDominio(d) });
     const { rerender } = render(ui());
-    expect(screen.getByText("Explorando · 0 de 1")).toBeTruthy();
-    fireEvent.click(boton("Lupa"));
-    await waitFor(() => expect(enviar).toHaveBeenCalledWith({ type: "boxes.object.inspect", objectId: "lupa" }));
+    fireEvent.click(boton("Estrellas"));
+    pasar(e.dwellMs);
+    expect(enviar).toHaveBeenCalledWith({ type: "telescope.aim", x: stars.x, y: stars.y, zoom: 0 });
     rerender(ui(d));
-    expect(screen.getByText("✓ Listo para conversar")).toBeTruthy();
-    fireEvent.click(boton("Pedir permiso para abrir la caja personal"));
-    await waitFor(() => expect(enviar).toHaveBeenCalledWith({ type: "boxes.permission.ask" }));
+    expect(screen.getByText("✓ Estrellas observadas")).toBeTruthy();
+    fireEvent.click(boton("Luna"));
+    fireEvent.click(boton("Acercar la vista: aumento cercano"));
+    pasar(e.dwellMs);
     rerender(ui(d));
-    expect(screen.getByText(NEGATIVA, { exact: false })).toBeTruthy();
+    expect(screen.getByText("✓ Luna observada")).toBeTruthy();
     expect(screen.getByText("✓ Listo para conversar")).toBeTruthy();
+    expect(estado(d, "cajas", "telescope")).toMatchObject({ observed: ["stars", "moon"], curtain: "open" });
   });
 });

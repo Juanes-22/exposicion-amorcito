@@ -9,7 +9,7 @@ import { desiredScene } from "./sceneKeys";
 vi.mock("phaser", () => ({ default: { Scenes: { LOADING: 3, CREATING: 4, RUNNING: 5 }, Core: { Events: { POST_STEP: "poststep" } } } }));
 const { SceneDirector } = await import("./director");
 
-const ACTIVITIES = { sombras: { type: "shadows" }, rampas: { type: "ramps" }, cajas: { type: "boxes" } } as const;
+const ACTIVITIES = { sombras: { type: "shadows" }, rampas: { type: "ramps" }, cajas: { type: "telescope" } } as const;
 
 /** Lo que el puente entrega a Phaser, armado con la ronda y las personas de la sala del Driver. */
 const visual = (d: Driver, viewer: Viewer): VisualState => ({ phase: d.room.phase, group: d.room.adventure, viewer, characters: [] });
@@ -38,7 +38,7 @@ describe("qué escena corresponde a lo que ve cada audiencia", () => {
     const d = sala("exploracion");
     expect(desiredScene(visual(d, persona(d, "ana", mesa("sombras"))), ACTIVITIES)).toBe("ShadowsScene");
     expect(desiredScene(visual(d, persona(d, "ana", mesa("rampas"))), ACTIVITIES)).toBe("RampsScene");
-    expect(desiredScene(visual(d, persona(d, "ana", mesa("cajas"))), ACTIVITIES)).toBe("BoxesScene");
+    expect(desiredScene(visual(d, persona(d, "ana", mesa("cajas"))), ACTIVITIES)).toBe("TelescopeScene");
   });
 
   it("quien no tiene ninguna mesa abierta ve el laboratorio compartido, en cualquier fase de la ronda", () => {
@@ -113,7 +113,7 @@ describe("qué escena corresponde a lo que ve cada audiencia", () => {
     expect(desiredScene(visual(d, proyeccion(d)), ACTIVITIES)).toBe("LaboratoryScene"); // el estado de grupo no trae vistas personales
     expect(desiredScene(visual(d, proyeccion(d, mesa("sombras"))), ACTIVITIES)).toBe("ShadowsScene");
     expect(desiredScene(visual(d, proyeccion(d, mesa("rampas"))), ACTIVITIES)).toBe("RampsScene");
-    expect(desiredScene(visual(d, proyeccion(d, mesa("cajas"))), ACTIVITIES)).toBe("BoxesScene");
+    expect(desiredScene(visual(d, proyeccion(d, mesa("cajas"))), ACTIVITIES)).toBe("TelescopeScene");
     expect(desiredScene(visual(d, proyeccion(d, { kind: "map" })), ACTIVITIES)).toBe("LaboratoryScene"); // la demostración volvió al mapa
   });
 
@@ -130,7 +130,7 @@ function fakeGame() {
   const status: Record<string, number> = {};
   const calls: string[] = [];
   const stepListeners: Array<() => void> = [];
-  const keys = ["LaboratoryScene", "ShadowsScene", "RampsScene", "BoxesScene", "InventorScene"];
+  const keys = ["LaboratoryScene", "ShadowsScene", "RampsScene", "TelescopeScene", "InventorScene"];
   const game = {
     isBooted: true,
     events: { once: (_e: string, fn: () => void) => void stepListeners.push(fn) },

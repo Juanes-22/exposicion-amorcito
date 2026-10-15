@@ -69,16 +69,23 @@ export interface RampsState {
   trials: RampTrial[];
 }
 
-export interface BoxesState {
-  type: "boxes";
-  /** Objetos compartidos que la persona ya exploró. */
-  inspected: string[];
-  selectedObjectId?: string;
-  /** Pidió permiso para la caja personal (opcional): la caja nunca se abre. */
-  askedPermission: boolean;
+/** Lo que se puede observar en el cielo con el telescopio; las dos observaciones dejan lista a la persona. */
+export type TelescopeTarget = "moon" | "stars";
+
+export interface TelescopeState {
+  type: "telescope";
+  /** Hacia dónde mira el visor (centro, en unidades del panorama): reabrir la mesa vuelve a ese lugar. */
+  x: number;
+  y: number;
+  /** Índice en `zoomLevels`: 0 general, 1 cercano. */
+  zoom: number;
+  /** Observaciones del cielo ya registradas, sin repetir. */
+  observed: TelescopeTarget[];
+  /** La cortina de la casa: se cierra una sola vez, al enfocar la ventana de cerca, y no se vuelve a abrir en esta partida. */
+  curtain: "open" | "closed";
 }
 
-export type ActivityState = ShadowsState | RampsState | BoxesState;
+export type ActivityState = ShadowsState | RampsState | TelescopeState;
 
 export type PersonalView = { kind: "map" } | { kind: "activity"; activityId: string };
 
@@ -124,8 +131,7 @@ export interface NoteVersion {
 /** Resultados de una persona seleccionados para proyectar. Es una copia: seleccionar no altera el original (sección 9). */
 export type ComparisonData =
   | { type: "shadows"; samples: Array<{ distanceCm: number; shadowCm: number }> }
-  | { type: "ramps"; trials: Array<{ angleDeg: number; durationMs: number }> }
-  | { type: "boxes"; inspected: string[]; askedPermission: boolean };
+  | { type: "ramps"; trials: Array<{ angleDeg: number; durationMs: number }> };
 
 export interface Comparison {
   activityId: string;

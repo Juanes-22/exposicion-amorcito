@@ -222,7 +222,7 @@ describe("autoridad del servidor sobre los comandos (CA-08, CA-09)", () => {
     expect(await ana.act({ type: "adventure.returnToMap" }, { roomGeneration: 99 })).toMatchObject({ ok: false, code: "STALE_GENERATION" });
     expect(await ana.rawParticipant({ ...ana.participantEnvelope({ type: "adventure.returnToMap" }), role: "admin" })).toMatchObject({ ok: false, code: "INVALID_PAYLOAD" });
     expect(await ana.rawParticipant({ ...ana.participantEnvelope({ type: "adventure.returnToMap" }), action: { type: "grantPiece", piece: "lupa" } })).toMatchObject({ ok: false, code: "INVALID_PAYLOAD" });
-    expect(await ana.rawParticipant({ ...ana.participantEnvelope({ type: "adventure.returnToMap" }), action: { type: "boxes.personal.open" } })).toMatchObject({ ok: false, code: "INVALID_PAYLOAD" });
+    expect(await ana.rawParticipant({ ...ana.participantEnvelope({ type: "adventure.returnToMap" }), action: { type: "telescope.aim", x: 1330, y: 930, zoom: 1, observed: ["moon", "stars"] } })).toMatchObject({ ok: false, code: "INVALID_PAYLOAD" });
     expect(await ana.rawParticipant({ ...ana.participantEnvelope({ type: "adventure.returnToMap" }), turnVersion: 1 })).toMatchObject({ ok: false, code: "INVALID_PAYLOAD" });
     expect(await ana.rawParticipant(null)).toMatchObject({ ok: false, code: "INVALID_PAYLOAD" });
   });

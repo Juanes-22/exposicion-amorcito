@@ -5,7 +5,7 @@
 **Expositora:** Vanessa Estrada.  
 **Asignatura:** Práctica pedagógica 5 · Licenciatura en Educación Infantil · Universidad de Antioquia.  
 **Versión documental:** 2.0 · 6 de octubre de 2026 (1.0 era del 5 de octubre).  
-**Fuente de producto:** PRD suministrado, versión 2.0, **modificado por la «Propuesta de mejora: participación simultánea y rondas guiadas por Vanessa» (v1, 6 de octubre de 2026)**, que sustituye la sala de un solo controlador por la exploración simultánea de todas las personas.  
+**Fuente de producto:** PRD suministrado, versión 2.0, **modificado por la «Propuesta de mejora: participación simultánea y rondas guiadas por Vanessa» (v1, 6 de octubre de 2026)**, que sustituye la sala de un solo controlador por la exploración simultánea de todas las personas, y por la propuesta **«Mesa 3 · El observatorio»** (14 de octubre de 2026), que reemplaza La caja de las sorpresas.  
 **Stack:** React + Vite + TypeScript + Phaser; servidor Node.js + TypeScript + Socket.IO; SQLite.  
 **Estado:** especificación **y** descripción de lo construido. Este documento no acredita por sí mismo pruebas ejecutadas: las evidencias están en [PLAN.md](PLAN.md) y en `docs/evidencia/`.
 
@@ -43,7 +43,7 @@ Ante un cambio del usuario, actualizar SPECS y después PLAN. Si una decisión t
 | Dominio | Funciones TypeScript puras compartidas entre servidor y demostración local. |
 | Sincronización | Enviar intenciones y estados; cada pantalla dibuja localmente a todos los personajes desde sus planes y un reloj interpolado. Cada persona recibe solo su estado personal. |
 | Persistencia inicial | Una instancia de servidor con SQLite en volumen persistente; sin Redis, microservicios ni varias réplicas. |
-| Demostración | Misma aventura con Vanessa como única persona y estado separado; no reemplaza la implementación de salas. Además, «Probar la mesa yo misma» en una sala real. |
+| Demostración | Misma aventura con Vanessa como única persona y estado separado; no reemplaza la implementación de salas. |
 | Organización | Un repositorio y un package.json/lockfile; frontend en `src/`, servidor en `server/` y dominio en `shared/`. |
 
 ### 0.2. Qué se conserva y qué se simplifica de Bitácora Amorcito
@@ -67,7 +67,7 @@ No copiar todo el repositorio para conservar características ajenas al producto
 
 ## 1. Producto, propósito y alcance pedagógico
 
-El salón recorre una aventura de aproximadamente **18 minutos**: bienvenida, Sombras, Rampas, La caja de las sorpresas e inventor de preguntas. **Todas las personas exploran a la vez desde su celular**, cada una con su propio personaje en un laboratorio compartido. Vanessa conduce el grupo desde la computadora proyectada: habilita **una mesa por ronda**, mira cuántas personas ya están listas, reúne al grupo para conversar y decide cuándo seguir. La proyección es el lugar donde se conversa; el celular es el lugar donde se explora.
+El salón recorre una aventura de aproximadamente **18 minutos**: bienvenida, Sombras, Rampas, El observatorio e inventor de preguntas. **Todas las personas exploran a la vez desde su celular**, cada una con su propio personaje en un laboratorio compartido. Vanessa conduce el grupo desde la computadora proyectada: habilita **una mesa por ronda**, mira cuántas personas ya están listas, reúne al grupo para conversar y decide cuándo seguir. La proyección es el lugar donde se conversa; el celular es el lugar donde se explora.
 
 Cada persona experimenta por su cuenta y sus pruebas son suyas: nadie manipula el experimento de otra ni espera un turno. Los resultados se **registran solos** y la persona queda «lista para conversar» cuando cumple el criterio de la mesa; no hay formularios de respuesta. Lo que se escribe es de **Vanessa**: la idea inicial del grupo, la síntesis de la conversación, las preguntas que el grupo quiere conservar y la pregunta final.
 
@@ -78,7 +78,7 @@ Los personajes de las personas son siluetas coloreadas con su nombre encima; Van
 | Bienvenida | 2 min | Entrar, explicar cómo se explora y presentar el inventor. | — |
 | Sombras | 5 min | Pasar de una primera idea del grupo a observar, probar y comparar. Preparación ≈ 1 min · exploración ≈ 2 min · conversación ≈ 2 min. | Lupa — «Observar y comparar». |
 | Rampas | 5 min | Contrastar una predicción con pruebas propias y dialogar. Mismos tiempos. | Bocadillo — «Preguntar y escuchar». |
-| Cajas | 3 min | Explorar objetos compartidos, pedir permiso (opcional), respetar una negativa. Preparación ≈ ½ min · exploración ≈ 1 min · conversación ≈ 1½ min. | Corazón — «Investigar con respeto». |
+| El observatorio | 3 min | Explorar el cielo con un telescopio y encontrarse con un límite: la curiosidad no autoriza a invadir ni exponer la privacidad de otras personas. Presentación ≈ 20 s · exploración ≈ 1 min 20 s · conversación ≈ 1 min 20 s. | Corazón — «Investigar con respeto». |
 | Inventor y reflexión | 3 min | Elegir y confirmar la pregunta final y relacionar lo vivido con Freire. | Cierre. |
 
 Las pausas para conversar están incluidas en esos tiempos. No hay límite automático por ronda, puntos por rapidez, ranking ni evaluación automática de respuestas. Cada fase la decide Vanessa.
@@ -136,7 +136,7 @@ Los nombres repetidos conservan identidades distintas. El servidor añade una di
 | Reiniciar avance o cerrar | Sí, con confirmación. | No. | No. |
 | Preguntar en voz alta | Sí. | Sí. | Sí. |
 
-Nadie puede actuar sobre las pruebas de otra persona: cada acción personal se aplica solo al estado de quien la envía. La administradora no manipula el experimento de nadie; para mostrar cómo funciona una mesa usa **Probar la mesa yo misma** (2.5).
+Nadie puede actuar sobre las pruebas de otra persona: cada acción personal se aplica solo al estado de quien la envía. La administradora no manipula el experimento de nadie; para mostrar cómo funciona una mesa se usa la demostración de respaldo (2.5 y 6.4).
 
 ### 2.3. Ciclo de sala
 
@@ -158,7 +158,7 @@ Si la administradora pierde la conexión, la sala se **pausa** para todas las pe
 
 ### 2.4. Rondas
 
-La aventura avanza por **rondas**, una por mesa, en el orden `sombras → rampas → cajas`, seguidas del cierre con el inventor. Cada ronda tiene cuatro fases comunes que solo Vanessa avanza:
+La aventura avanza por **rondas**, una por mesa, en el orden `sombras → rampas → cajas` (el identificador `cajas` se conserva para El observatorio), seguidas del cierre con el inventor. Cada ronda tiene cuatro fases comunes que solo Vanessa avanza:
 
 | Fase | Qué pasa | Qué ven las personas | Acción de Vanessa que la termina |
 | --- | --- | --- | --- |
@@ -175,7 +175,7 @@ La aventura avanza por **rondas**, una por mesa, en el orden `sombras → rampas
 
 **Abrir siguiente mesa.** Incorpora al inventor la pieza de la mesa que termina, en esa transición y una sola vez, y devuelve a todas las personas al mapa. Tras la última mesa pasa al cierre.
 
-**Resultados en la conversación.** Vanessa elige a una persona para **proyectar sus resultados**: se muestra una copia de lo que esa persona registró (las posiciones de la linterna, la prueba más lenta y la más rápida, o los objetos que exploró) y esa comparación se conserva en el cuaderno del grupo. Seleccionar no altera las pruebas de nadie.
+**Resultados en la conversación.** Vanessa elige a una persona para **proyectar sus resultados**: se muestra una copia de lo que esa persona registró (las posiciones de la linterna, o la prueba más lenta y la más rápida) y esa comparación se conserva en el cuaderno del grupo. Seleccionar no altera las pruebas de nadie. **En El observatorio no se proyecta la exploración de nadie**: Vanessa muestra la casa con su propia demostración (3.4).
 
 ### 2.5. Desplazamiento y demostración de Vanessa
 
@@ -185,7 +185,7 @@ El servidor valida destinos, límites y trayectos. Un punto inaccesible muestra 
 
 No se sincronizan los píxeles del teléfono: cada dispositivo adapta cámara y composición a su tamaño. El celular sigue a su personaje con una ampliación legible; la proyección encuadra el laboratorio entero.
 
-**Probar la mesa yo misma.** Antes de abrir la mesa y durante la exploración, Vanessa puede mostrar cómo funciona la mesa con una persona de demostración **local** (no pasa por el servidor): usa las mismas reglas que cualquier participante, tiene su propio reloj y su resultado no cuenta en el contador, no entra al cuaderno ni cambia lo que ven las personas. Se cierra sola al pasar a la conversación o cambiar de mesa.
+**Sin demostración dentro de la sala.** Se retiró el botón «Probar la mesa yo misma»: Vanessa solo conduce la ronda y no explora en una sala real. Para mostrar cómo funciona una mesa se usa la demostración de respaldo (`/demo`, 6.4). El código de la persona local (`LocalPlayer`, `useLocalDemo`) quedó sin uso.
 
 <a id="spec-3"></a>
 
@@ -199,7 +199,7 @@ No se sincronizan los píxeles del teléfono: cada dispositivo adapta cámara y 
 | --- | --- |
 | Sombras | Cada posición de la linterna y la sombra que produjo, al **terminar** el ajuste (soltar el slider o una pausa breve tras −/+). |
 | Rampas | Cada prueba terminada: inclinación, tiempo de la simulación y condiciones congeladas. |
-| La caja | Cada objeto compartido explorado y si se pidió permiso para la caja personal. |
+| El observatorio | «Luna observada» y «Estrellas observadas» (sin duplicados). Nunca la ventana, la cortina ni quién se acercó a la casa. |
 
 **Listo para conversar.** Se deduce de lo registrado; nadie lo marca ni lo confirma, y seguir probando no lo quita:
 
@@ -207,7 +207,7 @@ No se sincronizan los píxeles del teléfono: cada dispositivo adapta cámara y 
 | --- | --- |
 | Sombras | Dos posiciones de la linterna separadas al menos **5 cm** (configurable). Una posición muy parecida a otra se registra pero no cuenta. |
 | Rampas | Dos pruebas **terminadas** con inclinaciones que difieren al menos **5°**. Una prueba en marcha o cancelada no cuenta. Mientras falta la diferencia, el avance dice «1 de 2». |
-| La caja | Al menos **un objeto compartido** explorado. Pedir permiso es posible, nunca obligatorio. |
+| El observatorio | La **Luna** centrada con el **aumento cercano** y el **grupo de estrellas** centrado (con cualquier aumento), en cualquier orden. Acercarse a la casa no es un requisito ni suma nada. |
 
 El panel de cada persona muestra «Explorando · N de M» o «✓ Listo para conversar» y el texto correspondiente; no hay puntos ni comparación entre personas.
 
@@ -249,20 +249,25 @@ Pregunta de conversación: «¿Qué resultado apoya la explicación del grupo y 
 
 Guía de Vanessa: antes, escuchar dos predicciones y pedir una razón o una manera de comprobarlas; durante, recordar que los tiempos son de una simulación; después, ofrecer una explicación breve del montaje y escuchar otras razones.
 
-### 3.4. La caja de las sorpresas
+### 3.4. El observatorio
 
-Una sola escena con dos cajas: una **compartida** y una **personal**. Pregunta de apertura: «Hay dos cajas: una para explorar y otra personal. ¿Por dónde quieren empezar?». Objetivo en el celular: «Explora al menos un objeto de la caja compartida. La caja personal es de una compañera.»
+Reemplaza a «La caja de las sorpresas» (propuesta «Mesa 3 · El observatorio»). Conserva el identificador `cajas`, el tercer lugar del recorrido y la pieza Corazón. Idea central: la curiosidad puede llevarnos a descubrir el mundo con una herramienta, pero no nos da derecho a invadir ni exponer la intimidad de otras personas. La lección **no se anuncia antes**: aparece al encontrarse con un límite y se conversa después.
 
-- Caja **compartida**: campanita, lupa y piedra. Cada persona elige objetos y lee su descripción; con uno basta para quedar lista.
-- Campanita: sonido opcional y descripción; lupa: detalle ampliado; piedra: vista cercana.
-- Caja **personal**: pertenece a una compañera ficticia y **siempre permanece cerrada**. No existe ninguna acción para abrirla.
-- **Pedir permiso** es opcional: quien lo pide recibe la negativa completa en la escena, «Prefiero guardar esas cosas para mí», y la caja sigue cerrada. Tocarla de nuevo muestra: «Su contenido es personal. Podemos seguir explorando los objetos compartidos».
+Pregunta de apertura: «Ahora tenemos otra herramienta para explorar. ¿Qué podemos descubrir con el telescopio y qué cambia cuando acercamos la vista?». Objetivo en el celular: «Explora el cielo. Acerca la Luna y encuentra un grupo de estrellas.» No se menciona la casa.
 
-No incluir una acción de abrir la caja personal, un asset de su contenido, un dato oculto con su contenido ni una recompensa que lo revele.
+**Escena.** En el mapa, un telescopio sobre trípode ocupa la tercera estación. Al abrir la mesa, cada persona mira por **su propio visor** un panorama nocturno 2D ilustrado (no un cielo astronómico real): la Luna, un grupo de estrellas, tejados y, en una casa del horizonte, una ventana iluminada con **dos siluetas que discuten con gestos**. No hay audio ni texto de esa conversación, ni pistas, puntos o recompensas en la casa.
 
-Pregunta de conversación: «¿Cómo podríamos seguir investigando respetando esa decisión?». Frase de Freire: «Freire señala que nuestra curiosidad debe respetar la privacidad de otras personas.» En la conversación Vanessa proyecta los resultados de alguien que pidió permiso, para que todas conozcan el límite.
+**Controles.** Arrastrar dentro del visor; flechas para mirar arriba, abajo, a la izquierda y a la derecha; dos aumentos (general y cercano); navegación por zonas **Luna**, **Estrellas** y **Horizonte** (ninguna lleva a la ventana ni se llama «Espiar»); **Volver al cielo**; y «Volver al mapa». Una descripción en texto dice lo que se ve («Ventana iluminada; dos siluetas gesticulan como si discutieran», «Una persona cierra la cortina») y se anuncia cuando la vista queda quieta. Los controles alternativos permiten completar toda la exploración.
 
-Guía de Vanessa: sentir curiosidad no da permiso para revisar algo personal; preguntar cómo seguir investigando respetando esa decisión y por qué importa el permiso aunque haya mucha curiosidad.
+**Observaciones.** Mover el visor es local (la escena lo dibuja al instante). Cuando la vista queda quieta con algo nuevo centrado durante la pausa de observación (`dwellMs`, 0,8 s) se envía `telescope.aim` y el **servidor** decide qué quedó centrado con la geometría compartida (`shared/domain/telescope.ts`): la Luna exige el aumento cercano; el grupo de estrellas, cualquiera. Sin observación nueva, la vista quieta se guarda a los 2 s para reabrir la mesa en el mismo lugar.
+
+**La casa.** Centrar la ventana con el aumento cercano (≈ 1 s, `curtainDelayMs`) hace que una silueta se gire y **cierre la cortina** (≈ 1 s, `curtainCloseMs`). Ocurre **una sola vez por persona**: la cortina queda cerrada al alejarse, volver al cielo, cerrar el panel o reconectar; solo reiniciar la sala la abre. La cortina de una persona no cierra la casa de las demás. «Volver al cielo» sigue disponible. Con reducción de movimiento, los gestos y el cierre se simplifican sin perder su significado. La pausa congela gestos y temporizadores.
+
+**Consola y proyección.** La consola muestra el avance de exploración («N de M listos» y «✓ Todas las personas están listas»), nunca quién miró la casa; la dirección del visor de las personas no se transmite a la proyección y **no se proyectan los resultados de nadie** (`present.select` se rechaza en esta mesa). En la conversación, **«Mostrar la casa»** lleva la proyección a la ventana con las siluetas y, a los pocos segundos, al cierre de la cortina: es una demostración con su propio estado, local a la consola, que no cuenta para nadie ni se puede explorar; «Volver al laboratorio» la termina.
+
+Pregunta de conversación: «¿Qué cambió entre mirar el panorama y enfocarse en un detalle?». Frase de Freire: «Freire nos recuerda que la curiosidad no nos da derecho a invadir la privacidad de alguien ni a exponerla ante los demás.» Al quedar lista: «Ya exploraste la Luna y las estrellas. Puedes seguir mirando mientras nos reunimos.»
+
+Guía de Vanessa: antes, invitar a explorar sin anunciar la casa; después, preguntar qué detalles encontraron, mostrar la casa con su demostración y pensar el límite («¿Poder ver algo significa que tenemos derecho a observarlo de cerca?», «¿Necesitábamos conocer esa conversación para seguir descubriendo cosas?»). No pedir que identifiquen quién miró la casa, ni que compartan experiencias familiares, ni adivinar el motivo de la discusión. Cerrar con «¿Qué otra pregunta podríamos investigar con esta herramienta?». El mensaje del inventor, «Investigar con respeto», aparece al incorporarse la pieza, no como instrucción inicial.
 
 ### 3.5. Inventor, pregunta final y reinicios
 
@@ -323,7 +328,7 @@ interface RoundState {
 interface ParticipantState {
   character: PlayerState;      // pies, orientación y plan de movimiento
   view: { kind: "map" } | { kind: "activity"; activityId: string };
-  activities: Record<string, ShadowsState | RampsState | BoxesState>;
+  activities: Record<string, ShadowsState | RampsState | TelescopeState>;
 }
 
 interface RoomState {
@@ -351,7 +356,7 @@ interface RoomState {
 - `inventor`: ID de la pregunta final.
 - `timeline`: tiempo activo acumulado y `counters` para IDs deterministas (notas, pruebas, planes).
 
-Los estados de actividad son uniones discriminadas por `type`: Sombras guarda las posiciones (`distanceCm`, `shadowCm`, si cuenta y su instante); Rampas, las pruebas; La caja, los objetos explorados, el seleccionado y si se pidió permiso. Evitar un diccionario arbitrario de variables de juego.
+Los estados de actividad son uniones discriminadas por `type`: Sombras guarda las posiciones (`distanceCm`, `shadowCm`, si cuenta y su instante); Rampas, las pruebas; El observatorio, la vista del visor (`x`, `y`, `zoom`), las observaciones (`observed`: `moon`, `stars`, sin duplicados) y la cortina de la ventana (`curtain`: `open` o `closed`). No se guarda un historial de movimientos ni cuánto tiempo se miró la casa. Evitar un diccionario arbitrario de variables de juego.
 
 ### 4.2. Versiones e invariantes
 
@@ -433,10 +438,9 @@ La identidad y la sala proceden de la conexión autenticada. `requestId` es úni
 | `adventure.returnToMap` | Cerrar la mesa; conservar sus resultados. |
 | `shadows.sample` | Distancia dentro de rango; registra la posición y su sombra. |
 | `ramps.trial.start` | Inclinación válida; ninguna prueba propia en marcha. Sin resultado del cliente. |
-| `boxes.object.inspect` | ID de un objeto compartido existente. |
-| `boxes.permission.ask` | Pedir permiso para la caja personal; opcional, nunca la abre. |
+| `telescope.aim` | Vista quieta del visor (`x`, `y` en unidades del panorama; `zoom`, índice entero del aumento). El servidor la limita al panorama y decide qué quedó centrado: registra la Luna o las estrellas y, si es la ventana de cerca, cierra la cortina una vez. El cliente no declara observaciones. |
 
-No existen acciones libres como `setState`, `grantPiece`, `setResult`, `openPersonalBox` ni «marcar listo».
+No existen acciones libres como `setState`, `grantPiece`, `setResult`, «observar la casa», «mesa completada» ni «marcar listo».
 
 `AdminAction` agrupa:
 
@@ -650,7 +654,7 @@ Los nombres siguientes son destinos de implementación, no archivos existentes:
 | `shared/domain/` | Funciones puras: sala (`room`), conducción de la ronda (`round`), acciones y resultados personales (`participant`, `results`), transiciones comunes (`change`), modelos de sombra y rampa, movimiento y navegación. |
 | `shared/contracts/` | Eventos, acciones, estados y esquemas de mensajes. |
 | `shared/config/` | Validación Ajv, referencias cruzadas y lectura semántica del TMJ. |
-| `src/app/` | `RoomController`, `DemoController`, `LocalPlayer` (demostración de Vanessa en una sala real), puente con Phaser, enrutador de intenciones del mapa, audio y navegación de vistas. |
+| `src/app/` | `RoomController`, `DemoController`, `LocalPlayer` (sin uso desde que se retiró «Probar la mesa yo misma»), puente con Phaser, enrutador de intenciones del mapa, audio y navegación de vistas. |
 | `src/network/` | Adaptador Socket.IO, autenticación, sincronización y reloj cliente. |
 | `src/config/` | Carga y AssetRegistry adaptado. |
 | `src/components/room/` | Bienvenida, vista de quien juega y de quien observa, consola de Vanessa, lista de participantes, barra del mapa. |
@@ -928,22 +932,22 @@ La primera entrega mantiene exactamente las tres mesas del PRD. La capacidad de 
       }
     },
     "cajas": {
-      "type": "boxes",
-      "title": "La caja de las sorpresas",
+      "type": "telescope",
+      "title": "El observatorio",
       "pieceId": "corazon",
-      "goal": "Explora al menos un objeto de la caja compartida. La caja personal es de una compañera.",
-      "openingQuestion": "Hay dos cajas: una para explorar y otra personal. ¿Por dónde quieren empezar?",
-      "conversationQuestion": "¿Cómo podríamos seguir investigando respetando esa decisión?",
-      "freirePhrase": "Freire señala que nuestra curiosidad debe respetar la privacidad de otras personas.",
-      "sharedObjects": [
-        { "id": "campanita", "label": "Campanita", "description": "Una campanita pequeña. Cuando se mueve, suena." },
-        { "id": "lupa", "label": "Lupa", "description": "Una lupa. Al mirar a través de ella, los detalles se ven más grandes." },
-        { "id": "piedra", "label": "Piedra", "description": "Una piedra de forma redondeada. De cerca se ven sus manchas y su textura." }
-      ],
-      "requiredObjects": 1,
-      "refusalDialogueId": "caja-negativa",
-      "personalTouchDialogueId": "caja-personal-toque",
-      "personalBox": { "label": "Caja personal", "ownerLabel": "Pertenece a una compañera" }
+      "goal": "Explora el cielo. Acerca la Luna y encuentra un grupo de estrellas.",
+      "openingQuestion": "Ahora tenemos otra herramienta para explorar. ¿Qué podemos descubrir con el telescopio y qué cambia cuando acercamos la vista?",
+      "conversationQuestion": "¿Qué cambió entre mirar el panorama y enfocarse en un detalle?",
+      "freirePhrase": "Freire nos recuerda que la curiosidad no nos da derecho a invadir la privacidad de alguien ni a exponerla ante los demás.",
+      "readyText": "Ya exploraste la Luna y las estrellas. Puedes seguir mirando mientras nos reunimos.",
+      "experiment": {
+        "zoomLevels": [1, 3],
+        "fieldRadius": 380,
+        "centerTolerance": 0.3,
+        "dwellMs": 800,
+        "curtainDelayMs": 1000,
+        "curtainCloseMs": 1000
+      }
     }
   },
   "inventor": {
@@ -959,10 +963,7 @@ La primera entrega mantiene exactamente las tres mesas del PRD. La capacidad de 
     "reflection": ["Aprender comienza con preguntas.", "Observar, probar y escuchar puede cambiar lo que pensábamos."],
     "closingQuestion": "¿Cómo ayudaríamos a un niño a pasar de «me da curiosidad» a «quiero comprenderlo»?"
   },
-  "dialogues": {
-    "caja-negativa": "Prefiero guardar esas cosas para mí",
-    "caja-personal-toque": "Su contenido es personal. Podemos seguir explorando los objetos compartidos."
-  },
+  "dialogues": {},
   "facilitatorNotes": {
     "bienvenida": ["Explicar que todas las personas exploran desde su celular y que el grupo avanza junto."],
     "sombras": ["Antes: escuchar una o dos ideas…", "Durante: observar el progreso…", "Después: preguntar qué cambió…"],
@@ -1002,7 +1003,6 @@ La primera entrega mantiene exactamente las tres mesas del PRD. La capacidad de 
     "phoneInitiallyMuted": true,
     "events": {
       "shadows.click": "lab.audio.click",
-      "boxes.bell": "lab.audio.bell",
       "piece.earned": "lab.audio.piece",
       "inventor.activated": "lab.audio.inventor",
       "adventure.finished": "lab.audio.finished"
@@ -1015,7 +1015,7 @@ La primera entrega mantiene exactamente las tres mesas del PRD. La capacidad de 
 }
 ~~~
 
-**Campos de la configuración de rondas.** El esquema real, `shared/config/schemas/laboratorio.schema.json`, es el contrato. Cada actividad define `goal` (objetivo corto del celular), `openingQuestion` (se proyecta en la preparación), `conversationQuestion` (en la conversación) y `freirePhrase` (paráfrasis que Vanessa decide mostrar). La caja define `sharedObjects` como `{id, label, description}`, `requiredObjects` (cuántos objetos hay que explorar), `refusalDialogueId`, `personalTouchDialogueId` y `personalBox` (solo etiquetas: sin contenido, asset ni dato oculto). El inventor define `activeAssetId`, `pieces[]` (etiqueta y mensaje), `prompt`, `finalMessage`, `reflection` y `closingQuestion`. `facilitatorNotes` tiene una entrada por mesa más `bienvenida` y `cierre`; `supportPhrases`, las cuatro claves de `SUPPORT_PHRASE_KEYS`. `ui.labels` debe traer las de `REQUIRED_LABELS` (`waiting`, `loadingMap`, `welcomePhone`, `roundPreparationPhone`, `roundExplorationPhone`, `roundConversationPhone`, `readyYou`, `notReadyYou`, `closingPhone`, `finishedPhone`, `observerPhone`); las de señales de audio (`signal*`) son opcionales y tienen texto de respaldo. Los textos que este documento no fija son **de prototipo** y requieren revisión de Vanessa.
+**Campos de la configuración de rondas.** El esquema real, `shared/config/schemas/laboratorio.schema.json`, es el contrato. Cada actividad define `goal` (objetivo corto del celular), `openingQuestion` (se proyecta en la preparación), `conversationQuestion` (en la conversación) y `freirePhrase` (paráfrasis que Vanessa decide mostrar). `readyText` (opcional) sustituye el texto común de «listo» en esa mesa. El observatorio define `experiment` con `zoomLevels` (aumento general y cercano, crecientes), `fieldRadius` (radio visible con el aumento 1, en unidades del panorama de 2400×1200; el visor debe caber), `centerTolerance` (fracción del radio visible que cuenta como «centrado»), `dwellMs` (pausa de observación), `curtainDelayMs` y `curtainCloseMs` (giro y cierre de la cortina). La validación comprueba además que la Luna se pueda centrar con el aumento cercano y las estrellas con el general; la configuración no admite pistas, puntos ni requisitos sobre la ventana. El inventor define `activeAssetId`, `pieces[]` (etiqueta y mensaje), `prompt`, `finalMessage`, `reflection` y `closingQuestion`. `facilitatorNotes` tiene una entrada por mesa más `bienvenida` y `cierre`; `supportPhrases`, las cuatro claves de `SUPPORT_PHRASE_KEYS`. `ui.labels` debe traer las de `REQUIRED_LABELS` (`waiting`, `loadingMap`, `welcomePhone`, `roundPreparationPhone`, `roundExplorationPhone`, `roundConversationPhone`, `readyYou`, `notReadyYou`, `closingPhone`, `finishedPhone`, `observerPhone`); las de señales de audio (`signal*`) son opcionales y tienen texto de respaldo. Los textos que este documento no fija son **de prototipo** y requieren revisión de Vanessa.
 
 El ejemplo abrevia los guiones (las notas con «…»). El contenido completo vive en `public/config/laboratorio.json`; los textos de la sección 3 fijan el comportamiento mínimo de las escenas.
 
@@ -1031,7 +1031,7 @@ Copiar al proyecto nuevo solo el subconjunto utilizado si conviene, conservando 
 
 El recurso `character.vanessa-jerry.walk.poses-v4` es una **pose-sheet** con `requiresFrameDefinition: true`; no asumir que su cuadrícula visual basta para animarlo. Reutilizar/validar los frames ya definidos en el código de referencia o generar un atlas explícito tras inspección. Mantener escala, origen de pies y diseño aprobado.
 
-Registrar recursos nuevos con IDs como `lab.station.shadows`, `lab.station.ramps`, `lab.station.boxes`, `lab.inventor.off` y `lab.inventor.on`. Son nombres de planificación; no archivos disponibles hoy. Las rutas concretas se asignan al incorporar assets reales.
+Registrar recursos nuevos con IDs como `lab.station.shadows`, `lab.station.ramps`, `lab.station.telescope`, `lab.inventor.off` y `lab.inventor.on`. Son nombres de planificación; no archivos disponibles hoy. Las rutas concretas se asignan al incorporar assets reales.
 
 El núcleo reutilizable del registro admite los tipos/kinds existentes y las extensiones necesarias del nuevo catálogo. No sustituir el manifiesto por un diccionario reducido de nombres/URLs que pierda la metadata de las hojas.
 
@@ -1047,7 +1047,7 @@ Comprobar:
 - Dependencias de atlas, frames, origin y nine-slice.
 - Perfil TMJ, capas, tipos, duplicados, obstáculos y alcanzabilidad.
 - Que dos posiciones/pruebas distintas sean posibles dentro de los rangos.
-- Que la caja tenga objetos compartidos suficientes (`requiredObjects`) y que ningún texto o dato refiera contenido privado de la caja personal.
+- Que el telescopio tenga dos aumentos crecientes, un visor que quepa en el panorama y observaciones (Luna y estrellas) que se puedan lograr.
 - Que no haya credenciales ni respuestas de una sala en configuración pública.
 - Que `mode: presentation` no conserve guiones incompletos o sonidos de prueba como finales.
 
@@ -1061,7 +1061,7 @@ Crear errores que indiquen archivo, ruta JSON y, para Tiled, capa/objeto/propied
 
 ### 10.1. Escenas y ciclo de vida
 
-Escenas: `LaboratoryScene` (el laboratorio compartido con los personajes de todas las personas), una escena por experimento —`ShadowsScene`, `RampsScene` y `BoxesScene`— e `InventorScene` para el cierre. Un **director de escenas** cambia de una a otra dentro del mismo `Phaser.Game`, según lo que ve esa audiencia: una persona ve la mesa que tiene abierta y, si no tiene ninguna, el laboratorio; la proyección ve siempre el laboratorio (salvo la demostración local de Vanessa); en el cierre y al terminar todas las pantallas ven el inventor. Compartir helpers concretos de composición y animación; no crear una jerarquía compleja de escenas base.
+Escenas: `LaboratoryScene` (el laboratorio compartido con los personajes de todas las personas), una escena por experimento —`ShadowsScene`, `RampsScene` y `TelescopeScene`— e `InventorScene` para el cierre. Un **director de escenas** cambia de una a otra dentro del mismo `Phaser.Game`, según lo que ve esa audiencia: una persona ve la mesa que tiene abierta y, si no tiene ninguna, el laboratorio; la proyección ve siempre el laboratorio (salvo la demostración de la casa en El observatorio o la demostración local de Vanessa); en el cierre y al terminar todas las pantallas ven el inventor. Compartir helpers concretos de composición y animación; no crear una jerarquía compleja de escenas base.
 
 React monta el host de juego para la administradora, para cada persona que juega y para la demostración (no para quien observa). Debe existir un solo `Phaser.Game` por host. Abrir o cerrar una mesa, cambiar de ronda o registrar un resultado **no recrea** el juego de nadie: cambia de escena dentro del mismo canvas. El host observa el tamaño de su contenedor y reajusta el lienzo cuando el hueco del escenario cambia sin que cambie la ventana (por ejemplo, al aparecer la pregunta de la conversación junto al laboratorio).
 
@@ -1105,7 +1105,7 @@ Assets nuevos mínimos:
 | Laboratorio | Aula, mesas, entrada, inventario/inventor y capas pertinentes. |
 | Sombras | Linterna, objeto, pantalla y representación dinámica de sombra. |
 | Rampas | Rampa, pelota y marcas. |
-| Cajas | Dos cajas diferenciadas, campanita, lupa, piedra y compañera ficticia. |
+| El observatorio | Telescopio sobre trípode para el mapa; panorama nocturno con cielo, tejados y casa; Luna con detalle para el aumento cercano; campo de estrellas; marco del visor; dos siluetas con gestos de discusión, una que gira hacia la ventana y la cortina (abierta, cerrándose y cerrada). Hoy se dibujan con formas en la escena; el telescopio del mapa es provisional. |
 | Cierre | Lupa, bocadillo, corazón; inventor apagado/encendido. |
 | Sala | Señales de conexión y pausa; QR generado por código. |
 | Sonido | Clic, campana, pieza y cierre; recursos finales verificables. |
@@ -1116,11 +1116,11 @@ Antes de crear arte, buscar reutilización pertinente en el catálogo. Los model
 
 Los teléfonos comienzan en silencio. Vanessa activa sonido en su computadora mediante un gesto permitido por el navegador. El volumen/mute es preferencia local, no parte del progreso compartido.
 
-La proyección es la salida principal. Identificar efectos por transición para no repetir campanas/piezas después de un estado nuevo o una reconexión. No reproducir celebraciones históricas al reabrir el juego. Las señales de **grupo** (pieza conseguida, inventor encendido, aventura terminada) llegan como efectos del estado de grupo y las oyen todas las pantallas; las **personales** (la posición de la linterna que se registró, la campanita) se deducen de los cambios del propio estado y las oye solo quien las provoca.
+La proyección es la salida principal. Identificar efectos por transición para no repetir clics/piezas después de un estado nuevo o una reconexión. No reproducir celebraciones históricas al reabrir el juego. Las señales de **grupo** (pieza conseguida, inventor encendido, aventura terminada) llegan como efectos del estado de grupo y las oyen todas las pantallas; las **personales** (la posición de la linterna que se registró) se deducen de los cambios del propio estado y las oye solo quien las provoca.
 
 Cada señal importante tiene texto equivalente. Un fallo de audio no bloquea la mesa. No copiar los tonos `audio.sfx.test-*` del repositorio como sonidos finales.
 
-**Nota de implementación (P7-02).** Los eventos de `audio.events` son un conjunto cerrado: `shadows.click`, `boxes.bell`, `piece.earned`, `inventor.activated` y `adventure.finished` (el «cierre» de la dirección visual); un evento desconocido o que apunte a un recurso que no es sonido es un error de validación. Cada señal tiene su texto en `ui.labels` (`signalPieceEarned`, `signalPiecesPlaced`, `signalFinished`, `signalBell`, `signalClick`) y se muestra y anuncia (`aria-live`) con o sin sonido. El audio lo reproduce la propia aplicación (Web Audio, un único contexto creado dentro del gesto que activa el sonido), no el audio de Phaser. La proyección recupera «activado» con el primer gesto de la página; el celular nunca. Mientras los sonidos sean provisionales (`placeholder: true`), `mode: presentation` los rechaza.
+**Nota de implementación (P7-02).** Los eventos de `audio.events` son un conjunto cerrado: `shadows.click`, `piece.earned`, `inventor.activated` y `adventure.finished` (el «cierre» de la dirección visual); un evento desconocido o que apunte a un recurso que no es sonido es un error de validación. Cada señal tiene su texto en `ui.labels` (`signalPieceEarned`, `signalPiecesPlaced`, `signalFinished`, `signalClick`) y se muestra y anuncia (`aria-live`) con o sin sonido. El audio lo reproduce la propia aplicación (Web Audio, un único contexto creado dentro del gesto que activa el sonido), no el audio de Phaser. La proyección recupera «activado» con el primer gesto de la página; el celular nunca. Mientras los sonidos sean provisionales (`placeholder: true`), `mode: presentation` los rechaza.
 
 Los efectos de interfaz/eventos pertenecen a `laboratorio.json → audio`. Si posteriormente se necesitan sonidos espaciales, sus emisores se colocan en la capa `sounds` del TMJ y se leen directamente; archivos y metadata permanecen en `assets.json`. Un laboratorio de sonidos con escritura de archivos no es dependencia de esta primera versión.
 
@@ -1176,7 +1176,7 @@ No instrumentar cada fotograma en React. Registrar tiempos, errores y tamaños n
 | --- | --- |
 | RF-01–RF-04 | Entrada, QR, identidad, presencia y espera: secciones 2 y 5. |
 | RF-05–RF-11 | **Modificados por la propuesta de rondas:** el turno exclusivo y «tomar control» se sustituyen por participación simultánea y rondas guiadas por Vanessa; se conservan el avance colectivo, la proyección y la pausa: 2, 4 y 5. |
-| RF-12–RF-15 | Sombras, Rampas, Cajas y privacidad: 3. |
+| RF-12–RF-15 | Sombras, Rampas, El observatorio y privacidad: 3. |
 | RF-16–RF-18 | Cuaderno (resultados personales y notas del grupo), piezas e inventor: 3 y 4. |
 | RF-19–RF-21 | Reconexión, recuperación administrativa, cierre y reinicio: 5 y 6. Quien observa: 2 y 5. |
 | RF-22 | Audio opcional: 10 y 11. |
@@ -1201,13 +1201,13 @@ Mantener los IDs CA del PRD para que implementación y ensayo sean trazables. Lo
 | CA-10 | Acciones rápidas y repetidas de Vanessa conservan la última confirmada (cola serial y `commandSeq`). |
 | CA-11 | Pausar durante rampa congela tiempo; reanudar no añade la conversación. |
 | CA-12 | **(modificado)** Pausar en cualquier fase conserva la ronda, la lista y el contador; reanudar continúa donde estaba. |
-| CA-13 | **(modificado)** «Probar la mesa yo misma» muestra la mesa en una demostración local de Vanessa sin cambiar el contador, el cuaderno ni lo que ven las personas. |
+| CA-13 | **(modificado)** Vanessa solo conduce: no existe «Tomar control» ni una forma de explorar dentro de la sala (la demostración de respaldo es aparte). |
 | CA-14 | **(modificado)** Sombras conserva las posiciones de cada persona al cambiar de ronda, al recargar y al reconectar; la idea inicial del grupo se conserva aparte de la síntesis. |
 | CA-15 | **(modificado)** Rampas no permite soltar la pelota antes de abrir la mesa; una prueba en marcha bloquea solo la suelta de su dueña. |
 | CA-16 | Dos pruebas comparables con distintas inclinaciones conservan resultados coherentes. |
 | CA-17 | Repetir una petición de suelta crea una sola prueba. |
-| CA-18 | Pedir permiso muestra negativa y no abre la caja personal. |
-| CA-19 | **(modificado)** Cajas conserva la negativa y lo explorado si la persona recarga o regresa. |
+| CA-18 | **(modificado)** En El observatorio, centrar la ventana de cerca hace que una silueta cierre la cortina una sola vez; no da pistas, puntos ni recompensas y la conversación de las siluetas no se oye ni se revela. |
+| CA-19 | **(modificado)** El observatorio conserva observaciones, aumento, dirección del visor y cortina cerrada si la persona recarga, reconecta o regresa; solo reiniciar la sala lo restablece. |
 | CA-20 | **(modificado)** Solo resultados registrados por el juego y notas de Vanessa aparecen en cuaderno/proyección; el público no escribe texto. |
 | CA-21 | **(modificado)** Quedar lista no depende de escribir: los criterios de cada mesa se cumplen solo con acciones del experimento. |
 | CA-22 | Repetir «Abrir siguiente mesa» no duplica pieza ni efecto confirmado. |
@@ -1235,8 +1235,9 @@ Mantener los IDs CA del PRD para que implementación y ensayo sean trazables. Lo
 | CA-44 | La pregunta final se escribe o se elige, se confirma antes de imprimirla y puede corregirse después conservando la versión anterior. |
 | CA-45 | Cada persona recibe solo su estado personal; la administradora y las demás no reciben el de nadie más. |
 | CA-46 | Cada avatar muestra su nombre encima en el celular de cada persona y en la proyección; si se cruzan, los nombres se superponen y en el celular el propio queda encima. |
-| CA-47 | En La caja existe una sola escena con una caja compartida y una personal cerrada; no hay ninguna acción para abrir la personal y quien pide permiso recibe la negativa completa. |
+| CA-47 | **(modificado)** En El observatorio cada persona mira con su propio telescopio desde el cielo y con el aumento general; queda lista con la Luna de cerca y el grupo de estrellas, en cualquier orden y sin acercarse a la casa; los controles alternativos (flechas, aumentos, zonas Luna/Estrellas/Horizonte, «Volver al cielo») permiten completar toda la exploración y ninguno lleva a la casa ni se llama «Espiar». |
 | CA-48 | Quien se une como observadora queda fuera del contador y no puede actuar. |
+| CA-49 | En El observatorio la consola muestra el avance, nunca quién miró la casa; no se proyecta la exploración de nadie y Vanessa muestra la casa con una demostración propia («Mostrar la casa»), que no cuenta para nadie. |
 
 ### 12.3. Aceptación técnica adicional
 
@@ -1250,7 +1251,7 @@ Mantener los IDs CA del PRD para que implementación y ensayo sean trazables. Lo
 | CT-06 | Phaser y transporte no hacen renderizar todo React por cada frame de movimiento. |
 | CT-07 | Sombras cambia continuamente según el modelo; dos muestras iguales no satisfacen exploración. |
 | CT-08 | Rampas usa mismo modelo/escala en ambas vistas; pausa, duplicados, desconexiones y cambio de ronda no alteran resultado. |
-| CT-09 | Snapshot público, QR y logs no exponen tokens; no existe contenido secreto de la caja personal en assets/datos. |
+| CT-09 | Snapshot público, QR y logs no exponen tokens; la dirección del visor y la cortina de cada persona solo viajan en su propio estado personal. |
 | CT-10 | Servidor deniega payloads fuera de rango, pasos inválidos, IDs inexistentes y mensajes de generación/epoch antiguos. |
 | CT-11 | Fallo simulado de SQLite no produce acknowledgment de éxito ni pieza/registro «confirmado». |
 | CT-12 | Reiniciar sala conserva participantes pero invalida comandos y resultados del recorrido anterior. |
@@ -1269,7 +1270,7 @@ Ensayar con Vanessa y una o dos personas. Pedir que expliquen:
 
 1. Qué cambió al pasar de una primera idea a observar/probar en Sombras.
 2. Qué ocurrió al abrir espacio para preguntar en Rampas.
-3. Por qué se respetó la caja personal y cómo continuó la curiosidad.
+3. Qué entendieron cuando se cerró la cortina en El observatorio y cómo siguió la curiosidad (la Luna, las estrellas y nuevas preguntas).
 4. Qué les gustaría seguir investigando.
 5. Si pudieron explorar por su cuenta y luego aportar a la conversación, aunque no hubieran terminado su exploración.
 

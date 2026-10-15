@@ -16,7 +16,7 @@ export interface NotebookViewProps {
  */
 export function NotebookView({ config, me, adv }: NotebookViewProps) {
   const own = config.route
-    .map((id) => ({ id, title: config.activities[id]!.title, lines: personalLines(me?.activities[id], config.activities[id]!) }))
+    .map((id) => ({ id, title: config.activities[id]!.title, lines: personalLines(me?.activities[id]) }))
     .filter((g) => g.lines.length > 0);
   const byTable = [...config.route, INVENTOR_ID]
     .map((id) => ({ id, title: id === INVENTOR_ID ? "El inventor" : config.activities[id]!.title, rows: adv.notebook.filter((n) => n.activityId === id) }))
@@ -55,7 +55,7 @@ export function NotebookView({ config, me, adv }: NotebookViewProps) {
               <h4>{g.title}</h4>
               <ul className="records">
                 {g.rows.map((n) => (
-                  <GroupNoteRow key={n.id} note={n} config={config} />
+                  <GroupNoteRow key={n.id} note={n} />
                 ))}
               </ul>
             </div>
@@ -67,14 +67,14 @@ export function NotebookView({ config, me, adv }: NotebookViewProps) {
 }
 
 /** Una nota del grupo, con su etiqueta; si fue corregida, sus versiones anteriores quedan a la vista. */
-export function GroupNoteRow({ note, config }: { note: GroupNote; config: LaboratorioConfig }) {
+export function GroupNoteRow({ note }: { note: GroupNote }) {
   return (
     <li className={`record${note.kind === "initialIdea" ? " record--first" : ""}`}>
       <div className="record__head">
         <strong>{NOTE_LABEL[note.kind]}</strong>
         {note.revision > 1 ? <span className="chip">corregida</span> : null}
       </div>
-      <p className="record__text">{noteText(note, config)}</p>
+      <p className="record__text">{noteText(note)}</p>
       {note.history.length > 0 ? (
         <details className="record__history">
           <summary>Versiones anteriores ({note.history.length})</summary>

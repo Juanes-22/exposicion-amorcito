@@ -2,12 +2,12 @@ import Phaser from "phaser";
 import type { LoadedProject } from "../config/loadProject";
 import type { GameBridge } from "./bridge/GameBridge";
 import { canvasSize, trackCanvasSize } from "./pixelRatio";
-import { BoxesScene } from "./scenes/BoxesScene";
 import { InventorScene } from "./scenes/InventorScene";
 import { SceneDirector } from "./scenes/director";
 import { LaboratoryScene } from "./scenes/LaboratoryScene";
 import { RampsScene } from "./scenes/RampsScene";
 import { ShadowsScene } from "./scenes/ShadowsScene";
+import { TelescopeScene } from "./scenes/TelescopeScene";
 
 export interface GameDeps {
   project: LoadedProject;
@@ -46,7 +46,7 @@ export function createGame(parent: HTMLElement, deps: GameDeps): Phaser.Game {
     loader: { maxParallelDownloads: 6, imageLoadType: "HTMLImageElement" },
     callbacks: { preBoot: (g) => g.registry.set(DEPS_KEY, deps) },
     // Solo la primera arranca sola; el director cambia a la de la mesa abierta y de vuelta (un solo juego, un solo canvas).
-    scene: [LaboratoryScene, ShadowsScene, RampsScene, BoxesScene, InventorScene],
+    scene: [LaboratoryScene, ShadowsScene, RampsScene, TelescopeScene, InventorScene],
   });
   const director = new SceneDirector(game, deps);
   game.events.once(Phaser.Core.Events.DESTROY, () => director.dispose());

@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ParticipantAction } from "../../shared/contracts/actions";
 import type { ClockSample } from "../../shared/contracts/events";
-import type { AdventureState, BoxesState, RampsState, ShadowsState } from "../../shared/contracts/state";
+import type { AdventureState, RampsState, ShadowsState, TelescopeState } from "../../shared/contracts/state";
+import { CLOSE_ZOOM, TELESCOPE_TARGETS } from "../../shared/domain/telescope";
 import { planDurationMs } from "../../shared/domain/movement";
 import { playerAt } from "../../shared/domain/participant";
 import { personReadiness } from "../../shared/domain/results";
@@ -28,7 +29,10 @@ const ok = async (p: LocalPlayer, action: ParticipantAction) => expect(await p.p
 
 const sombras = (p: LocalPlayer) => p.getParticipant().activities.sombras as ShadowsState;
 const rampas = (p: LocalPlayer) => p.getParticipant().activities.rampas as RampsState;
-const cajas = (p: LocalPlayer) => p.getParticipant().activities.cajas as BoxesState;
+const telescopio = (p: LocalPlayer) => p.getParticipant().activities.cajas as TelescopeState;
+const { moon, stars, window: ventana } = TELESCOPE_TARGETS;
+const luna: ParticipantAction = { type: "telescope.aim", x: moon.x, y: moon.y, zoom: CLOSE_ZOOM };
+const estrellas: ParticipantAction = { type: "telescope.aim", x: stars.x, y: stars.y, zoom: 0 };
 const listo = (p: LocalPlayer) => personReadiness(p.getParticipant(), p.activityId, bundle.config).ready;
 
 /** El estado de grupo de una sala real en la etapa indicada de la primera mesa (la sala puede ir por delante o por detrás de Vanessa). */
@@ -73,7 +77,8 @@ describe("LocalPlayer: empieza dentro de la mesa y no depende de la ronda de la 
     const a = make("rampas", adv);
     await ok(a, { type: "ramps.trial.start", angleDeg: 20 });
     const b = make("cajas", adv);
-    await ok(b, { type: "boxes.object.inspect", objectId: "lupa" });
+    await ok(b, luna);
+    await ok(b, estrellas);
     expect(listo(b)).toBe(true);
     expect(rampas(a).trials).toHaveLength(1);
   });
@@ -114,7 +119,7 @@ describe("LocalPlayer: las mismas reglas que un participante", () => {
       expect(!r.ok && r.message).toBe("La linterna debe estar entre 10 y 60 cm del objeto.");
     }
     expect(await p.perform({ type: "ramps.trial.start", angleDeg: 20 })).toMatchObject({ ok: false, code: "INVALID_STEP" }); // acción de otra mesa
-    expect(await p.perform({ type: "boxes.object.inspect", objectId: "lupa" })).toMatchObject({ ok: false, code: "INVALID_STEP" });
+    expect(await p.perform(luna)).toMatchObject({ ok: false, code: "INVALID_STEP" });
     expect(await p.perform({ type: "station.open", stationId: "rampas", origin: "quickNav" })).toMatchObject({ ok: false, code: "INVALID_STEP", message: "Esa mesa se habilitará más adelante." });
     expect(await p.perform({ type: "grantPiece" } as unknown as ParticipantAction)).toMatchObject({ ok: false, code: "INVALID_PAYLOAD" }); // no hay acciones libres
     expect(p.getParticipant()).toBe(antes);
@@ -131,15 +136,16 @@ describe("LocalPlayer: las mismas reglas que un participante", () => {
     expect(rampas(p).trials).toHaveLength(1);
   });
 
-  it("La caja: explorar un objeto la deja lista; pedir permiso se registra pero la caja personal nunca se abre", async () => {
+  it("El observatorio: la ventana cierra la cortina sin contar; la Luna de cerca y las estrellas, una vez cada una, la dejan lista", async () => {
     const p = make("cajas");
-    await ok(p, { type: "boxes.permission.ask" });
-    expect(cajas(p)).toMatchObject({ askedPermission: true, inspected: [] });
+    await ok(p, { type: "telescope.aim", x: ventana.x, y: ventana.y, zoom: CLOSE_ZOOM });
+    expect(telescopio(p)).toMatchObject({ observed: [], curtain: "closed" });
     expect(listo(p)).toBe(false);
-    expect(await p.perform({ type: "boxes.object.inspect", objectId: "no-existe" })).toMatchObject({ ok: false, code: "INVALID_PAYLOAD" });
-    await ok(p, { type: "boxes.object.inspect", objectId: "campanita" });
-    await ok(p, { type: "boxes.object.inspect", objectId: "campanita" });
-    expect(cajas(p).inspected).toEqual(["campanita"]);
+    expect(await p.perform({ type: "telescope.aim", x: Number.NaN, y: 0, zoom: 0 })).toMatchObject({ ok: false, code: "INVALID_PAYLOAD" });
+    await ok(p, luna);
+    await ok(p, luna);
+    await ok(p, estrellas);
+    expect(telescopio(p).observed).toEqual(["moon", "stars"]);
     expect(listo(p)).toBe(true);
   });
 
@@ -317,8 +323,8 @@ describe("LocalPlayer: nada de lo suyo sale del objeto (no hay red)", () => {
     await ok(r, { type: "ramps.trial.start", angleDeg: 20 });
     advance(r, 10_000);
     const c = make("cajas", sala);
-    await ok(c, { type: "boxes.object.inspect", objectId: "lupa" });
-    await ok(c, { type: "boxes.permission.ask" });
+    await ok(c, luna);
+    await ok(c, estrellas);
     for (const p of [s, r, c]) p.dispose();
     expect(red).not.toHaveBeenCalled();
   });
@@ -338,7 +344,8 @@ describe("LocalPlayer: nada de lo suyo sale del objeto (no hay red)", () => {
         await ok(p, { type: "ramps.trial.start", angleDeg: 20 });
         advance(p, 10_000);
       } else {
-        await ok(p, { type: "boxes.object.inspect", objectId: "lupa" });
+        await ok(p, luna);
+        await ok(p, estrellas);
       }
       p.dispose();
     }

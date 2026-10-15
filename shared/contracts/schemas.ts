@@ -32,8 +32,12 @@ const participantAction = {
     bare("adventure.returnToMap"),
     { type: "object", required: ["type", "distanceCm"], additionalProperties: false, properties: { type: { const: "shadows.sample" }, distanceCm: finite } },
     { type: "object", required: ["type", "angleDeg"], additionalProperties: false, properties: { type: { const: "ramps.trial.start" }, angleDeg: finite } },
-    { type: "object", required: ["type", "objectId"], additionalProperties: false, properties: { type: { const: "boxes.object.inspect" }, objectId: id } },
-    bare("boxes.permission.ask"),
+    {
+      type: "object",
+      required: ["type", "x", "y", "zoom"],
+      additionalProperties: false,
+      properties: { type: { const: "telescope.aim" }, x: finite, y: finite, zoom: { type: "integer", minimum: 0, maximum: 9 } },
+    },
   ],
   discriminator: { propertyName: "type" },
 };

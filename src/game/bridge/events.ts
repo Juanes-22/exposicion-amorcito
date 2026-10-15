@@ -2,6 +2,7 @@ import type { ClockSample, EffectEvent, PublicCharacter } from "../../../shared/
 import type { Point } from "../../../shared/contracts/geometry";
 import type { ConfigIssue } from "../../../shared/contracts/assets";
 import type { AdventureState, ParticipantState, RoomPhase } from "../../../shared/contracts/state";
+import type { TelescopeView } from "../../../shared/domain/telescope";
 
 /**
  * Intención del jugador sobre el mapa, ya en coordenadas de MUNDO (la conversión pantalla→mundo la hace la escena con su cámara).
@@ -44,12 +45,14 @@ export interface VisualState {
 }
 
 /**
- * Lo que solo existe en el dispositivo mientras alguien ajusta un experimento y todavía no se registra: la posición de la linterna y la
- * inclinación elegida. No viaja al servidor: solo el resultado ya terminado se registra.
+ * Lo que solo existe en el dispositivo mientras alguien ajusta un experimento y todavía no se registra: la posición de la linterna, la
+ * inclinación elegida y hacia dónde mira el telescopio. No viaja al servidor mientras se mueve: solo lo ya terminado (o la vista quieta)
+ * se registra.
  */
 export interface LocalExperiment {
   lanternCm: number | null;
   angleDeg: number | null;
+  telescope: TelescopeView | null;
 }
 
 /**

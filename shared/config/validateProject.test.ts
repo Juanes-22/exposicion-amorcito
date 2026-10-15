@@ -200,13 +200,21 @@ describe("catálogo y referencias de recursos", () => {
 });
 
 describe("configuración de contenido", () => {
-  it("rechaza referencias rotas: ruta, piezas, diálogos y objetos de Cajas", () => {
+  it("rechaza referencias rotas: ruta y piezas", () => {
     expectIssue(issuesFor((r) => r.config.route.push("fantasma")), "route", "fantasma");
     expectIssue(issuesFor((r) => (r.config.inventor.requiredPieceIds = ["lupa", "dialogo"])), "falta la pieza «corazon»");
     expectIssue(issuesFor((r) => (r.config.activities.rampas.pieceId = "lupa")), "ya la concede");
-    expectIssue(issuesFor((r) => (r.config.activities.cajas.refusalDialogueId = "no-hay")), "diálogo inexistente");
-    expectIssue(issuesFor((r) => (r.config.activities.cajas.personalTouchDialogueId = "no-hay")), "diálogo inexistente");
-    expectIssue(issuesFor((r) => (r.config.activities.cajas.requiredObjects = 9)), "no puede pedir más objetos");
+  });
+  it("el observatorio: dos aumentos crecientes, un visor que cabe en el panorama y observaciones que se pueden lograr", () => {
+    expectIssue(issuesFor((r) => (r.config.activities.cajas.experiment.zoomLevels = [3, 1])), "zoomLevels", "mayor que el general");
+    expectIssue(issuesFor((r) => (r.config.activities.cajas.experiment.zoomLevels = [1, 2, 3])), "zoomLevels");
+    expectIssue(issuesFor((r) => (r.config.activities.cajas.experiment.fieldRadius = 700)), "fieldRadius", "no cabe");
+    // Un visor muy amplio queda lejos del borde: el grupo de estrellas, cerca del borde de arriba, ya no se puede centrar.
+    expectIssue(issuesFor((r) => Object.assign(r.config.activities.cajas.experiment, { fieldRadius: 595, centerTolerance: 0.2 })), "no se puede centrar el grupo de estrellas");
+    expectIssue(issuesFor((r) => (r.config.activities.cajas.experiment.curtainDelayMs = -1)), "curtainDelayMs");
+    // La casa no es un objetivo: la configuración no admite pistas, puntos ni requisitos sobre la ventana.
+    expectIssue(issuesFor((r) => (r.config.activities.cajas.experiment.requireWindow = true)), "requireWindow", "no permitida");
+    expectIssue(issuesFor((r) => (r.config.activities.cajas.type = "boxes")), "activities.cajas");
   });
   it("rechaza rangos que impiden completar: dos posiciones o dos pruebas distintas", () => {
     expectIssue(issuesFor((r) => (r.config.activities.sombras.experiment.minDistinctDistanceCm = 80)), "muestras separadas");
@@ -215,7 +223,7 @@ describe("configuración de contenido", () => {
   });
   it("rechaza propiedades desconocidas y credenciales: la configuración pública no admite datos extra", () => {
     expectIssue(issuesFor((r) => (r.config.adminToken = "secreto")), "adminToken", "no permitida");
-    expectIssue(issuesFor((r) => (r.config.activities.cajas.contenidoCajaPersonal = ["x"])), "contenidoCajaPersonal", "no permitida");
+    expectIssue(issuesFor((r) => (r.config.activities.cajas.puntosPorVentana = 10)), "puntosPorVentana", "no permitida");
   });
   it("exige el objetivo, las preguntas y la frase de cada mesa, y los textos de las fases comunes", () => {
     expectIssue(issuesFor((r) => delete r.config.activities.sombras.goal), "goal", "obligatoria");

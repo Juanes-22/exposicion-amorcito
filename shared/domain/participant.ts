@@ -8,6 +8,7 @@ import { rampDurationMs, shadowHeightCm } from "./models";
 import { createPlan, samplePlan } from "./movement";
 import { findPath, isFootprintFree, type NavGrid } from "./navigation";
 import { emptyActivityState, runningTrial } from "./results";
+import { centeredTargets, clampView } from "./telescope";
 
 /**
  * Estado y acciones de cada participante (propuesta de rondas, sección 9). Todas son funciones puras: cada persona modifica solo su
@@ -229,25 +230,28 @@ export function reduceParticipant(room: RoomState, principalId: string, action: 
       return done(true);
     }
 
-    case "boxes.object.inspect": {
-      const n = needOpen("boxes");
+    case "telescope.aim": {
+      const n = needOpen("telescope");
       if (isFail(n)) return n;
-      if (!n.cfg.sharedObjects.some((o) => o.id === action.objectId)) return fail("INVALID_PAYLOAD", "Ese objeto no está en la caja compartida.");
-      n.st.selectedObjectId = action.objectId;
-      if (!n.st.inspected.includes(action.objectId)) n.st.inspected.push(action.objectId);
-      return done(true);
-    }
-
-    case "boxes.permission.ask": {
-      const n = needOpen("boxes");
-      if (isFail(n)) return n;
-      n.st.askedPermission = true; // la caja personal permanece cerrada: no existe una acción que la abra
+      const e = n.cfg.experiment;
+      if (!Number.isFinite(action.x) || !Number.isFinite(action.y) || !Number.isInteger(action.zoom) || action.zoom < 0 || action.zoom >= e.zoomLevels.length) {
+        return fail("INVALID_PAYLOAD", "Esa dirección del telescopio no es válida.");
+      }
+      // El servidor decide qué quedó centrado con la geometría compartida; el cliente solo dice hacia dónde quedó mirando.
+      const view = clampView(action, e);
+      const centered = centeredTargets(view, e);
+      n.st.x = view.x;
+      n.st.y = view.y;
+      n.st.zoom = view.zoom;
+      for (const target of ["moon", "stars"] as const) if (centered[target] && !n.st.observed.includes(target)) n.st.observed.push(target);
+      // La cortina se cierra una sola vez y no se vuelve a abrir: no hay ninguna acción que la abra.
+      if (centered.window && n.st.curtain === "open") n.st.curtain = "closed";
       return done(false);
     }
 
     default: {
       // Exhaustividad: añadir una acción al catálogo sin tratarla aquí es un error de tipos. En ejecución, cualquier acción fuera del
-      // catálogo (setState, grantPiece, openPersonalBox…) se rechaza en vez de aceptarse sin efecto.
+      // catálogo (setState, grantPiece, openCurtain…) se rechaza en vez de aceptarse sin efecto.
       const unknown: never = action;
       return fail("INVALID_PAYLOAD", `Acción desconocida: ${String((unknown as { type?: unknown }).type)}`);
     }

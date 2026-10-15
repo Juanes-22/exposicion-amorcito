@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@t
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EffectEvent, GroupSnapshot, MeSnapshot } from "../../../shared/contracts/events";
+import { CLOSE_ZOOM, TELESCOPE_TARGETS } from "../../../shared/domain/telescope";
 import { bundle, Driver } from "../../../shared/testing/drive";
 import { SignalText, SoundControl } from "../../components/room/SoundControl";
 import type { LoadedProject } from "../../config/loadProject";
@@ -48,12 +49,12 @@ function conSombras() {
   d.openStation("ana", "sombras");
   return { d, muestra: (cm: number) => d.must(d.act("ana", { type: "shadows.sample", distanceCm: cm }), `posición ${cm}`) };
 }
-/** Ana en La caja de las sorpresas: `mirar` selecciona un objeto compartido. */
-function conCajas() {
+/** Ana en el observatorio: `mirar` centra el visor en un punto del panorama con el aumento cercano. */
+function conTelescopio() {
   const d = new Driver(["ana"]);
   d.toExploration(2);
   d.openStation("ana", "cajas");
-  return { d, mirar: (id: string) => d.must(d.act("ana", { type: "boxes.object.inspect", objectId: id }), `mirar ${id}`) };
+  return { d, mirar: (target: keyof typeof TELESCOPE_TARGETS) => d.must(d.act("ana", { type: "telescope.aim", x: TELESCOPE_TARGETS[target].x, y: TELESCOPE_TARGETS[target].y, zoom: CLOSE_ZOOM }), `mirar ${target}`) };
 }
 
 beforeEach(() => window.localStorage.clear());
@@ -79,7 +80,7 @@ describe("useAudioSignals (SPECS 10.4)", () => {
     await waitFor(() => expect(player.enable).toHaveBeenCalledTimes(1));
     fireEvent.pointerDown(window);
     expect(player.enable).toHaveBeenCalledTimes(1); // una sola vez
-    expect(Object.keys(player.enable.mock.calls[0]![0]).sort()).toEqual(["adventure.finished", "boxes.bell", "inventor.activated", "piece.earned", "shadows.click"]);
+    expect(Object.keys(player.enable.mock.calls[0]![0]).sort()).toEqual(["adventure.finished", "inventor.activated", "piece.earned", "shadows.click"]);
   });
 
   it("sin preferencia previa nada se activa solo en ninguna pantalla", () => {
@@ -195,19 +196,16 @@ describe("useAudioSignals (SPECS 10.4)", () => {
     expect(player.play).toHaveBeenCalledTimes(1);
   });
 
-  it("la campanita suena en el teléfono de quien la mira, una vez por mirada", () => {
+  it("el telescopio no suena en el teléfono: ni las observaciones ni la cortina que se cierra", () => {
     const player = fakePlayer();
-    const { d, mirar } = conCajas();
+    const { d, mirar } = conTelescopio();
     const { result, rerender } = renderHook(({ s }) => useAudioSignals({ project, state: s, device: "phone", player }), { initialProps: { s: state(1, [], "connected", mine(d, 1)) } });
-    mirar("lupa");
+    mirar("moon");
     rerender({ s: state(2, [], "connected", mine(d, 2)) });
-    expect(player.play).not.toHaveBeenCalled();
-    mirar("campanita");
+    mirar("window");
     rerender({ s: state(3, [], "connected", mine(d, 3)) });
-    expect(player.play).toHaveBeenCalledWith("boxes.bell");
-    expect(result.current.signal?.text).toBe("Suena la campanita.");
-    rerender({ s: state(4, [], "connected", mine(d, 4)) });
-    expect(player.play).toHaveBeenCalledTimes(1);
+    expect(player.play).not.toHaveBeenCalled();
+    expect(result.current.signal).toBeNull();
   });
 
   it("quien acompaña como observadora (sin estado personal) oye las señales de grupo y ninguna personal", () => {
@@ -280,8 +278,8 @@ describe("controles de sonido y texto de las señales", () => {
   it("el texto equivalente de la señal se anuncia en una región viva y se ve", () => {
     const { container, rerender } = render(<SignalText audio={audio()} />);
     expect(container.querySelector("[aria-live=polite]")?.textContent).toBe("");
-    rerender(<SignalText audio={audio({ signal: { id: "x", text: "Suena la campanita." } })} />);
-    expect(container.querySelector("[aria-live=polite]")?.textContent).toBe("Suena la campanita.");
-    expect(container.querySelector(".signal")?.textContent).toBe("Suena la campanita.");
+    rerender(<SignalText audio={audio({ signal: { id: "x", text: "Pieza conseguida: Lupa." } })} />);
+    expect(container.querySelector("[aria-live=polite]")?.textContent).toBe("Pieza conseguida: Lupa.");
+    expect(container.querySelector(".signal")?.textContent).toBe("Pieza conseguida: Lupa.");
   });
 });

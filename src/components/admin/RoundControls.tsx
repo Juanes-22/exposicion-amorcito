@@ -14,15 +14,15 @@ interface Props {
   pending: string[];
   disabled: boolean;
   admin: (action: AdminAction) => Promise<unknown>;
-  /** Demostración de Vanessa: solo antes de la conversación. */
-  demo?: { active: boolean; start: () => void; stop: () => void } | null;
+  /** Observatorio, en la conversación: la demostración de Vanessa con la ventana y la cortina. */
+  houseDemo?: { active: boolean; start: () => void; stop: () => void } | null;
 }
 
 /**
  * Los pasos de la ronda (propuesta de rondas, sección 4): abrir la mesa, reunir al grupo con «Conversemos», mostrar la frase de Freire y
  * abrir la siguiente mesa. Solo se ofrece el paso que corresponde a la fase, con el nombre de lo que va a pasar.
  */
-export function RoundControls({ config, adv, counter, pending, disabled, admin, demo }: Props) {
+export function RoundControls({ config, adv, counter, pending, disabled, admin, houseDemo }: Props) {
   const [confirm, setConfirm] = useState(false);
   const [sending, setSending] = useState(false);
   const round = adv.round;
@@ -47,13 +47,6 @@ export function RoundControls({ config, adv, counter, pending, disabled, admin, 
           <button type="button" className="btn btn--primary" disabled={off} onClick={() => void run({ type: "round.open" })}>
             Abrir mesa: {cfg.title}
           </button>
-          {demo ? (
-            demo.active ? (
-              <button type="button" className="btn" onClick={demo.stop}>Terminar la demostración</button>
-            ) : (
-              <button type="button" className="btn" onClick={demo.start}>Probar la mesa yo misma</button>
-            )
-          ) : null}
         </>
       ) : null}
 
@@ -62,21 +55,30 @@ export function RoundControls({ config, adv, counter, pending, disabled, admin, 
           <span className="round-controls__counter" role="status" aria-live="polite">
             <strong>{counter ? `${counter.ready} de ${counter.total}` : "—"}</strong> listos
           </span>
+          {counter && counter.total > 0 && counter.ready === counter.total ? (
+            <span className="chip chip--ok" role="status">
+              ✓ Todas las personas están listas
+            </span>
+          ) : null}
           <button type="button" className="btn btn--primary" disabled={off} onClick={() => (pending.length > 0 ? setConfirm(true) : void run({ type: "round.converse" }))}>
             Conversemos
           </button>
-          {demo ? (
-            demo.active ? (
-              <button type="button" className="btn" onClick={demo.stop}>Terminar la demostración</button>
-            ) : (
-              <button type="button" className="btn btn--ghost" onClick={demo.start}>Probar la mesa yo misma</button>
-            )
-          ) : null}
         </>
       ) : null}
 
       {round.stage === "conversation" && cfg ? (
         <>
+          {houseDemo ? (
+            houseDemo.active ? (
+              <button type="button" className="btn" onClick={houseDemo.stop}>
+                Volver al laboratorio
+              </button>
+            ) : (
+              <button type="button" className="btn" disabled={off} onClick={houseDemo.start}>
+                Mostrar la casa
+              </button>
+            )
+          ) : null}
           <button type="button" className="btn" disabled={off || round.freireShown} onClick={() => void run({ type: "round.showFreire" })}>
             {round.freireShown ? "Frase de Freire mostrada" : "Mostrar la frase de Freire"}
           </button>

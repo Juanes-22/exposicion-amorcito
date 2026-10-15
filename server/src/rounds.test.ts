@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { RoomState } from "../../shared/contracts/state";
 import type { AdminAction } from "../../shared/contracts/actions";
+import { CLOSE_ZOOM, TELESCOPE_TARGETS } from "../../shared/domain/telescope";
 import { beginExploration, inSync, joinRoom, setupRoom, startServer, TestClient, type TestServer } from "./testing/harness";
 
 // Propuesta de rondas, etapas 1 a 4 de punta a punta contra el servidor real: todas las personas exploran a la vez con sus propias
@@ -261,6 +262,55 @@ describe("conducción de la ronda por Vanessa (etapa 3)", () => {
     expect((back.me!.participant.activities.sombras as { samples: Array<{ distanceCm: number }> }).samples.map((x) => x.distanceCm)).toEqual([20]);
     await r.admin.until(() => r.admin.presence!.participants.find((p) => p.displayName === "Beto")?.connected === true, "Beto vuelve a aparecer conectado");
     expect(counter(r).total).toBe(2);
+  });
+});
+
+describe("El observatorio (mesa 3)", () => {
+  it("cada persona mira con su propio telescopio: lo observado y la cortina llegan solo a ella, y Vanessa ve el avance, no quién miró la casa", async () => {
+    const r = await room(["Ana", "Beto"]);
+    await r.admin.admin({ type: "room.start" });
+    for (let i = 0; i < 2; i++) {
+      await conduct(r, { type: "round.open" }, `abrir ${i}`);
+      await conduct(r, { type: "round.converse", withPending: true }, `reunir ${i}`);
+      await conduct(r, { type: "round.next" }, `avanzar ${i}`);
+    }
+    await conduct(r, { type: "round.open" }, "abrir el observatorio");
+    const [ana, beto] = r.cs as [TestClient, TestClient];
+    for (const c of [ana, beto]) await ok(c.act({ type: "station.open", stationId: "cajas", origin: "quickNav" }), "abrir el telescopio");
+    const { moon, stars, window: win } = TELESCOPE_TARGETS;
+    await ok(ana.act({ type: "telescope.aim", x: win.x, y: win.y, zoom: CLOSE_ZOOM }), "Ana se acerca a la ventana");
+    await ok(beto.act({ type: "telescope.aim", x: moon.x, y: moon.y, zoom: CLOSE_ZOOM }), "Beto, la Luna");
+    await ok(beto.act({ type: "telescope.aim", x: stars.x, y: stars.y, zoom: 0 }), "Beto, las estrellas");
+    expect(personal(r, 0).activities.cajas).toMatchObject({ x: win.x, y: win.y, zoom: CLOSE_ZOOM, observed: [], curtain: "closed" });
+    expect(personal(r, 1).activities.cajas).toMatchObject({ observed: ["moon", "stars"], curtain: "open" }); // la cortina de Ana no cierra la casa de Beto
+    await beto.until(() => (beto.me!.participant.activities.cajas as { observed: string[] }).observed.length === 2, "Beto recibe sus observaciones");
+    expect(JSON.stringify(beto.mes)).not.toContain('"curtain":"closed"');
+    expect(JSON.stringify(beto.mes)).not.toContain(`"x":${win.x}`);
+
+    // La consola muestra el avance; ni el visor ni la cortina de nadie le llegan.
+    await r.admin.until(() => counter(r).ready === 1 && counter(r).total === 2, "1 de 2 listos");
+    expect(r.admin.presence!.participants.map((p) => [p.displayName, p.ready, p.progress])).toEqual([
+      ["Ana", false, { done: 0, needed: 2 }],
+      ["Beto", true, { done: 2, needed: 2 }],
+    ]);
+    expect(r.admin.mes).toEqual([]);
+    expect(JSON.stringify([r.admin.groups, r.admin.presence])).not.toMatch(/curtain|telescope/);
+
+    // Lo de Ana es durable y vuelve igual al reconectar: la cortina sigue cerrada.
+    expect(persisted(r.code).participants[r.ids[0]!]!.activities.cajas).toEqual(personal(r, 0).activities.cajas);
+    ana.close();
+    const back = track(await new TestClient(server.url, await rejoinToken(r, 0)).ready());
+    await back.until(() => back.me !== null, "recupera su estado personal");
+    expect(back.me!.participant.activities.cajas).toMatchObject({ x: win.x, y: win.y, zoom: CLOSE_ZOOM, curtain: "closed" });
+
+    // En la conversación no se proyecta la exploración de nadie: se proyecta la demostración de Vanessa.
+    // (Ana volvió con otra conexión: aquí se espera solo a Beto en lugar de a todo el grupo.)
+    await ok(r.admin.admin({ type: "round.converse", withPending: true }), "reunir");
+    await beto.until(() => beto.group?.adventure.round.stage === "conversation", "Beto ve la conversación");
+    expect(await r.admin.admin({ type: "present.select", principalId: r.ids[1]! })).toMatchObject({ ok: false, code: "INVALID_STEP" });
+    expect(await beto.act({ type: "telescope.aim", x: win.x, y: win.y, zoom: CLOSE_ZOOM })).toMatchObject({ ok: false, code: "INVALID_STEP" });
+    await ok(r.admin.admin({ type: "round.next" }), "al inventor");
+    expect(state(r.code).adventure.pieces).toEqual(["lupa", "dialogo", "corazon"]);
   });
 });
 

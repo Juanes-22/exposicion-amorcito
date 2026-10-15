@@ -12,8 +12,7 @@ const participantSamples: Record<ParticipantAction["type"], ParticipantAction> =
   "adventure.returnToMap": { type: "adventure.returnToMap" },
   "shadows.sample": { type: "shadows.sample", distanceCm: 30 },
   "ramps.trial.start": { type: "ramps.trial.start", angleDeg: 30 },
-  "boxes.object.inspect": { type: "boxes.object.inspect", objectId: "lupa" },
-  "boxes.permission.ask": { type: "boxes.permission.ask" },
+  "telescope.aim": { type: "telescope.aim", x: 560, y: 430, zoom: 1 },
 };
 const adminSamples: Record<AdminAction["type"], AdminAction> = {
   "room.start": { type: "room.start" },
@@ -43,7 +42,7 @@ describe("esquemas de comandos", () => {
   });
 
   it("rechazan acciones libres que el cliente no puede enviar", () => {
-    for (const type of ["setState", "grantPiece", "setResult", "openPersonalBox", "boxes.personal.open", "round.open", "round.next"]) {
+    for (const type of ["setState", "grantPiece", "setResult", "telescope.observe", "telescope.complete", "boxes.object.inspect", "round.open", "round.next"]) {
       expect(parseParticipantCommand(participant({ type, piece: "lupa" })).ok, type).toBe(false); // avanzar la ronda es de Vanessa
     }
     expect(parseAdminCommand(admin({ type: "role.set", role: "admin" })).ok).toBe(false);
@@ -61,6 +60,9 @@ describe("esquemas de comandos", () => {
     expect(parseParticipantCommand({ ...participant(participantSamples["shadows.sample"]), requestId: undefined }).ok).toBe(false);
     expect(parseParticipantCommand(participant(participantSamples["shadows.sample"], { role: "admin" })).ok).toBe(false); // el rol no viaja en el comando
     expect(parseParticipantCommand(participant(participantSamples["shadows.sample"], { turnVersion: 1 })).ok).toBe(false); // ya no hay turnos
+    expect(parseParticipantCommand(participant({ type: "telescope.aim", x: 1, y: 2, zoom: 1, observed: ["moon"] })).ok).toBe(false); // lo observado lo decide el servidor
+    expect(parseParticipantCommand(participant({ type: "telescope.aim", x: 1, y: 2, zoom: 1.5 })).ok).toBe(false);
+    expect(parseParticipantCommand(participant({ type: "telescope.aim", x: 1, y: 2 })).ok).toBe(false);
   });
 
   it("validan las notas y la pregunta final por unión discriminada", () => {

@@ -72,7 +72,7 @@ export function GroupNotes({ config, adv, busy, save, edit }: Props) {
                 </>
               ) : (
                 <>
-                  <p className="record__text">{noteText(n, config)}</p>
+                  <p className="record__text">{noteText(n)}</p>
                   {n.history.length > 0 && n.kind !== "comparison" ? (
                     <details className="record__history">
                       <summary>Versiones anteriores ({n.history.length})</summary>

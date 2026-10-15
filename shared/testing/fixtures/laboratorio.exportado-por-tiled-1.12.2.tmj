@@ -382,7 +382,7 @@
                         {
                          "name":"assetId",
                          "type":"string",
-                         "value":"lab.station.boxes"
+                         "value":"lab.station.telescope"
                         }],
                  "rotation":0,
                  "type":"Station",
