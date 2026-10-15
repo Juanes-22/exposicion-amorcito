@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { describeShadow, rampAcceleration, rampDurationMs, rampDurationSeconds, rampProgress, shadowHeightCm } from "./models";
+import type { RampsExperiment, ShadowsExperiment } from "../contracts/config";
+import { angleLabel, describeShadow, rampAcceleration, rampDurationMs, rampDurationSeconds, rampProgress, shadowHeightCm, shadowWords } from "./models";
 
 describe("Sombras: alturaSombra = h × (d + b) / d", () => {
   const h = 8;
@@ -19,14 +20,35 @@ describe("Sombras: alturaSombra = h × (d + b) / d", () => {
     // Sin saltos: pasos de 0,5 cm cambian la sombra poco.
     expect(Math.abs(shadowHeightCm(30, b, h) - shadowHeightCm(30.5, b, h))).toBeLessThan(0.2);
   });
-  it("la descripción textual usa el mismo valor calculado", () => {
-    const text = describeShadow(20, shadowHeightCm(20, b, h), h);
-    expect(text).toContain("20 cm");
-    expect(text).toContain("18 cm"); // 8 × 45 / 20
+  const exp: ShadowsExperiment = { sourceDistanceMinCm: 10, sourceDistanceMaxCm: 60, screenDistanceCm: b, objectHeightCm: h, minDistinctDistanceCm: 5, requiredSamples: 2 };
+  it("se describe con palabras, sin medidas: la linterna cerca da una sombra grande y lejos, una pequeña", () => {
+    expect(shadowWords(exp, 10)).toEqual({ lantern: "muy cerca", shadow: "muy grande" });
+    expect(shadowWords(exp, 20)).toEqual({ lantern: "cerca", shadow: "grande" });
+    expect(shadowWords(exp, 30)).toEqual({ lantern: "cerca", shadow: "mediana" });
+    expect(shadowWords(exp, 40)).toEqual({ lantern: "lejos", shadow: "pequeña" });
+    expect(shadowWords(exp, 60)).toEqual({ lantern: "muy lejos", shadow: "pequeña" });
+    const text = describeShadow(exp, 10);
+    expect(text).toBe("La linterna está muy cerca del objeto. La sombra es muy grande.");
+    expect(text).not.toMatch(/\d/); // ningún número: se comparan tamaños
+  });
+  it("las palabras siguen el modelo: al acercar la linterna la sombra nunca se describe más pequeña", () => {
+    const order = ["pequeña", "mediana", "grande", "muy grande"];
+    let prev = -1;
+    for (let d = 60; d >= 10; d -= 0.5) {
+      const rank = order.indexOf(shadowWords(exp, d).shadow);
+      expect(rank).toBeGreaterThanOrEqual(prev);
+      prev = rank;
+    }
   });
 });
 
 describe("Rampas: a = (5/7) g sin θ, T = 2,4 · sqrt(2L/a)", () => {
+  it("cada inclinación se nombra, de la menos a la más empinada, sin grados", () => {
+    const e = { minAngleDeg: 20, maxAngleDeg: 45, angleStepDeg: 5, angleLabels: ["a", "b", "c", "d", "e", "f"] } as RampsExperiment;
+    expect([20, 25, 30, 35, 40, 45].map((x) => angleLabel(e, x))).toEqual(["a", "b", "c", "d", "e", "f"]);
+    expect(angleLabel(e, 10)).toBe("a"); // fuera de rango se acota
+    expect(angleLabel(e, 90)).toBe("f");
+  });
   const L = 2;
   const scale = 2.4;
   it("reproduce los tiempos de referencia de SPECS 3.3 (≈3,56 s a 15° y ≈2,16 s a 45°)", () => {

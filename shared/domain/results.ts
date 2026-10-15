@@ -1,6 +1,6 @@
-import type { ActivityConfig, LaboratorioConfig, RampsActivityConfig, ShadowsActivityConfig } from "../contracts/config";
-import type { ActivityState, Comparison, ComparisonData, ParticipantState, RampsState, RampTrial, ShadowSample, ShadowsState } from "../contracts/state";
-import { startView } from "./telescope";
+import type { ActivityConfig, LaboratorioConfig, RampsActivityConfig } from "../contracts/config";
+import type { ActivityState, ParticipantState, RampsState, RampTrial, ShadowSample, ShadowsState } from "../contracts/state";
+import { REQUIRED_TARGETS, startView } from "./telescope";
 
 /**
  * Resultados personales y criterios de finalización (propuesta de rondas, secciones 5–7). «Listo para conversar» se deduce de los
@@ -55,9 +55,10 @@ export function readiness(state: ActivityState | undefined, cfg: ActivityConfig)
       return { done: ready ? needed : Math.min(n, Math.max(0, needed - 1)), needed, ready };
     }
     case "telescope": {
-      // La Luna y el grupo de estrellas. Encontrar la casa o la cortina no cuenta: no es un requisito ni una respuesta.
-      const needed = 2;
-      const n = state?.type === "telescope" ? state.observed.length : 0;
+      // La Luna y el grupo de estrellas. La galaxia es un hallazgo aparte, y encontrar la casa o la cortina no cuenta: no es un
+      // requisito ni una respuesta.
+      const needed = REQUIRED_TARGETS.length;
+      const n = state?.type === "telescope" ? state.observed.filter((t) => REQUIRED_TARGETS.includes(t)).length : 0;
       return { done: Math.min(n, needed), needed, ready: n >= needed };
     }
   }
@@ -68,42 +69,3 @@ export function personReadiness(p: ParticipantState | undefined, activityId: str
   if (!cfg) return { done: 0, needed: 0, ready: false };
   return readiness(p?.activities[activityId], cfg);
 }
-
-/**
- * Los resultados de una persona que Vanessa proyecta: una copia (seleccionar no altera el original). En Sombras, sus dos primeras
- * posiciones que cuentan; en Rampas, su prueba más lenta y su prueba más rápida entre las terminadas (el mayor contraste). En el
- * observatorio no se proyectan los resultados de nadie (se proyecta la demostración de Vanessa): `null`, como si no tuviera nada que mostrar.
- */
-export function buildComparisonData(p: ParticipantState, activityId: string, config: LaboratorioConfig): ComparisonData | null {
-  const cfg = config.activities[activityId];
-  const st = p.activities[activityId];
-  if (!cfg || !st) return null;
-  if (cfg.type === "shadows" && st.type === "shadows") {
-    const samples = countedSamples(st)
-      .slice(0, (cfg as ShadowsActivityConfig).experiment.requiredSamples)
-      .map((s) => ({ distanceCm: s.distanceCm, shadowCm: s.shadowCm }));
-    return samples.length > 0 ? { type: "shadows", samples } : null;
-  }
-  if (cfg.type === "ramps" && st.type === "ramps") {
-    const done = finishedTrials(st);
-    if (done.length === 0) return null;
-    const byAngle = [...done].sort((a, b) => a.angleDeg - b.angleDeg || a.startActiveMs - b.startActiveMs);
-    const chosen = byAngle.length >= 2 && byAngle[0]!.angleDeg !== byAngle.at(-1)!.angleDeg ? [byAngle[0]!, byAngle.at(-1)!] : byAngle.slice(0, 1);
-    return { type: "ramps", trials: chosen.map((t) => ({ angleDeg: t.angleDeg, durationMs: t.durationMs })) };
-  }
-  return null;
-}
-
-export function buildComparison(p: ParticipantState, activityId: string, config: LaboratorioConfig, authorId: string, authorName: string): Comparison | null {
-  const data = buildComparisonData(p, activityId, config);
-  return data ? { activityId, authorId, authorName, data } : null;
-}
-
-/** Texto equivalente de una comparación, para lectores de pantalla y para el cuaderno. */
-export function describeComparison(c: Comparison): string {
-  const d = c.data;
-  if (d.type === "shadows") return d.samples.map((s) => `linterna a ${fmt(s.distanceCm)} cm → sombra de ${fmt(s.shadowCm, 1)} cm`).join("; ");
-  return d.trials.map((t) => `${fmt(t.angleDeg)}° → ${fmt(t.durationMs / 1000, 1)} s`).join("; ");
-}
-
-const fmt = (n: number, decimals = 0) => n.toLocaleString("es", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });

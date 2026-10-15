@@ -184,23 +184,14 @@ describe("conducción de la ronda por Vanessa (etapa 3)", () => {
     expect((personal(r, 0).activities.rampas as { trials: Array<{ state: string }> }).trials[0]!.state).toBe("cancelled");
   });
 
-  it("Vanessa proyecta los resultados de una persona; se conservan en el cuaderno común sin alterar los originales", async () => {
+  it("ya no existe proyectar los resultados de una persona: el servidor rechaza esas acciones como desconocidas", async () => {
     const r = await room(["Ana", "Beto"]);
     await beginExploration(r);
-    const [ana, beto] = r.cs as [TestClient, TestClient];
-    await ok(ana.act({ type: "station.open", stationId: "sombras", origin: "quickNav" }), "Ana abre");
-    await ok(ana.act({ type: "shadows.sample", distanceCm: 20 }), "m1");
-    await ok(ana.act({ type: "shadows.sample", distanceCm: 50 }), "m2");
     await conduct(r, { type: "round.converse", withPending: true }, "reunir");
-    expect(await r.admin.admin({ type: "present.select", principalId: r.ids[1]! })).toMatchObject({ ok: false, code: "INVALID_STEP" }); // Beto no tiene resultados
-    await conduct(r, { type: "present.select", principalId: r.ids[0]! }, "proyectar a Ana");
-    for (const c of [beto, r.admin]) await c.until(() => c.group?.adventure.presentedNoteId !== null, "todas ven la comparación");
-    const note = r.admin.group!.adventure.notebook.find((n) => n.id === r.admin.group!.adventure.presentedNoteId)!;
-    expect(note).toMatchObject({ kind: "comparison", comparison: { authorName: "Ana", data: { type: "shadows", samples: [{ distanceCm: 20 }, { distanceCm: 50 }] } } });
-    expect((personal(r, 0).activities.sombras as { samples: unknown[] }).samples).toHaveLength(2); // el original no se tocó
-    await conduct(r, { type: "present.clear" }, "quitar");
-    await beto.until(() => beto.group?.adventure.presentedNoteId === null, "se quita de la proyección");
-    expect(state(r.code).adventure.notebook.filter((n) => n.kind === "comparison")).toHaveLength(1); // se conserva
+    for (const action of [{ type: "present.select", principalId: r.ids[0]! }, { type: "present.clear" }]) {
+      expect(await r.admin.rawAdmin({ ...r.admin.adminEnvelope({ type: "round.showFreire" }), action }), action.type).toMatchObject({ ok: false, code: "INVALID_PAYLOAD" });
+    }
+    expect(state(r.code).adventure.notebook).toEqual([]);
   });
 
   it("la frase de Freire se muestra a todas durante la conversación", async () => {
@@ -307,7 +298,6 @@ describe("El observatorio (mesa 3)", () => {
     // (Ana volvió con otra conexión: aquí se espera solo a Beto en lugar de a todo el grupo.)
     await ok(r.admin.admin({ type: "round.converse", withPending: true }), "reunir");
     await beto.until(() => beto.group?.adventure.round.stage === "conversation", "Beto ve la conversación");
-    expect(await r.admin.admin({ type: "present.select", principalId: r.ids[1]! })).toMatchObject({ ok: false, code: "INVALID_STEP" });
     expect(await beto.act({ type: "telescope.aim", x: win.x, y: win.y, zoom: CLOSE_ZOOM })).toMatchObject({ ok: false, code: "INVALID_STEP" });
     await ok(r.admin.admin({ type: "round.next" }), "al inventor");
     expect(state(r.code).adventure.pieces).toEqual(["lupa", "dialogo", "corazon"]);
@@ -347,8 +337,10 @@ describe("cierre, pregunta final y reinicio (etapa 4)", () => {
         await ok(r.admin.admin({ type: "round.converse", withPending: true }), `reunir ${i}`);
       }
     }
-    expect(await r.admin.admin({ type: "final.confirm", value: { kind: "saved", noteId: "n99" } })).toMatchObject({ ok: false, code: "INVALID_PAYLOAD" });
     const q = state(r.code).adventure.notebook.find((n) => n.kind === "question")!;
+    expect(await r.admin.admin({ type: "final.confirm", value: { kind: "saved", noteId: q.id } })).toMatchObject({ ok: false, code: "INVALID_STEP" }); // primero se abre el inventor
+    await conduct(r, { type: "inventor.open" }, "abrir el inventor");
+    expect(await r.admin.admin({ type: "final.confirm", value: { kind: "saved", noteId: "n99" } })).toMatchObject({ ok: false, code: "INVALID_PAYLOAD" });
     await conduct(r, { type: "final.confirm", value: { kind: "saved", noteId: q.id } }, "confirmar");
     expect(state(r.code).phase).toBe("finished");
     const ana = r.cs[0]!;
@@ -360,6 +352,36 @@ describe("cierre, pregunta final y reinicio (etapa 4)", () => {
     await conduct(r, { type: "final.correct", expectedRevision: 1, text: "¿Qué pasaría si movemos el objeto de lugar?" }, "corregir");
     expect(state(r.code).adventure.notebook.find((n) => n.kind === "finalQuestion")).toMatchObject({ revision: 2, text: "¿Qué pasaría si movemos el objeto de lugar?" });
     expect(await ana.act({ type: "player.moveTo", target: { x: 640, y: 450 } })).toMatchObject({ ok: false });
+  });
+
+  it("en el inventor cada persona registra su pregunta: solo Vanessa la ve (en la presencia), nunca las demás personas", async () => {
+    const r = await room(["Ana", "Beto"]);
+    await r.admin.admin({ type: "room.start" });
+    for (let i = 0; i < 3; i++) {
+      await conduct(r, { type: "round.open" }, `abrir ${i}`);
+      await conduct(r, { type: "round.converse", withPending: true }, `reunir ${i}`);
+      await conduct(r, { type: "round.next" }, `avanzar ${i}`);
+    }
+    const [ana, beto] = r.cs as [TestClient, TestClient];
+    // Antes de abrirlo se camina hasta él, pero no se entra.
+    await ok(ana.act({ type: "player.moveTo", target: { x: 640, y: 450 } }), "caminar en el cierre");
+    expect(await ana.act({ type: "station.open", stationId: "inventor", origin: "quickNav" })).toMatchObject({ ok: false, code: "INVALID_STEP" });
+    await conduct(r, { type: "inventor.open" }, "abrir el inventor");
+    await ana.until(() => ana.group?.adventure.inventor.open === true, "Ana ve el inventor abierto");
+    await ok(ana.act({ type: "station.open", stationId: "inventor", origin: "quickNav" }), "entrar al inventor");
+    await ok(ana.act({ type: "inventor.question", question: { kind: "written", text: "¿Por qué la Luna cambia de forma?" } }), "registrar su pregunta");
+    await ok(beto.act({ type: "station.open", stationId: "inventor", origin: "quickNav" }), "Beto entra");
+    await ok(beto.act({ type: "inventor.question", question: { kind: "preset", presetId: "rampas-peso" } }), "Beto elige una sugerida");
+    await r.admin.until(() => r.admin.presence!.participants.every((p) => p.question !== null), "Vanessa ve las dos preguntas");
+    expect(r.admin.presence!.participants.map((p) => [p.displayName, p.question])).toEqual([
+      ["Ana", { presetId: null, text: "¿Por qué la Luna cambia de forma?" }],
+      ["Beto", { presetId: "rampas-peso", text: expect.stringContaining("más pesada") }],
+    ]);
+    await ana.until(() => ana.me?.participant.question?.text === "¿Por qué la Luna cambia de forma?", "Ana recibe su propia pregunta");
+    await beto.until(() => beto.me?.participant.question?.presetId === "rampas-peso", "Beto recibe la suya");
+    // Beto nunca recibe la pregunta de Ana: ni en su estado personal ni en el de grupo.
+    expect(JSON.stringify([beto.me, beto.groups])).not.toContain("Luna cambia");
+    expect(beto.presence).toBeNull();
   });
 
   it("reiniciar la sala borra el recorrido y las pruebas, conserva a las personas y devuelve sus personajes a la entrada", async () => {

@@ -15,11 +15,9 @@
     "activities",
     "inventor",
     "dialogues",
-    "facilitatorNotes",
     "ui",
     "audio",
-    "session",
-    "supportPhrases"
+    "session"
   ],
   "additionalProperties": false,
   "properties": {
@@ -55,7 +53,8 @@
         "university",
         "program",
         "courseName",
-        "durationMinutes"
+        "durationMinutes",
+        "entryQuestion"
       ],
       "additionalProperties": false,
       "properties": {
@@ -81,6 +80,9 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 180
+        },
+        "entryQuestion": {
+          "$ref": "#/$defs/text"
         }
       }
     },
@@ -191,6 +193,7 @@
         "requiredPieceIds",
         "pieces",
         "prompt",
+        "questions",
         "finalMessage",
         "reflection",
         "closingQuestion"
@@ -235,6 +238,29 @@
         "prompt": {
           "$ref": "#/$defs/text"
         },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "activityId",
+              "text"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "activityId": {
+                "$ref": "#/$defs/id"
+              },
+              "text": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          }
+        },
         "finalMessage": {
           "$ref": "#/$defs/text"
         },
@@ -257,18 +283,6 @@
       },
       "additionalProperties": {
         "$ref": "#/$defs/text"
-      }
-    },
-    "facilitatorNotes": {
-      "type": "object",
-      "propertyNames": {
-        "pattern": "^[a-z][a-z0-9-]*$"
-      },
-      "additionalProperties": {
-        "type": "array",
-        "items": {
-          "$ref": "#/$defs/text"
-        }
       }
     },
     "ui": {
@@ -355,30 +369,6 @@
           "maximum": 86400000
         }
       }
-    },
-    "supportPhrases": {
-      "type": "object",
-      "required": [
-        "inicio",
-        "antesDeReunir",
-        "alExplicar",
-        "cierre"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "inicio": {
-          "$ref": "#/$defs/text"
-        },
-        "antesDeReunir": {
-          "$ref": "#/$defs/text"
-        },
-        "alExplicar": {
-          "$ref": "#/$defs/text"
-        },
-        "cierre": {
-          "$ref": "#/$defs/text"
-        }
-      }
     }
   },
   "$defs": {
@@ -449,6 +439,9 @@
           "$ref": "#/$defs/text"
         },
         "freirePhrase": {
+          "$ref": "#/$defs/text"
+        },
+        "freireQuestion": {
           "$ref": "#/$defs/text"
         },
         "experiment": {
@@ -535,6 +528,9 @@
         "freirePhrase": {
           "$ref": "#/$defs/text"
         },
+        "freireQuestion": {
+          "$ref": "#/$defs/text"
+        },
         "experiment": {
           "type": "object",
           "required": [
@@ -545,7 +541,8 @@
             "minDistinctAngleDeg",
             "lengthMeters",
             "visualTimeScale",
-            "requiredTrials"
+            "requiredTrials",
+            "angleLabels"
           ],
           "additionalProperties": false,
           "properties": {
@@ -586,6 +583,14 @@
               "type": "integer",
               "minimum": 2,
               "maximum": 10
+            },
+            "angleLabels": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 20,
+              "items": {
+                "$ref": "#/$defs/text"
+              }
             }
           }
         },
@@ -627,6 +632,9 @@
           "$ref": "#/$defs/text"
         },
         "freirePhrase": {
+          "$ref": "#/$defs/text"
+        },
+        "freireQuestion": {
           "$ref": "#/$defs/text"
         },
         "readyText": {

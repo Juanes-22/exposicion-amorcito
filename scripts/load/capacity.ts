@@ -10,10 +10,11 @@
 // Qué NO mide: celulares reales, red inalámbrica ni FPS. Los clientes y el servidor comparten computadora y red de bucle local (ver el
 // informe). Sirve para el comportamiento del protocolo y del servidor con 51 conexiones; los celulares reales se ensayan aparte (P7-06).
 import { execFile, spawn, type ChildProcess } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import { join, resolve } from "node:path";
+import type { LaboratorioConfig } from "../../shared/contracts/config";
 import { PARTICIPANT_COLOR_IDS } from "../../shared/contracts/limits";
 import type { RampsState, ShadowsState } from "../../shared/contracts/state";
 import { CLOSE_ZOOM, TELESCOPE_TARGETS } from "../../shared/domain/telescope";
@@ -214,10 +215,9 @@ try {
   const t0Conv = now();
   await must(admin.admin({ type: "round.converse" }), "round.converse");
   transitions.push(await everywhere("la conversación en todas las pantallas", (c) => c.group?.adventure.round.stage === "conversation", t0Conv));
-  const sel = inRoster()[0]!;
-  await must(admin.admin({ type: "present.select", principalId: sel.id }), "present.select");
-  await until(() => people.every((p) => p.client.group?.adventure.presentedNoteId !== null), "los resultados proyectados llegan a todas las pantallas", 3000);
-  check(true, "los resultados que Vanessa proyecta llegan a las 50 pantallas, sin sus pruebas completas (solo la copia seleccionada)");
+  await must(admin.admin({ type: "round.showFreire" }), "round.showFreire");
+  await until(() => people.every((p) => p.client.group?.adventure.round.freireShown === true), "la frase de Freire llega a todas las pantallas", 3000);
+  check(true, "lo que Vanessa proyecta en la conversación (la frase de Freire) llega a las 50 pantallas");
   const t0Next = now();
   await must(admin.admin({ type: "round.next" }), "round.next");
   transitions.push(await everywhere("la siguiente mesa en todas las pantallas", (c) => c.group?.adventure.round.index === 1 && c.group.adventure.round.stage === "preparation", t0Next));
@@ -241,7 +241,7 @@ try {
         releaseAck.push(now() - t);
       }),
     );
-  await releaseAll((i) => 15 + 5 * (i % 3)); // 15°, 20° y 25°
+  await releaseAll((i) => 20 + 5 * (i % 3)); // las tres inclinaciones más bajas (20°, 25° y 30°)
   const trialsOf = (p: Person) => (p.client.me!.participant.activities.rampas as RampsState).trials;
   await until(() => people.every((p) => trialsOf(p).length === 1 && trialsOf(p)[0]!.state === "finished"), "las primeras pruebas terminan", 12000);
   await releaseAll((i) => 40 + 5 * (i % 2)); // 40° o 45°: la diferencia con la primera es ≥ 5°
@@ -321,6 +321,20 @@ try {
   await must(admin2.admin({ type: "round.converse" }), "round.converse");
   await must(admin2.admin({ type: "round.next" }), "round.next");
   transitions.push(await everywhere("el cierre", (c) => c.group?.adventure.round.stage === "closing", tConv3));
+  // El inventor, como una mesa: Vanessa lo abre y las 50 personas entran a la vez y registran su pregunta (sugerida o escrita).
+  const tInventor = now();
+  await must(admin2.admin({ type: "inventor.open" }), "inventor.open");
+  transitions.push(await everywhere("el inventor abierto", (c) => c.group?.adventure.inventor.open === true, tInventor));
+  const presets = (JSON.parse(readFileSync(resolve("public/config/laboratorio.json"), "utf8")) as LaboratorioConfig).inventor.questions;
+  await Promise.all(
+    people.map(async (p) => {
+      await must(p.client.act({ type: "station.open", stationId: "inventor", origin: "quickNav" }), "station.open (inventor)");
+      const question = p.index % 3 === 0 ? { kind: "written" as const, text: `¿Qué más podríamos investigar? (${p.index})` } : { kind: "preset" as const, presetId: presets[p.index % presets.length]!.id };
+      await must(p.client.act({ type: "inventor.question", question }), "inventor.question");
+    }),
+  );
+  await until(() => admin2.presence!.participants.filter((x) => x.question !== null).length === TOTAL, "Vanessa ve las preguntas de todas las personas", 5000);
+  check(true, `las ${TOTAL} personas entran al inventor a la vez y Vanessa ve sus ${TOTAL} preguntas`);
   await must(admin2.admin({ type: "final.confirm", value: { kind: "written", text: "¿Cómo seguimos investigando con respeto?" } }), "final.confirm");
   await everywhere("la aventura terminó", (c) => c.summary?.phase === "finished", now());
   check(true, "la pregunta final llega a las 50 pantallas y la aventura termina para todas");

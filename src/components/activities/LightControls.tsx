@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ShadowsExperiment } from "../../../shared/contracts/config";
+import { shadowWords } from "../../../shared/domain/models";
 
 interface Props {
   experiment: ShadowsExperiment;
@@ -76,7 +77,7 @@ export function LightControls({ experiment: e, initialCm, disabled, onMove, onCo
           onKeyUp={() => flush()}
           onBlur={flush}
           aria-label="Distancia de la linterna al objeto"
-          aria-valuetext={`${value} centímetros del objeto`}
+          aria-valuetext={`Linterna ${shadowWords(e, value).lantern} del objeto`}
         />
         <button type="button" className="btn btn--round" disabled={disabled || value <= min} onClick={() => move(value - STEP_CM)} aria-label="Acercar la linterna al objeto">
           +

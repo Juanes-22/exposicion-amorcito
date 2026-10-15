@@ -256,6 +256,13 @@ try {
   });
   check(dist2(feet, { x: 260, y: 330 }) < 90, "tocar la mesa habilitada camina hasta su punto de interacción y la abre al llegar (el servidor valida la proximidad)");
   await beto.page.screenshot({ path: join(EVIDENCE, "05-mesa-abierta-al-llegar.png") });
+  // «Volver al mapa» aparece recién al completar la mesa: dos posiciones distintas de la linterna.
+  check((await beto.page.getByRole("button", { name: "Volver al mapa" }).count()) === 0, "mientras no completa la mesa no se ofrece «Volver al mapa»");
+  const linterna = beto.page.getByRole("slider", { name: "Distancia de la linterna al objeto" });
+  await linterna.fill("30");
+  await beto.page.getByText("Explorando · 1 de 2").waitFor();
+  await linterna.fill("45");
+  await beto.page.getByText("✓ Listo para conversar").waitFor();
   await beto.page.getByRole("button", { name: "Volver al mapa" }).click();
   await beto.page.getByRole("heading", { name: "Sombras" }).waitFor({ state: "detached" });
   // Tocar una mesa que todavía no toca: se explica y no se camina.

@@ -33,7 +33,7 @@ type Listener = () => void;
 
 /**
  * Lo que las vistas de la aventura necesitan de «la sala»: el estado observable, las muestras del reloj y los dos tipos de comando.
- * `RoomController` lo cumple hablando con el servidor; `DemoController` lo cumple en local, sin red (SPECS 6.4).
+ * `RoomController` lo cumple hablando con el servidor.
  */
 export interface RoomPort {
   subscribe(listener: Listener): () => void;

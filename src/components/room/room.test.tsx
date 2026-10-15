@@ -9,6 +9,7 @@ import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { QrCode } from "../ui/QrCode";
 import { AdminConsole } from "./AdminConsole";
 import { AdminWelcome } from "./AdminWelcome";
+import { HomeView } from "./HomeView";
 import { JoinView } from "./JoinView";
 import { ParticipantList } from "./ParticipantList";
 import { ParticipantView } from "./ParticipantView";
@@ -46,8 +47,6 @@ vi.mock("../game/PhaserGame", async () => {
     },
   };
 });
-// «Dejar listo el respaldo» descargaría la demostración y todo el catálogo: aquí no corresponde.
-vi.mock("../../app/backup", () => ({ prepareBackup: vi.fn(async () => ({ modules: true, assets: 0, failed: 0 })) }));
 // La sesión real abre un socket; las vistas se prueban con el estado que se les entrega.
 vi.mock("../../app/useRoomSession", () => ({ useRoomSession: vi.fn() }));
 
@@ -97,7 +96,7 @@ describe("WaitingView: quien acompaña como observadora", () => {
       ["welcome", config.ui.labels.welcomePhone!],
       ["preparation", config.ui.labels.roundPreparationPhone!],
       ["exploration", config.ui.labels.roundExplorationPhone!],
-      ["conversation", "Miremos la proyección y compartamos lo que descubrimos."],
+      ["conversation", "Ya exploramos: deja los controles y mira la proyección para escuchar lo que descubrieron los demás."],
       ["closing", config.ui.labels.closingPhone!],
       // Quien acompaña no tiene cuaderno propio: no se le manda a «revisar sus resultados».
       ["finished", "Terminamos la aventura."],
@@ -135,14 +134,14 @@ describe("ParticipantView: el celular de quien juega", () => {
     return { port, ui };
   };
 
-  it("muestra su nombre, el sonido apagado y el texto de la fase; en la conversación manda a mirar la proyección", async () => {
+  it("muestra su nombre, el sonido activado por defecto y el texto de la fase; en la conversación manda a mirar la proyección", async () => {
     const d = enEtapa("conversation");
     const { ui } = vista(d);
     render(ui());
     await mapa();
     expect(screen.getByText("Ana")).toBeTruthy();
-    expect(screen.getByText("Miremos la proyección y compartamos lo que descubrimos.")).toBeTruthy();
-    expect((screen.getByRole("button", { name: /Activar sonido/ }) as HTMLButtonElement).getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByText("Ya exploramos: deja los controles y mira la proyección para escuchar lo que descubrieron los demás.")).toBeTruthy();
+    expect((screen.getByRole("button", { name: /Silenciar/ }) as HTMLButtonElement).getAttribute("aria-pressed")).toBe("true"); // suena desde el primer toque
   });
 
   it("el texto cambia con cada fase de la ronda", async () => {
@@ -157,7 +156,7 @@ describe("ParticipantView: el celular de quien juega", () => {
     expect(screen.queryByText(config.ui.labels.roundPreparationPhone!)).toBeNull();
     d.must(d.admin({ type: "round.converse", withPending: true }), "conversar");
     rerender(ui(clientState(d, "ana")));
-    expect(screen.getByText("Miremos la proyección y compartamos lo que descubrimos.")).toBeTruthy();
+    expect(screen.getByText("Ya exploramos: deja los controles y mira la proyección para escuchar lo que descubrieron los demás.")).toBeTruthy();
   });
 
   it("con el personaje en el mapa muestra la barra del mapa y no los controles de ninguna mesa", async () => {
@@ -181,6 +180,28 @@ describe("ParticipantView: el celular de quien juega", () => {
     expect(port.admin).not.toHaveBeenCalled();
   });
 
+  it("en el cierre camina hasta el inventor; abierto, «Ir al inventor» entra y ahí registra su pregunta", async () => {
+    const d = enEtapa("closing");
+    const { port, ui } = vista(d);
+    const { rerender, container } = render(ui());
+    await mapa();
+    expect(screen.getByText(config.ui.labels.closingPhone!)).toBeTruthy();
+    expect(screen.getByText("El inventor de preguntas").parentElement!.textContent).toContain("Ahora");
+    expect((screen.getByRole("button", { name: "Ir al inventor" }) as HTMLButtonElement).disabled).toBe(true); // Vanessa todavía no lo abre
+    d.must(d.admin({ type: "inventor.open" }), "abrir el inventor");
+    rerender(ui(clientState(d, "ana")));
+    expect(screen.getByText(config.ui.labels.inventorOpenPhone!)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Ir al inventor" }));
+    expect(port.act).toHaveBeenCalledWith({ type: "station.open", stationId: "inventor", origin: "quickNav" });
+    d.openStation("ana", "inventor");
+    rerender(ui(clientState(d, "ana")));
+    expect(container.querySelector(".adventure__activity .personal")).toBeTruthy();
+    fireEvent.click(screen.getByRole("radio", { name: config.inventor.questions[0]!.text }));
+    fireEvent.click(screen.getByRole("button", { name: "Registrar mi pregunta" }));
+    expect(port.act).toHaveBeenLastCalledWith({ type: "inventor.question", question: { kind: "preset", presetId: config.inventor.questions[0]!.id } });
+    expect(port.admin).not.toHaveBeenCalled();
+  });
+
   it("con la mesa abierta muestra sus controles junto al mapa y sus acciones salen por la acción personal", async () => {
     const d = mesaAbierta(1);
     d.openStation("ana", "rampas");
@@ -190,7 +211,7 @@ describe("ParticipantView: el celular de quien juega", () => {
     expect(screen.getByRole("heading", { name: "Rampas" })).toBeTruthy();
     expect(container.querySelector(".adventure__activity .personal")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Soltar la pelota" }));
-    expect(port.act).toHaveBeenCalledWith({ type: "ramps.trial.start", angleDeg: 15 });
+    expect(port.act).toHaveBeenCalledWith({ type: "ramps.trial.start", angleDeg: 20 }); // la inclinación más baja
     expect(port.admin).not.toHaveBeenCalled(); // quien juega nunca conduce la ronda
     // Con la mesa abierta ya no se ofrece la barra del mapa: el panel ocupa su lugar.
     expect(screen.queryByText("Mesas")).toBeNull();
@@ -205,7 +226,7 @@ describe("ParticipantView: el celular de quien juega", () => {
     await mapa();
     expect(container.querySelector(".personal")).toBeNull();
     expect(screen.queryByRole("slider")).toBeNull();
-    expect(screen.getByText("Miremos la proyección y compartamos lo que descubrimos.")).toBeTruthy();
+    expect(screen.getByText("Ya exploramos: deja los controles y mira la proyección para escuchar lo que descubrieron los demás.")).toBeTruthy();
   });
 
   it("con la aventura en pausa dice «En pausa», detiene los controles y lo explica con texto", async () => {
@@ -228,7 +249,7 @@ describe("ParticipantView: el celular de quien juega", () => {
     expect(screen.getByText(config.ui.labels.finishedPhone!)).toBeTruthy();
     const cuaderno = container.querySelector(".notebook-menu")!;
     expect(within(cuaderno as HTMLElement).getByRole("heading", { name: "Mis resultados" })).toBeTruthy();
-    expect(within(cuaderno as HTMLElement).getByText(/^Posición 1: linterna a 20 cm/)).toBeTruthy();
+    expect(within(cuaderno as HTMLElement).getByText("Probaste la linterna en 2 posiciones distintas.")).toBeTruthy();
     expect(within(cuaderno as HTMLElement).getByRole("heading", { name: "Lo que anotó el grupo" })).toBeTruthy();
     expect(within(cuaderno as HTMLElement).getByText("¿Por qué la luna cambia de forma?")).toBeTruthy();
     expect(cuaderno.querySelector("form, textarea, input, button")).toBeNull();
@@ -324,11 +345,20 @@ describe("AdminWelcome", () => {
 
 // ---- la consola de Vanessa --------------------------------------------------------------------------------------
 
+describe("HomeView", () => {
+  it("ofrece crear una sala y unirse con un código; ya no hay demostración de respaldo", () => {
+    render(<HomeView project={project} navigate={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Crear sala" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Unirme" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Demostración|respaldo/i })).toBeNull();
+  });
+});
+
 describe("AdminConsole", () => {
   const boton = (nombre: string | RegExp) => screen.getByRole("button", { name: nombre }) as HTMLButtonElement;
-  const consola = (d: Driver, over = {}, props: { standalone?: boolean } = {}) => {
+  const consola = (d: Driver, over = {}) => {
     const port = fakePort(clientState(d, "admin", over));
-    const ui = (state = clientState(d, "admin", over)) => <AdminConsole project={project} state={state} controller={port} {...props} />;
+    const ui = (state = clientState(d, "admin", over)) => <AdminConsole project={project} state={state} controller={port} />;
     return { port, ui };
   };
 
@@ -360,17 +390,17 @@ describe("AdminConsole", () => {
       expect(contador()).toBe("1 de 2 listos");
     });
 
-    it("conversación: «Mostrar la frase de Freire» y la siguiente mesa; ya mostrada, el botón lo dice y se deshabilita", async () => {
+    it("conversación: primero solo «Mostrar la frase de Freire»; ya mostrada, ese botón deja su lugar a «Abrir siguiente mesa»", async () => {
       const d = enEtapa("conversation");
       const { port, ui } = consola(d);
       const { rerender } = render(ui());
       expect(screen.queryByRole("button", { name: "Conversemos" })).toBeNull();
-      expect(screen.getByRole("button", { name: "Abrir siguiente mesa: Rampas" })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /Abrir siguiente mesa/ })).toBeNull();
       await pulsar(screen.getByRole("button", { name: "Mostrar la frase de Freire" }));
       expect(port.admin).toHaveBeenLastCalledWith({ type: "round.showFreire" });
       d.must(d.admin({ type: "round.showFreire" }), "Freire");
       rerender(ui(clientState(d, "admin")));
-      expect((screen.getByRole("button", { name: "Frase de Freire mostrada" }) as HTMLButtonElement).disabled).toBe(true);
+      expect(screen.queryByRole("button", { name: /Freire/ })).toBeNull();
       await pulsar(screen.getByRole("button", { name: "Abrir siguiente mesa: Rampas" }));
       expect(port.admin).toHaveBeenLastCalledWith({ type: "round.next" });
     });
@@ -378,12 +408,14 @@ describe("AdminConsole", () => {
     it("la siguiente mesa lleva el nombre de la que sigue y, tras la última, «Pasar al inventor»", () => {
       const rampas = mesaAbierta(1, ["ana", "beto"]);
       rampas.must(rampas.admin({ type: "round.converse" }), "conversar");
+      rampas.must(rampas.admin({ type: "round.showFreire" }), "Freire");
       const primera = consola(rampas);
       const { unmount } = render(primera.ui());
       expect(screen.getByRole("button", { name: "Abrir siguiente mesa: El observatorio" })).toBeTruthy();
       unmount();
       const observatorio = mesaAbierta(2, ["ana", "beto"]);
       observatorio.must(observatorio.admin({ type: "round.converse" }), "conversar");
+      observatorio.must(observatorio.admin({ type: "round.showFreire" }), "Freire");
       const ultima = consola(observatorio);
       render(ultima.ui());
       expect(screen.queryByRole("button", { name: /Abrir siguiente mesa/ })).toBeNull();
@@ -391,12 +423,18 @@ describe("AdminConsole", () => {
       expect(ultima.port.admin).toHaveBeenCalledWith({ type: "round.next" });
     });
 
-    it("cierre: ningún botón de ronda; aparece la pregunta final para escribirla o elegirla", () => {
+    it("cierre: el único paso es «Abrir inventor»; las preguntas del inventor aparecen recién al abrirlo", () => {
       const { ui } = consola(enEtapa("closing"));
       render(ui());
       for (const nombre of [/Abrir mesa/, /Conversemos/, /Freire/, /siguiente mesa/, /Pasar al inventor/]) expect(screen.queryByRole("button", { name: nombre }), String(nombre)).toBeNull();
-      expect(screen.getByText("Pregunta final")).toBeTruthy();
-      expect(screen.getByRole("radio", { name: "Escribir una pregunta" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Abrir inventor" })).toBeTruthy();
+      expect(screen.queryByText(/Preguntas del inventor/)).toBeNull(); // todavía caminan hasta él
+      cleanup();
+      const abierto = consola(enEtapa("inventor"));
+      render(abierto.ui());
+      expect(screen.queryByRole("button", { name: "Abrir inventor" })).toBeNull();
+      expect(screen.getByText("Preguntas del inventor (0 de 2)")).toBeTruthy();
+      expect(screen.getByRole("radio", { name: "Escribir otra pregunta" })).toBeTruthy();
     });
 
     it("con la pregunta final confirmada la aventura terminó: se puede pausar, no conducir", () => {
@@ -441,11 +479,11 @@ describe("AdminConsole", () => {
       const { port, ui } = consola(mesaAbierta(0, ["ana"]));
       render(ui());
       fireEvent.click(screen.getByRole("button", { name: "Conversemos" }));
-      const dialogo = screen.getByRole("alertdialog", { name: "Pasar a conversación con pendientes" });
-      expect(within(dialogo).getByText(/Faltan 1 persona por terminar: Beto\./)).toBeTruthy();
+      const dialogo = screen.getByRole("alertdialog", { name: "Todavía hay personas explorando" });
+      expect(within(within(dialogo).getByRole("list", { name: "Personas que aún no terminan" })).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Beto"]);
       expect(port.admin).not.toHaveBeenCalled();
 
-      fireEvent.click(within(dialogo).getByRole("button", { name: "Pasar a conversación con pendientes" }));
+      fireEvent.click(within(dialogo).getByRole("button", { name: "Conversar ahora" }));
       expect(port.admin).toHaveBeenCalledTimes(1);
       expect(port.admin).toHaveBeenCalledWith({ type: "round.converse", withPending: true });
       await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
@@ -455,7 +493,7 @@ describe("AdminConsole", () => {
       const { port, ui } = consola(mesaAbierta(0, ["ana"]));
       render(ui());
       fireEvent.click(screen.getByRole("button", { name: "Conversemos" }));
-      fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+      fireEvent.click(screen.getByRole("button", { name: "Esperar un poco más" }));
       expect(screen.queryByRole("alertdialog")).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "Conversemos" }));
       fireEvent.keyDown(screen.getByRole("alertdialog"), { key: "Escape" });
@@ -467,7 +505,8 @@ describe("AdminConsole", () => {
       const { ui } = consola(mesaAbierta(0, [], { ana: "Ana", beto: "Beto", cata: "Cata" }));
       render(ui());
       fireEvent.click(screen.getByRole("button", { name: "Conversemos" }));
-      expect(screen.getByText(/Faltan 3 personas por terminar: Ana, Beto, Cata\./)).toBeTruthy();
+      expect(screen.getByText(/Aún no terminan 3 personas:/)).toBeTruthy();
+      expect(within(screen.getByRole("list", { name: "Personas que aún no terminan" })).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Ana", "Beto", "Cata"]);
     });
 
     it("sin pendientes envía round.conversar directamente, sin diálogo y sin «con pendientes»", () => {
@@ -543,9 +582,15 @@ describe("AdminConsole", () => {
       expect(port.admin).toHaveBeenCalledWith({ type: "note.edit", noteId: "n1", expectedRevision: 1, text: "La distancia y la luz importan" });
     });
 
-    it("en el cierre, escribir la pregunta final pide confirmación y solo al confirmar envía final.confirm", async () => {
-      const { port, ui } = consola(enEtapa("closing"));
+    it("en el inventor, abrirlo envía inventor.open; escribir la pregunta final pide confirmación y solo al confirmar envía final.confirm", async () => {
+      const cerrado = consola(enEtapa("closing"));
+      render(cerrado.ui());
+      await pulsar(boton("Abrir inventor"));
+      expect(cerrado.port.admin).toHaveBeenCalledWith({ type: "inventor.open" });
+      cleanup();
+      const { port, ui } = consola(enEtapa("inventor"));
       render(ui());
+      fireEvent.click(screen.getByRole("radio", { name: "Escribir otra pregunta" }));
       fireEvent.change(area("Pregunta final del grupo"), { target: { value: "¿Por qué la luna cambia de forma?" } });
       fireEvent.click(boton("Revisar y confirmar"));
       expect(port.admin).not.toHaveBeenCalled();
@@ -553,14 +598,29 @@ describe("AdminConsole", () => {
       expect(port.admin).toHaveBeenCalledWith({ type: "final.confirm", value: { kind: "written", text: "¿Por qué la luna cambia de forma?" } });
     });
 
-    it("en el cierre, elegir una pregunta guardada envía final.confirm con esa nota", async () => {
+    it("en el inventor, elegir una pregunta guardada envía final.confirm con esa nota", async () => {
       const d = enEtapa("closing");
       d.must(d.admin({ type: "note.save", activityId: "cajas", kind: "question", text: "¿Cómo investigamos con respeto?" }), "guardar");
+      d.must(d.admin({ type: "inventor.open" }), "abrir el inventor");
       const { port, ui } = consola(d);
       render(ui());
+      fireEvent.click(screen.getByRole("radio", { name: "¿Cómo investigamos con respeto?" }));
       fireEvent.click(boton("Revisar y confirmar"));
       await pulsar(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Sí, imprimirla en el inventor" }));
       expect(port.admin).toHaveBeenCalledWith({ type: "final.confirm", value: { kind: "saved", noteId: "n1" } });
+    });
+
+    it("Vanessa ve las preguntas que registraron las personas y quién no ha registrado la suya", () => {
+      const d = enEtapa("inventor");
+      d.openStation("ana", "inventor");
+      d.must(d.act("ana", { type: "inventor.question", question: { kind: "written", text: "¿Por qué la Luna cambia de forma?" } }), "Ana registra");
+      const { ui } = consola(d);
+      render(ui());
+      expect(screen.getByText("Preguntas del inventor (1 de 2)")).toBeTruthy();
+      expect(screen.getByRole("radio", { name: /Luna cambia de forma/ }).closest("label")!.textContent).toContain("Ana");
+      const lista = screen.getByRole("list", { name: "Participantes" });
+      expect(within(within(lista).getByText("Ana").closest("li")!).getByText("✓ Registró su pregunta")).toBeTruthy();
+      expect(within(within(lista).getByText("Beto").closest("li")!).getByText("Sin pregunta aún")).toBeTruthy();
     });
 
     it("con la pregunta final confirmada solo se puede corregir un error de escritura, con final.correct", async () => {
@@ -599,50 +659,68 @@ describe("AdminConsole", () => {
       expect(port.admin).toHaveBeenCalledWith({ type: "round.include", principalId: "cata" });
     });
 
-    it("durante la conversación «Proyectar resultados» elige a una persona y se puede quitar de la proyección", async () => {
-      const d = mesaAbierta(0, ["ana", "beto"]);
+    it("en ninguna conversación se proyectan los resultados de una persona: no existe «Proyectar resultados»", async () => {
+      for (const n of [0, 1, 2] as const) {
+        const d = mesaAbierta(n, ["ana", "beto"]);
+        d.must(d.admin({ type: "round.converse" }), "conversar");
+        const { unmount } = render(consola(d).ui());
+        await escenario();
+        expect(screen.queryByRole("button", { name: /Proyectar resultados|Quitar los resultados/ }), `mesa ${n}`).toBeNull();
+        unmount();
+      }
+    });
+
+    it("en la conversación de Rampas la proyección pregunta qué resultado apoya su explicación (guía de Vanessa)", async () => {
+      const d = mesaAbierta(1, ["ana", "beto"]);
       d.must(d.admin({ type: "round.converse" }), "conversar");
-      const { port, ui } = consola(d);
-      const { rerender } = render(ui());
-      await pulsar(screen.getByRole("button", { name: "Proyectar resultados de Ana" }));
-      expect(port.admin).toHaveBeenLastCalledWith({ type: "present.select", principalId: "ana" });
-      expect(screen.queryByRole("button", { name: "Quitar los resultados de la proyección" })).toBeNull();
-      d.must(d.admin({ type: "present.select", principalId: "ana" }), "proyectar");
-      rerender(ui(clientState(d, "admin")));
-      expect(screen.getByText("En la proyección")).toBeTruthy();
-      await pulsar(screen.getByRole("button", { name: "Quitar los resultados de la proyección" }));
-      expect(port.admin).toHaveBeenLastCalledWith({ type: "present.clear" });
+      const { ui } = consola(d);
+      render(ui());
+      await escenario();
+      expect(screen.getByRole("heading", { name: "¿Qué observaron y qué resultado apoya su explicación? ¿Alguien quiere añadir algo a lo que dijo su compañero?" })).toBeTruthy();
     });
 
     it("cuenta a las personas conectadas en el resumen", () => {
       const { ui } = consola(enEtapa("exploration"));
       const { rerender } = render(ui());
-      expect(screen.getByText("Participantes (2 conectadas)")).toBeTruthy();
+      expect(screen.getByText("Participantes (2 conectados)")).toBeTruthy();
       rerender(ui(clientState(enEtapa("exploration"), "admin", { offline: ["beto"] })));
       expect(screen.getByText(/^Participantes \(1 /)).toBeTruthy();
     });
   });
 
   describe("la proyección", () => {
-    it("en la preparación proyecta la pregunta de la mesa junto al laboratorio; al abrirla solo queda el avance del grupo", async () => {
+    it("al comenzar proyecta solo la pregunta de entrada; al abrir la mesa, su pregunta y el avance del grupo", async () => {
       const d = enEtapa("preparation");
       const { ui } = consola(d);
       const { rerender, container } = render(ui());
       await escenario();
-      expect(screen.getByRole("heading", { name: "¿Por qué un objeto pequeño puede producir una sombra grande?" })).toBeTruthy();
+      expect(screen.getByRole("heading", { name: "¿Recuerdan algo que hayan aprendido porque les dio curiosidad?" })).toBeTruthy();
+      expect(screen.queryByText(/acercamos o alejamos la linterna/)).toBeNull();
       expect(container.querySelector(".projection-badge")).toBeNull();
       d.must(d.admin({ type: "round.open" }), "abrir");
       rerender(ui(clientState(d, "admin")));
-      expect(screen.queryByRole("heading", { name: /sombra grande/ })).toBeNull();
+      expect(screen.queryByRole("heading", { name: /Recuerdan algo/ })).toBeNull();
+      expect(screen.getByRole("heading", { name: "¿Qué cambiará si acercamos o alejamos la linterna?" })).toBeTruthy();
       expect(container.querySelector(".projection-badge")!.textContent).toBe("Sombras · 0 de 2 listos");
     });
 
-    it("en la exploración la proyección solo muestra cuántas personas están listas, nunca resultados", async () => {
+    it("antes de abrir la segunda mesa el laboratorio ocupa toda la pantalla: no hay panel", async () => {
+      const d = sala();
+      d.toExploration(0);
+      d.must(d.admin({ type: "round.converse", withPending: true }), "conversar");
+      d.must(d.admin({ type: "round.next" }), "siguiente");
+      const { ui } = consola(d);
+      const { container } = render(ui());
+      await escenario();
+      expect(container.querySelector(".projection, .adventure__activity")).toBeNull();
+    });
+
+    it("en la exploración la proyección muestra la pregunta de la mesa y cuántas personas están listas, nunca resultados", async () => {
       const { ui } = consola(mesaAbierta(0, ["ana"]));
       const { container } = render(ui());
       await escenario();
       expect(container.querySelector(".projection-badge")!.textContent).toBe("Sombras · 1 de 2 listos");
-      expect(container.querySelector(".projection, .comparison")).toBeNull();
+      expect(container.querySelector(".projection")!.textContent).toBe("Mesa 1 de 3 · Sombras¿Qué cambiará si acercamos o alejamos la linterna?");
     });
 
     it("en la conversación proyecta la pregunta y la frase de Freire solo cuando Vanessa la muestra", async () => {
@@ -650,7 +728,7 @@ describe("AdminConsole", () => {
       const { ui } = consola(d);
       const { rerender, container } = render(ui());
       await escenario();
-      expect(screen.getByRole("heading", { name: /qué observación ayuda a revisar la primera idea/ })).toBeTruthy();
+      expect(screen.getByRole("heading", { name: /Qué observación nos ayuda a revisar la primera explicación/ })).toBeTruthy();
       expect(container.querySelector(".projection-badge")).toBeNull();
       expect(screen.queryByText(/Freire propone volver más rigurosa/)).toBeNull();
       d.must(d.admin({ type: "round.showFreire" }), "Freire");
@@ -678,26 +756,19 @@ describe("AdminConsole", () => {
       expect(container.querySelector(".projection-badge")!.textContent).toBe("El observatorio · 1 de 2 listos");
     });
 
-    it("en la conversación no se proyectan los resultados de nadie: Vanessa muestra la casa con su demostración, sin enviar nada a la sala", async () => {
+    it("en la conversación la casa llega con la frase de Freire: no hay «Mostrar la casa» ni «Volver al laboratorio»", async () => {
       const d = observatorio();
       d.must(d.admin({ type: "round.converse", withPending: true }), "conversar");
       const { port, ui } = consola(d);
-      render(ui());
+      const { rerender } = render(ui());
       await escenario();
-      expect(screen.queryByRole("button", { name: /Proyectar resultados de/ })).toBeNull();
-      fireEvent.click(screen.getByRole("button", { name: "Mostrar la casa" }));
-      expect(screen.getByRole("button", { name: "Volver al laboratorio" })).toBeTruthy();
-      fireEvent.click(screen.getByRole("button", { name: "Volver al laboratorio" }));
-      expect(screen.getByRole("button", { name: "Mostrar la casa" })).toBeTruthy();
-      expect(port.admin).not.toHaveBeenCalled();
-    });
-
-    it("«Mostrar la casa» solo existe en la conversación del observatorio", () => {
-      for (const d of [observatorio(), enEtapa("conversation")]) {
-        const { unmount } = render(consola(d).ui());
-        expect(screen.queryByRole("button", { name: "Mostrar la casa" })).toBeNull();
-        unmount();
-      }
+      expect(screen.queryByRole("button", { name: /Mostrar la casa|Volver al laboratorio|Proyectar resultados/ })).toBeNull();
+      await pulsar(screen.getByRole("button", { name: "Mostrar la frase de Freire" }));
+      expect(port.admin).toHaveBeenLastCalledWith({ type: "round.showFreire" }); // un solo paso: la frase y la casa
+      d.must(d.admin({ type: "round.showFreire" }), "Freire");
+      rerender(ui(clientState(d, "admin")));
+      expect(screen.queryByRole("button", { name: /Mostrar la casa|Volver al laboratorio|Freire/ })).toBeNull();
+      expect(screen.getByRole("button", { name: "Pasar al inventor" })).toBeTruthy();
     });
   });
 
@@ -712,23 +783,18 @@ describe("AdminConsole", () => {
     expect(screen.queryByRole("button", { name: "Volver al mapa" })).toBeNull();
   });
 
-  it("con la sala real ofrece el código QR; en la demostración completa no hay QR, reiniciar ni cerrar", () => {
-    const real = consola(enEtapa("exploration"));
-    const { unmount } = render(real.ui());
+  it("ofrece el código QR, reiniciar y cerrar", () => {
+    render(consola(enEtapa("exploration")).ui());
     expect(screen.getByText("Código QR para entrar (ABC234)")).toBeTruthy();
-    unmount();
-    const demo = consola(enEtapa("exploration"), {}, { standalone: true });
-    render(demo.ui());
-    expect(screen.queryByText(/Código QR para entrar/)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Reiniciar" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Cerrar" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Reiniciar" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Cerrar" })).toBeTruthy();
   });
 
-  it("no ofrece «Probar la mesa yo misma»: Vanessa solo conduce la ronda", () => {
+  it("no ofrece «Probar la mesa yo misma» ni ninguna demostración: Vanessa solo conduce la ronda", () => {
     for (const etapa of ["preparation", "exploration", "conversation"] as const) {
       const { ui } = consola(etapa === "exploration" ? mesaAbierta(0) : enEtapa(etapa));
       const { unmount } = render(ui());
-      expect(screen.queryByRole("button", { name: /Probar la mesa|Terminar la demostración/ }), etapa).toBeNull();
+      expect(screen.queryByRole("button", { name: /Probar la mesa|demostración/i }), etapa).toBeNull();
       unmount();
     }
   });
@@ -743,11 +809,11 @@ describe("ParticipantList", () => {
 
   it("el estado de conexión se lee por texto e icono, no solo por color", () => {
     render(<ParticipantList participants={presencia(enEtapa("preparation"), { offline: ["beto"] })} />);
-    expect(screen.getByText("● Conectada")).toBeTruthy();
-    expect(screen.getByText("○ Desconectada")).toBeTruthy();
+    expect(screen.getByText("● Conectado")).toBeTruthy();
+    expect(screen.getByText("○ Desconectado")).toBeTruthy();
   });
 
-  it("en exploración dice cuánto lleva cada persona («1 de 2») y quién ya quedó lista («✓ Lista»)", () => {
+  it("en exploración dice cuánto lleva cada persona («1 de 2») y quién ya quedó lista («✓ Listo»)", () => {
     const d = mesaAbierta(0, ["beto"]);
     d.openStation("ana", "sombras");
     d.must(d.act("ana", { type: "shadows.sample", distanceCm: 20 }), "una posición");
@@ -755,7 +821,7 @@ describe("ParticipantList", () => {
     const ana = screen.getByText("Ana").closest("li")!;
     const beto = screen.getByText("Beto").closest("li")!;
     expect(within(ana).getByText("1 de 2")).toBeTruthy();
-    expect(within(beto).getByText("✓ Lista")).toBeTruthy();
+    expect(within(beto).getByText("✓ Listo")).toBeTruthy();
     expect(within(beto).queryByText(/de 2/)).toBeNull();
   });
 
@@ -767,15 +833,14 @@ describe("ParticipantList", () => {
 
   it("quien acompaña como observadora se distingue y no tiene avance ni acciones, ni en exploración ni en conversación", () => {
     const d = mesaAbierta(0, ["ana", "beto"]);
-    const { rerender } = render(<ParticipantList participants={presencia(d, { observers: { luz: "Luz" } })} stage="exploration" onInclude={vi.fn()} onSelect={vi.fn()} />);
+    const { rerender } = render(<ParticipantList participants={presencia(d, { observers: { luz: "Luz" } })} stage="exploration" onInclude={vi.fn()} />);
     const luz = screen.getByText("Luz").closest("li")!;
     expect(within(luz).getByText("Observa")).toBeTruthy();
     expect(within(luz).queryByRole("button")).toBeNull();
     expect(within(luz).queryByText(/Acompaña/)).toBeNull();
     d.must(d.admin({ type: "round.converse" }), "conversar");
-    rerender(<ParticipantList participants={presencia(d, { observers: { luz: "Luz" } })} stage="conversation" onInclude={vi.fn()} onSelect={vi.fn()} />);
-    expect(within(screen.getByText("Luz").closest("li")!).queryByRole("button")).toBeNull();
-    expect(screen.getAllByRole("button", { name: /Proyectar resultados de/ })).toHaveLength(2); // solo Ana y Beto
+    rerender(<ParticipantList participants={presencia(d, { observers: { luz: "Luz" } })} stage="conversation" onInclude={vi.fn()} />);
+    expect(screen.queryAllByRole("button")).toHaveLength(0); // en la conversación la lista solo informa
   });
 
   describe("«Incluir en la ronda»", () => {
@@ -818,47 +883,13 @@ describe("ParticipantList", () => {
     });
   });
 
-  describe("«Proyectar resultados»", () => {
-    const conversando = () => {
-      const d = mesaAbierta(0, ["ana", "beto"]);
-      d.must(d.admin({ type: "round.converse" }), "conversar");
-      return d;
-    };
-
-    it("solo en conversación: elige a la persona cuyos resultados se proyectan", () => {
-      const d = conversando();
-      const onSelect = vi.fn();
-      render(<ParticipantList participants={presencia(d)} stage="conversation" onSelect={onSelect} />);
-      fireEvent.click(screen.getByRole("button", { name: "Proyectar resultados de Beto" }));
-      expect(onSelect).toHaveBeenCalledWith("beto");
-    });
-
-    it("no se ofrece durante la exploración ni en la preparación ni en el cierre", () => {
-      const d = mesaAbierta(0, ["ana", "beto"]);
-      for (const stage of ["preparation", "exploration", "closing"] as const) {
-        const { unmount } = render(<ParticipantList participants={presencia(d)} stage={stage} onSelect={vi.fn()} />);
-        expect(screen.queryByText("Proyectar resultados"), stage).toBeNull();
-        unmount();
-      }
-    });
-
-    it("quien ya está en la proyección lo dice y no se vuelve a ofrecer; con la consola ocupada se deshabilita", () => {
-      const d = conversando();
-      const { rerender } = render(<ParticipantList participants={presencia(d)} stage="conversation" onSelect={vi.fn()} presentedAuthorId="ana" />);
-      expect(within(screen.getByText("Ana").closest("li")!).getByText("En la proyección")).toBeTruthy();
-      expect(within(screen.getByText("Ana").closest("li")!).queryByRole("button")).toBeNull();
-      expect(screen.getByRole("button", { name: "Proyectar resultados de Beto" })).toBeTruthy();
-      rerender(<ParticipantList participants={presencia(d)} stage="conversation" onSelect={vi.fn()} busy />);
-      expect((screen.getByRole("button", { name: "Proyectar resultados de Beto" }) as HTMLButtonElement).disabled).toBe(true);
-    });
-
-    it("sigue mostrando el avance de cada persona en la conversación, también de quien quedó pendiente", () => {
-      const d = mesaAbierta(0, ["ana"]);
-      d.must(d.admin({ type: "round.converse", withPending: true }), "conversar");
-      render(<ParticipantList participants={presencia(d)} stage="conversation" onSelect={vi.fn()} />);
-      expect(within(screen.getByText("Ana").closest("li")!).getByText("✓ Lista")).toBeTruthy();
-      expect(within(screen.getByText("Beto").closest("li")!).getByText("0 de 2")).toBeTruthy();
-    });
+  it("en la conversación sigue mostrando el avance de cada persona, también de quien quedó pendiente, sin acciones", () => {
+    const d = mesaAbierta(0, ["ana"]);
+    d.must(d.admin({ type: "round.converse", withPending: true }), "conversar");
+    render(<ParticipantList participants={presencia(d)} stage="conversation" onInclude={vi.fn()} />);
+    expect(within(screen.getByText("Ana").closest("li")!).getByText("✓ Listo")).toBeTruthy();
+    expect(within(screen.getByText("Beto").closest("li")!).getByText("0 de 2")).toBeTruthy();
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
 
   it("sin participantes explica cómo entrar y mientras carga no afirma que no haya nadie", () => {
@@ -880,14 +911,14 @@ describe("ParticipantList", () => {
 
   it("no queda ningún rastro del turno: ni «Dar turno» ni «Tiene el turno»", () => {
     const d = mesaAbierta(0);
-    render(<ParticipantList participants={presencia(d)} stage="exploration" onInclude={vi.fn()} onSelect={vi.fn()} />);
+    render(<ParticipantList participants={presencia(d)} stage="exploration" onInclude={vi.fn()} />);
     expect(screen.queryByText(/turno/i)).toBeNull();
     expect(screen.queryByRole("button", { name: /turno/i })).toBeNull();
   });
 
   // Mismo tipo `ParticipantInfo` que construye el servidor: la lista no depende de nada más.
   it("acepta directamente la información pública de las personas", () => {
-    const persona: ParticipantInfo = { principalId: "p", role: "participant", displayName: "Ana · 2", name: "Ana", color: "azul", distinction: 2, connected: true, observer: false, inRound: true, ready: false, progress: { done: 1, needed: 2 } };
+    const persona: ParticipantInfo = { principalId: "p", role: "participant", displayName: "Ana · 2", name: "Ana", color: "azul", distinction: 2, connected: true, observer: false, inRound: true, ready: false, progress: { done: 1, needed: 2 }, question: null };
     render(<ParticipantList participants={[persona]} stage="exploration" />);
     expect(screen.getByText("Ana · 2")).toBeTruthy();
     expect(screen.getByText("1 de 2")).toBeTruthy();
@@ -944,35 +975,15 @@ describe("JoinView", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Verde" }));
     fireEvent.click(screen.getByRole("button", { name: "Entrar a la sala" }));
     await waitFor(() => expect(onJoined).toHaveBeenCalledTimes(1));
-    expect(api.joinRoom).toHaveBeenCalledWith("ABC234", "Ana", "verde", false);
+    expect(api.joinRoom).toHaveBeenCalledWith("ABC234", "Ana", "verde");
     expect(onJoined.mock.calls[0]![0]).toMatchObject({ role: "participant", principalId: "p9", color: "verde", token: "t".repeat(43) });
   });
 
-  it("ofrece acompañar sin jugar: la casilla está sin marcar, tiene nombre y explica qué implica", async () => {
+  it("no ofrece entrar solo a acompañar: no hay casilla de observadora y todas entran a jugar", async () => {
     render(<JoinView code="ABC234" onJoined={() => undefined} navigate={() => undefined} />);
-    const casilla = (await screen.findByRole("checkbox", { name: /Solo quiero acompañar/ })) as HTMLInputElement;
-    expect(casilla.checked).toBe(false);
-    expect(screen.getByText(/no tiene personaje y no cuenta entre las personas listas/)).toBeTruthy();
-  });
-
-  it("al marcar la casilla el botón dice «Entrar como observadora» y se envía como observadora", async () => {
-    vi.mocked(api.joinRoom).mockResolvedValue({ ...entrada, observer: true });
-    const onJoined = vi.fn();
-    render(<JoinView code="ABC234" onJoined={onJoined} navigate={() => undefined} />);
-    fireEvent.change(await screen.findByLabelText("Tu nombre"), { target: { value: "Luz" } });
-    fireEvent.click(screen.getByRole("checkbox", { name: /Solo quiero acompañar/ }));
-    expect(screen.queryByRole("button", { name: "Entrar a la sala" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Entrar como observadora" }));
-    await waitFor(() => expect(onJoined).toHaveBeenCalledTimes(1));
-    expect(api.joinRoom).toHaveBeenCalledWith("ABC234", "Luz", "rojo", true);
-  });
-
-  it("desmarcar la casilla vuelve al botón de quien juega", async () => {
-    render(<JoinView code="ABC234" onJoined={() => undefined} navigate={() => undefined} />);
-    const casilla = await screen.findByRole("checkbox", { name: /Solo quiero acompañar/ });
-    fireEvent.click(casilla);
-    expect(screen.getByRole("button", { name: "Entrar como observadora" })).toBeTruthy();
-    fireEvent.click(casilla);
+    await screen.findByLabelText("Tu nombre");
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.queryByText(/acompañar|observador/i)).toBeNull();
     expect(screen.getByRole("button", { name: "Entrar a la sala" })).toBeTruthy();
   });
 
@@ -1062,11 +1073,11 @@ describe("RoomView: elige la vista según la credencial, el papel y la fase", ()
   it("en la conversación la observadora y quien juega leen el mismo texto de la proyección", async () => {
     const d = enEtapa("conversation");
     const observa = render(sesion(clientState(d, "luz", { observers: { luz: "Luz" } })).ui());
-    expect(screen.getByText("Miremos la proyección y compartamos lo que descubrimos.")).toBeTruthy();
+    expect(screen.getByText("Ya exploramos: deja los controles y mira la proyección para escuchar lo que descubrieron los demás.")).toBeTruthy();
     observa.unmount();
     render(sesion(clientState(d, "ana")).ui());
     await mapa();
-    expect(screen.getByText("Miremos la proyección y compartamos lo que descubrimos.")).toBeTruthy();
+    expect(screen.getByText("Ya exploramos: deja los controles y mira la proyección para escuchar lo que descubrieron los demás.")).toBeTruthy();
   });
 
   it("una sala terminada o vencida y una pestaña desplazada muestran su explicación; «Ir al inicio» olvida la credencial", () => {
@@ -1113,35 +1124,14 @@ describe("RoomView: elige la vista según la credencial, el papel y la fase", ()
       expect(container.querySelectorAll(".notice")).toHaveLength(1);
     });
 
-    it("si la conexión de Vanessa no vuelve en 5 segundos le ofrece la demostración, sin cambiarse sola", () => {
+    it("si la conexión de Vanessa no vuelve, solo se avisa que se está reconectando: ya no se ofrece ninguna demostración", () => {
       vi.useFakeTimers();
       const s = sesion(clientState(enEtapa("welcome"), "admin", { status: "reconnecting" }), "admin");
       render(s.ui());
-      act(() => void vi.advanceTimersByTime(4999));
-      expect(screen.queryByRole("alert")).toBeNull();
-      act(() => void vi.advanceTimersByTime(1));
-      expect(screen.getByRole("alert").textContent).toMatch(/La conexión con la sala no vuelve/);
+      act(() => void vi.advanceTimersByTime(30_000));
+      expect(screen.getByText("Reconectando con la sala…")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /demostración/i })).toBeNull();
       expect(s.navigate).not.toHaveBeenCalled();
-      fireEvent.click(screen.getByRole("button", { name: "Usar la demostración" }));
-      expect(s.navigate).toHaveBeenCalledWith("/demo?from=ABC234");
-    });
-
-    it("la demostración solo se ofrece a Vanessa, y no si la conexión vuelve a tiempo", () => {
-      vi.useFakeTimers();
-      const persona = sesion(clientState(enEtapa("exploration"), "luz", { observers: { luz: "Luz" }, status: "reconnecting" }));
-      const { unmount } = render(persona.ui());
-      act(() => void vi.advanceTimersByTime(10_000));
-      expect(screen.queryByRole("alert")).toBeNull();
-      unmount();
-
-      const d = enEtapa("welcome");
-      const s = sesion(clientState(d, "admin", { status: "reconnecting" }), "admin");
-      const { rerender } = render(s.ui());
-      act(() => void vi.advanceTimersByTime(3000));
-      sesion(clientState(d, "admin"), "admin"); // la conexión vuelve antes de los 5 segundos
-      rerender(s.ui());
-      act(() => void vi.advanceTimersByTime(10_000));
-      expect(screen.queryByRole("alert")).toBeNull();
     });
   });
 });

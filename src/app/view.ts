@@ -28,17 +28,20 @@ const NOT_PLAYING: Record<string, string> = {
   expired: "La sala venció por inactividad.",
 };
 
+/** ¿Vanessa ya abrió el inventor? Solo en el cierre; una sala guardada antes de que existiera este paso lo tiene cerrado. */
+export const isInventorOpen = (adv: AdventureState): boolean => adv.round.stage === "closing" && adv.inventor.open === true;
+
 const STAGE_REASON: Record<RoundStage, string | null> = {
   preparation: null,
   exploration: null,
   conversation: "Estamos conversando: mira la proyección.",
-  closing: "Estamos en el cierre: mira la proyección.",
+  closing: null,
 };
 
 /**
- * Qué puede hacer esta pantalla: caminar por el laboratorio y explorar la mesa habilitada (propuesta de rondas, sección 4). Solo quien
- * tiene personaje (`me`): una persona que juega y, en la demostración local, Vanessa. La proyección de una sala real y quien acompaña
- * como observadora solo miran.
+ * Qué puede hacer esta pantalla: caminar por el laboratorio y explorar la mesa habilitada o, en el cierre, entrar al inventor (propuesta
+ * de rondas, sección 4). Solo quien tiene personaje (`me`): una persona que juega. La proyección y quien acompaña como observadora solo
+ * miran.
  */
 export function permissionsFor(state: RoomClientState): BridgePermissions {
   const self = state.summary?.self;
@@ -46,10 +49,13 @@ export function permissionsFor(state: RoomClientState): BridgePermissions {
   if (state.status !== "connected") return { canMove: false, canExplore: false, reason: "Sin conexión con la sala." };
   const phase = state.summary!.phase;
   if (phase !== "running") return { canMove: false, canExplore: false, reason: NOT_PLAYING[phase] ?? null };
-  const stage = state.group?.adventure.round.stage;
-  if (!stage) return { canMove: false, canExplore: false, reason: "Todavía se está cargando la aventura." };
+  const adv = state.group?.adventure;
+  const stage = adv?.round.stage;
+  if (!adv || !stage) return { canMove: false, canExplore: false, reason: "Todavía se está cargando la aventura." };
   const reason = STAGE_REASON[stage];
   if (reason) return { canMove: false, canExplore: false, reason };
+  // En el cierre se camina hasta el inventor, que se «explora» (se entra a él) cuando Vanessa lo abre: como una mesa.
+  if (stage === "closing") return { canMove: true, canExplore: isInventorOpen(adv), reason: isInventorOpen(adv) ? null : "Vanessa abrirá el inventor en un momento." };
   return { canMove: true, canExplore: stage === "exploration", reason: stage === "preparation" ? "Vanessa abrirá la mesa en un momento." : null };
 }
 
@@ -77,7 +83,7 @@ export function phoneCaption(state: RoomClientState, config: LaboratorioConfig):
     case "conversation":
       return labels.roundConversationPhone ?? null;
     case "closing":
-      return labels.closingPhone ?? null;
+      return (state.group && isInventorOpen(state.group.adventure) ? labels.inventorOpenPhone : labels.closingPhone) ?? null;
     default:
       return null;
   }

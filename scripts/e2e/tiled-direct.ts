@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-// CT-01: guardar el TMJ cambia una demo nueva, sin importación intermedia; un TMJ inválido falla indicando capa y objeto.
+// CT-01: guardar el TMJ cambia una sala nueva, sin importación intermedia; un TMJ inválido falla indicando capa y objeto.
 // Trabaja sobre una COPIA del build (no toca los archivos del proyecto). Requiere `npm run build`.
 import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -22,11 +22,22 @@ const check = (c: unknown, m: string) => {
 };
 
 type Pos = { shadows: { x: number; y: number }; ramps: { x: number; y: number } };
+/** Una sala nueva, con una persona que juega, hasta que la proyección de Vanessa dibuja el laboratorio: dónde quedaron las estaciones. */
 async function stationPositions(): Promise<{ pos: Pos; requested: string[] }> {
   const page = await (await browser.newContext({ viewport: { width: 1280, height: 720 } })).newPage();
   const requested: string[] = [];
   page.on("request", (r) => requested.push(new URL(r.url()).pathname));
-  await page.goto(`${BASE}/demo?debug`);
+  await page.goto(`${BASE}/`);
+  await page.getByRole("button", { name: "Crear sala" }).click();
+  await page.waitForURL(/\/sala\/[A-Z0-9]{6}$/);
+  const roomUrl = new URL(page.url()).pathname;
+  await page.goto(`${BASE}${roomUrl}?hooks`);
+  const phone = await (await browser.newContext()).newPage();
+  await phone.goto(`${BASE}${roomUrl}`);
+  await phone.getByLabel("Tu nombre").fill("Ana");
+  await phone.getByRole("button", { name: "Entrar a la sala" }).click();
+  await page.getByText("1 persona conectada", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Comenzar la aventura" }).click();
   await page.locator("canvas").waitFor();
   await page.waitForFunction(() => (window as unknown as { __PHASER_GAME__?: { scene: { getScene(k: string): { children?: { list: unknown[] } } | null } } }).__PHASER_GAME__?.scene.getScene("LaboratoryScene")?.children?.list.length);
   // Sin funciones con nombre dentro del callback: tsx inyecta `__name`, que no existe en el navegador.
@@ -36,6 +47,7 @@ async function stationPositions(): Promise<{ pos: Pos; requested: string[] }> {
     return { shadows: { x: found[0]!.x, y: found[0]!.y }, ramps: { x: found[1]!.x, y: found[1]!.y } };
   });
   await page.context().close();
+  await phone.context().close();
   return { pos, requested };
 }
 
@@ -60,7 +72,7 @@ try {
   writeFileSync(tmjPath, JSON.stringify(edited, null, 1));
   const after = await stationPositions();
   console.log("  después:", JSON.stringify(after.pos));
-  check(after.pos.shadows.x === before.pos.shadows.x + 100 && after.pos.shadows.y === before.pos.shadows.y, "una demo nueva dibuja la estación 100 px a la derecha, sin ningún paso intermedio");
+  check(after.pos.shadows.x === before.pos.shadows.x + 100 && after.pos.shadows.y === before.pos.shadows.y, "una sala nueva dibuja la estación 100 px a la derecha, sin ningún paso intermedio");
   check(after.pos.ramps.x === before.pos.ramps.x, "las demás estaciones no se movieron");
 
   // TMJ inválido: asset desconocido → el frontend lo rechaza antes de iniciar Phaser indicando capa y objeto.
@@ -68,7 +80,7 @@ try {
   invalid.layers.find((l: { name: string }) => l.name === "stations").objects.find((o: { name: string }) => o.name === "rampas").properties[1].value = "lab.station.fantasma";
   writeFileSync(tmjPath, JSON.stringify(invalid));
   const page = await (await browser.newContext()).newPage();
-  await page.goto(`${BASE}/demo`);
+  await page.goto(`${BASE}/`);
   await page.getByRole("alert").waitFor();
   const text = await page.getByRole("alert").innerText();
   check(/lab\.station\.fantasma/.test(text) && /rampas/.test(text) && /laboratorio\.tmj/.test(text), "un asset desconocido se rechaza nombrando el archivo, el objeto y el assetId");

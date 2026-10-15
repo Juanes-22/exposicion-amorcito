@@ -2,11 +2,12 @@
   "$schema": "../../shared/config/schemas/laboratorio.schema.json",
   "schemaVersion": 1,
   "contentSetId": "laboratorio-cosas-cotidianas",
-  "configRevision": "2026-10-14-observatorio",
+  "configRevision": "2026-10-15-guia-vanessa",
   "mode": "prototype",
   "project": {
     "title": "El laboratorio de las cosas cotidianas",
     "subtitle": "Una aventura interactiva sobre la curiosidad",
+    "entryQuestion": "¿Recuerdan algo que hayan aprendido porque les dio curiosidad?",
     "studentName": "Vanessa Estrada",
     "university": "Universidad de Antioquia",
     "program": "Licenciatura en Educación Infantil",
@@ -18,7 +19,7 @@
     "initialSpawnId": "entrada",
     "playerSpeed": 150,
     "player": {
-      "assetId": "character.vanessa-jerry.walk.poses-v4",
+      "assetId": "character.vanessa-jerry.stand.poses-v5",
       "origin": {
         "x": 0.5,
         "y": 1
@@ -40,9 +41,9 @@
       "type": "shadows",
       "title": "Sombras",
       "pieceId": "lupa",
-      "goal": "Compara la sombra con la linterna cerca y lejos.",
-      "openingQuestion": "¿Por qué un objeto pequeño puede producir una sombra grande?",
-      "conversationQuestion": "¿Qué cambió, qué permaneció igual y qué observación ayuda a revisar la primera idea?",
+      "goal": "Acerca y aleja la linterna y compara la sombra en dos posiciones distintas.",
+      "openingQuestion": "¿Qué cambiará si acercamos o alejamos la linterna?",
+      "conversationQuestion": "¿Qué cambió cuando movieron la linterna? ¿Qué observación nos ayuda a revisar la primera explicación?",
       "freirePhrase": "Freire propone volver más rigurosa nuestra curiosidad al observar, comparar y buscar razones.",
       "experiment": {
         "sourceDistanceMinCm": 10,
@@ -57,30 +58,39 @@
       "type": "ramps",
       "title": "Rampas",
       "pieceId": "dialogo",
-      "goal": "Compara dos inclinaciones y observa el tiempo de recorrido.",
-      "openingQuestion": "¿Qué creen que cambiará si aumenta la inclinación de la rampa?",
-      "conversationQuestion": "¿Qué resultado apoya la explicación del grupo y cómo lo compararían con otra prueba?",
+      "goal": "Elige una inclinación y suelta la pelota; luego cambia la inclinación y repite.",
+      "openingQuestion": "¿Qué creen que cambiará si inclinamos más esta rampa? ¿Cómo podríamos comprobarlo?",
+      "conversationQuestion": "¿Qué observaron y qué resultado apoya su explicación? ¿Alguien quiere añadir algo a lo que dijo su compañero?",
       "freirePhrase": "Para Freire, dialogar incluye preguntar y escuchar las explicaciones con una actitud curiosa.",
       "experiment": {
         "model": "solid-sphere-ideal-v1",
-        "minAngleDeg": 15,
+        "minAngleDeg": 20,
         "maxAngleDeg": 45,
         "angleStepDeg": 5,
         "minDistinctAngleDeg": 5,
         "lengthMeters": 2,
         "visualTimeScale": 2.4,
-        "requiredTrials": 2
+        "requiredTrials": 2,
+        "angleLabels": [
+          "La menos empinada",
+          "Poco empinada",
+          "Algo empinada",
+          "Bastante empinada",
+          "Muy empinada",
+          "La más empinada"
+        ]
       }
     },
     "cajas": {
       "type": "telescope",
       "title": "El observatorio",
       "pieceId": "corazon",
-      "goal": "Explora el cielo. Acerca la Luna y encuentra un grupo de estrellas.",
-      "openingQuestion": "Ahora tenemos otra herramienta para explorar. ¿Qué podemos descubrir con el telescopio y qué cambia cuando acercamos la vista?",
-      "conversationQuestion": "¿Qué cambió entre mirar el panorama y enfocarse en un detalle?",
+      "goal": "Mueve el visor y cambia el aumento: observa la Luna con aumento y un grupo de estrellas.",
+      "openingQuestion": "Tenemos un telescopio para mirar el cielo. Exploren la Luna y las estrellas: ¿qué detalles aparecen cuando acercan la vista?",
+      "conversationQuestion": "¿Qué descubrieron en el cielo al acercar la vista?",
       "freirePhrase": "Freire nos recuerda que la curiosidad no nos da derecho a invadir la privacidad de alguien ni a exponerla ante los demás.",
-      "readyText": "Ya exploraste la Luna y las estrellas. Puedes seguir mirando mientras nos reunimos.",
+      "freireQuestion": "¿Qué nos hizo entender el gesto de cerrar la cortina? ¿Qué podíamos seguir investigando con el telescopio?",
+      "readyText": "Ya observaste la Luna y un grupo de estrellas. Puedes seguir explorando mientras termina el grupo.",
       "experiment": {
         "zoomLevels": [
           1,
@@ -109,7 +119,7 @@
       },
       {
         "id": "dialogo",
-        "label": "Bocadillo",
+        "label": "Diálogo",
         "message": "Preguntar y escuchar."
       },
       {
@@ -118,44 +128,48 @@
         "message": "Investigar con respeto."
       }
     ],
-    "prompt": "Después de lo que descubrimos, ¿qué nos gustaría seguir investigando?",
-    "finalMessage": "Cada descubrimiento puede abrir otra pregunta.",
+    "prompt": "¿Qué pregunta nos gustaría seguir investigando como grupo?",
+    "questions": [
+      {
+        "id": "sombras-objeto",
+        "activityId": "sombras",
+        "text": "¿Qué le pasa a la sombra si acercamos el objeto a la linterna, en lugar de mover la linterna?"
+      },
+      {
+        "id": "sombras-patio",
+        "activityId": "sombras",
+        "text": "¿Por qué nuestra sombra en el patio cambia de tamaño durante el día?"
+      },
+      {
+        "id": "rampas-objetos",
+        "activityId": "rampas",
+        "text": "¿Todos los objetos tardan lo mismo en bajar por la misma rampa?"
+      },
+      {
+        "id": "rampas-peso",
+        "activityId": "rampas",
+        "text": "Si la pelota fuera más pesada, ¿bajaría más rápido por la rampa?"
+      },
+      {
+        "id": "cajas-telescopio",
+        "activityId": "cajas",
+        "text": "¿Cómo hace un telescopio para que veamos más cerca lo que está lejos?"
+      },
+      {
+        "id": "cajas-distancias",
+        "activityId": "cajas",
+        "text": "¿Qué tan lejos de nosotros están la Luna, las estrellas y las galaxias?"
+      }
+    ],
+    "finalMessage": "Nuestro inventor está completo y todavía tenemos preguntas.",
     "reflection": [
-      "Aprender comienza con preguntas.",
-      "Observar, probar y escuchar puede cambiar lo que pensábamos.",
-      "Las preguntas de los niños importan y deben acompañarse con respeto por los demás."
+      "Al probar y conversar pudimos mirar mejor lo que ocurría, reconocer dudas y buscar razones.",
+      "Enseñar exige curiosidad de los niños y también de nosotros como docentes.",
+      "Querer conocer algo no nos da derecho a invadir la privacidad de otra persona: podemos aceptar un límite y buscar otras preguntas."
     ],
     "closingQuestion": "¿Cómo ayudaríamos a un niño a pasar de «me da curiosidad» a «quiero comprenderlo»?"
   },
   "dialogues": {},
-  "facilitatorNotes": {
-    "bienvenida": [
-      "Explicar que todas las personas exploran desde su celular y que el grupo avanza junto.",
-      "Presentar al inventor: al final reunirá las tres ideas trabajadas y una pregunta del grupo."
-    ],
-    "sombras": [
-      "Antes: escuchar una o dos ideas sobre por qué un objeto pequeño produce una sombra grande. Puedes guardar una síntesis breve de lo que el grupo piensa.",
-      "Durante: observar el progreso y ayudar a quien lo necesite; quienes terminan pueden seguir probando.",
-      "Después: preguntar qué cambió, qué permaneció igual y qué observación ayuda a revisar la primera idea. Antes de explicar, distinguir lo observado de lo que todavía se supone."
-    ],
-    "rampas": [
-      "Antes: escuchar dos predicciones sobre qué cambia al aumentar la inclinación y pedir una razón o una manera de comprobarlas.",
-      "Durante: observar el progreso. Los tiempos son de una simulación, no mediciones reales.",
-      "Después: preguntar qué resultado apoya la explicación del grupo y cómo lo compararían con otra prueba. Ofrecer una explicación breve del montaje y escuchar otras razones."
-    ],
-    "cajas": [
-      "Antes: decir «Ahora tenemos otra herramienta para explorar. Miren qué pueden descubrir con el telescopio y qué cambia cuando acercan la vista». No anunciar nada sobre la casa.",
-      "Durante: cada persona mueve su propio telescopio; queda lista al observar de cerca la Luna y el grupo de estrellas. Encontrar la casa no es un requisito.",
-      "Después, para abrir: «¿Qué detalles encontraron al acercar la Luna?», «¿Qué les llamó la atención cuando movieron el telescopio?», «¿Qué cambió entre mirar el panorama y enfocarse en un detalle?».",
-      "Mostrar la casa con «Mostrar la casa» (demostración propia, una vez basta). Para pensar el límite: «¿Qué nos hizo entender el gesto de cerrar la cortina?», «¿Poder ver algo significa que tenemos derecho a observarlo de cerca?», «¿Necesitábamos conocer esa conversación para seguir descubriendo cosas?», «¿Qué otras cosas podíamos investigar con el telescopio?».",
-      "No pedir que identifiquen quién miró la casa ni que compartan experiencias familiares; no invitar a adivinar el motivo de la discusión: las siluetas no permiten saberlo.",
-      "Explicación sugerida: el telescopio nos dejó ver detalles y también dirigir la mirada hacia la vida de otras personas. La cortina nos hizo reconocer un límite. Freire nos recuerda que la curiosidad no nos da derecho a invadir la privacidad de alguien ni a exponerla ante los demás. Todavía teníamos la Luna, las estrellas y nuevas preguntas. Para continuar: «¿Qué otra pregunta podríamos investigar con esta herramienta?» (se puede guardar en el cuaderno del grupo)."
-    ],
-    "cierre": [
-      "Preguntar qué les gustaría seguir investigando y acordar una pregunta del grupo.",
-      "Cerrar la reflexión oral: ¿cómo ayudaríamos a un niño a pasar de «me da curiosidad» a «quiero comprenderlo»?"
-    ]
-  },
   "ui": {
     "assets": {
       "button": "ui.button.green.default",
@@ -168,22 +182,23 @@
       "waiting": "Estás en la sala. Sigue la aventura en la proyección",
       "loadingMap": "Cargando el laboratorio…",
       "signalPieceEarned": "Pieza conseguida: {pieza}.",
-      "signalPiecesPlaced": "El inventor se encendió: ya tiene sus tres piezas.",
+      "signalPiecesPlaced": "Nuestro inventor está completo: ya tiene sus tres piezas.",
       "signalFinished": "Terminamos la aventura.",
       "signalClick": "Se anotó la posición de la linterna.",
       "welcomePhone": "Estás en la sala. Vanessa comenzará la aventura en un momento.",
       "roundPreparationPhone": "Escucha la pregunta de Vanessa. Pronto se abre la mesa.",
       "roundExplorationPhone": "La mesa está abierta: explora a tu ritmo.",
-      "roundConversationPhone": "Miremos la proyección y compartamos lo que descubrimos.",
-      "readyYou": "Ya exploraste esta mesa. Puedes seguir probando mientras terminamos en grupo.",
+      "roundConversationPhone": "Ya exploramos: deja los controles y mira la proyección para escuchar lo que descubrieron los demás.",
+      "readyYou": "Ya exploraste esta mesa. Puedes seguir probando mientras termina el grupo.",
       "notReadyYou": "Sigue explorando: cuando termines, aquí aparecerá «Listo».",
-      "closingPhone": "Miremos la proyección: el inventor ya tiene sus tres piezas y vamos a elegir una pregunta.",
+      "closingPhone": "Ya pasamos por las tres mesas. Camina hasta el inventor de preguntas: Vanessa lo abrirá en un momento.",
+      "inventorOpenPhone": "El inventor está abierto: acércate a la máquina, entra y registra tu pregunta.",
       "finishedPhone": "Terminamos la aventura. Puedes revisar tus resultados.",
       "observerPhone": "Estás como observador. Sigue la aventura en la proyección."
     }
   },
   "audio": {
-    "phoneInitiallyMuted": true,
+    "phoneInitiallyMuted": false,
     "events": {
       "shadows.click": "lab.audio.click",
       "piece.earned": "lab.audio.piece",
@@ -194,11 +209,5 @@
   "session": {
     "maxParticipants": 50,
     "adminIdleTtlMs": 7200000
-  },
-  "supportPhrases": {
-    "inicio": "Todas las personas van a explorar desde su celular. Cuando terminemos una mesa, miraremos la proyección para compartir lo que encontramos y pensar juntas qué significa.",
-    "antesDeReunir": "Vamos cerrando las pruebas. Ahora quiero escuchar qué observaron y qué les hizo cambiar o sostener su primera idea.",
-    "alExplicar": "Voy a relacionar lo que acabamos de hacer con la idea de Freire. Pensemos en cómo acompañaríamos esta misma curiosidad en un aula infantil.",
-    "cierre": "Después de observar, preguntar y escuchar, ¿qué nos gustaría seguir investigando? Vamos a conservar una pregunta del grupo para continuar esta búsqueda."
   }
 }

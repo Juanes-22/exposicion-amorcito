@@ -1,11 +1,12 @@
 import type { CommandResult } from "../../shared/contracts/actions";
+import { INVENTOR_ID } from "../../shared/contracts/config";
 import type { Point } from "../../shared/contracts/geometry";
 import { planDurationMs } from "../../shared/domain/movement";
 import { playerAt } from "../../shared/domain/participant";
 import type { ProjectBundle } from "../../shared/config/validateProject";
 import type { GameBridge } from "../game/bridge/GameBridge";
 import type { RoomPort } from "./RoomController";
-import { currentActivity } from "./view";
+import { currentActivity, isInventorOpen } from "./view";
 
 type Port = Pick<RoomPort, "act" | "getState" | "notify">;
 
@@ -22,8 +23,12 @@ export interface IntentRouterOptions {
   pollMs?: number;
 }
 
-/** Punto de interacción y radio de una mesa, tomados del mismo TMJ que usa el servidor. */
+/** Punto de interacción y radio de una mesa (o de la máquina del inventor), tomados del mismo TMJ que usa el servidor. */
 export function stationTarget(project: ProjectLike, stationId: string): { point: Point; radius: number } | null {
+  if (stationId === INVENTOR_ID) {
+    const inv = project.bundle.map.inventor;
+    return inv ? { point: inv.point, radius: inv.interactionRadius } : null;
+  }
   const s = project.bundle.map.stations.find((x) => x.activityId === stationId);
   return s ? { point: s.point, radius: s.interactionRadius } : null;
 }
@@ -66,12 +71,15 @@ export function startIntentRouter({ bridge, port, project, pollMs = 60 }: Intent
 
     if (intent.type === "move") return outcome(requestId, await port.act({ type: "player.moveTo", target: intent.target }));
 
-    // Tocar una mesa: solo la habilitada. Se pide acercarse y abrirla.
+    // Tocar una mesa: solo la habilitada (en el cierre, la máquina del inventor). Se pide acercarse y abrirla.
     const current = currentActivity(adv, config);
     const target = stationTarget(project, intent.stationId);
     if (!target) return deny(requestId, "Esa mesa no está en el mapa.");
-    if (!current || intent.stationId !== current.id) {
-      if (!current) return deny(requestId, "La aventura ya pasó por las tres mesas.");
+    if (intent.stationId === INVENTOR_ID) {
+      if (adv.round.stage !== "closing") return deny(requestId, "El inventor se abre al final del recorrido, después de la última mesa.");
+      if (!isInventorOpen(adv)) return deny(requestId, "Vanessa abrirá el inventor en un momento.");
+    } else if (!current || intent.stationId !== current.id) {
+      if (!current) return deny(requestId, "Ya pasamos por todas las mesas: ve al inventor de preguntas.");
       return deny(requestId, config.route.indexOf(intent.stationId) < adv.round.index ? "Esa mesa ya terminó." : "Esa mesa se habilitará más adelante.");
     }
     if (!perms.canExplore) return deny(requestId, perms.reason ?? "Vanessa abrirá la mesa en un momento.");

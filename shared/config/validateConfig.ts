@@ -1,8 +1,9 @@
 import configSchema from "./schemas/laboratorio.schema.json";
 import type { AssetManifest, ConfigIssue, ValidationResult } from "../contracts/assets";
 import type { LaboratorioConfig } from "../contracts/config";
-import { AUDIO_EVENT_IDS, FACILITATOR_MOMENTS, INVENTOR_ID, REQUIRED_LABELS } from "../contracts/config";
+import { AUDIO_EVENT_IDS, INVENTOR_ID, REQUIRED_LABELS } from "../contracts/config";
 import { centeredTargets, CLOSE_ZOOM, PANORAMA, TELESCOPE_TARGETS } from "../domain/telescope";
+import { countChars } from "../domain/text";
 import { ajvIssues, compileSchema } from "./ajv";
 import type { SheetDefinition } from "./frameDefinitions";
 
@@ -60,6 +61,17 @@ export function validateConfig(data: unknown, ctx: ConfigContext): ConfigValidat
   });
   for (const p of required) if (!defined.has(p)) issues.push(at("inventor.pieces", `falta el texto de la pieza «${p}»`));
 
+  // ---- preguntas sugeridas del inventor ----
+  const questionIds = new Set<string>();
+  c.inventor.questions.forEach((q, i) => {
+    const where = `inventor.questions[${i}]`;
+    if (questionIds.has(q.id)) issues.push(at(`${where}.id`, `la pregunta «${q.id}» está repetida`));
+    questionIds.add(q.id);
+    if (!c.route.includes(q.activityId)) issues.push(at(`${where}.activityId`, `«${q.activityId}» no es una mesa del recorrido`));
+    // Vanessa puede confirmarla como pregunta final: cabe en el mismo límite que una nota.
+    if (countChars(q.text.trim()) > c.ui.maxRecordCharacters) issues.push(at(`${where}.text`, `supera los ${c.ui.maxRecordCharacters} caracteres de una nota`));
+  });
+
   // ---- actividades ----
   for (const [id, a] of Object.entries(c.activities)) {
     const where = `activities.${id}`;
@@ -80,6 +92,9 @@ export function validateConfig(data: unknown, ctx: ConfigContext): ConfigValidat
           if (e.maxAngleDeg - e.minAngleDeg < e.minDistinctAngleDeg * (e.requiredTrials - 1)) {
             issues.push(at(`${where}.experiment`, "el rango de inclinaciones no permite reunir requiredTrials pruebas separadas por minDistinctAngleDeg"));
           }
+          // Las personas eligen la inclinación por su nombre: uno por cada paso, de la menos a la más empinada.
+          const levels = Math.round((e.maxAngleDeg - e.minAngleDeg) / e.angleStepDeg) + 1;
+          if (e.angleLabels.length !== levels) issues.push(at(`${where}.experiment.angleLabels`, `hace falta un nombre por inclinación: ${levels} (hay ${e.angleLabels.length})`));
         }
         break;
       }
@@ -93,6 +108,7 @@ export function validateConfig(data: unknown, ctx: ConfigContext): ConfigValidat
         else if (wide < close) {
           if (!centeredTargets({ ...TELESCOPE_TARGETS.moon, zoom: CLOSE_ZOOM }, e).moon) issues.push(at(`${where}.experiment`, "con estos valores no se puede centrar la Luna con el aumento cercano"));
           if (!centeredTargets({ ...TELESCOPE_TARGETS.stars, zoom: 0 }, e).stars) issues.push(at(`${where}.experiment`, "con estos valores no se puede centrar el grupo de estrellas con el aumento general"));
+          if (!centeredTargets({ ...TELESCOPE_TARGETS.galaxy, zoom: CLOSE_ZOOM }, e).galaxy) issues.push(at(`${where}.experiment`, "con estos valores no se puede centrar la galaxia con el aumento cercano"));
         }
         break;
       }
@@ -101,10 +117,6 @@ export function validateConfig(data: unknown, ctx: ConfigContext): ConfigValidat
 
   // ---- textos de las fases comunes: contenido obligatorio y editable (SPECS 9.1) ----
   for (const key of REQUIRED_LABELS) if (!c.ui.labels[key]?.trim()) issues.push(at(`ui.labels.${key}`, "falta este texto de las fases comunes"));
-
-  // ---- guiones: cada momento del recorrido tiene el suyo ----
-  const moments = new Set<string>([...FACILITATOR_MOMENTS, ...c.route]);
-  for (const m of moments) if (!Object.hasOwn(c.facilitatorNotes, m)) issues.push(at(`facilitatorNotes.${m}`, "falta el guion de este momento"));
 
   // ---- assets ----
   const player = asset("world.player.assetId", c.world.player.assetId, ["pose-sheet"]);
@@ -142,7 +154,6 @@ export function validateConfig(data: unknown, ctx: ConfigContext): ConfigValidat
       if (entry?.placeholder) issues.push(at(path, `«${id}» es un recurso provisional: mode «presentation» no lo admite`));
       if (/(^|\.)test(-|\.|$)/.test(id)) issues.push(at(path, `«${id}» es un recurso de prueba: mode «presentation» no lo admite`));
     }
-    for (const m of moments) if ((c.facilitatorNotes[m] ?? []).length === 0) issues.push(at(`facilitatorNotes.${m}`, "guion vacío: mode «presentation» exige guiones completos"));
   }
 
   return issues.length > 0 ? { ok: false, issues, value: c } : { ok: true, value: c };

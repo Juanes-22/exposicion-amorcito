@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { LoadedProject } from "../../config/loadProject";
 import { saveCredential } from "../../app/credentials";
 import { createRoom, ApiFailure } from "../../network/api";
-import { demoPath, roomPath } from "../../app/useRoute";
+import { roomPath } from "../../app/useRoute";
 
 /** Entrada: crear sala, unirse con un código y acceso a la demostración local para Vanessa (SPECS 2.1). */
 export function HomeView({ project, navigate }: { project: LoadedProject; navigate: (to: string) => void }) {
@@ -51,7 +51,6 @@ export function HomeView({ project, navigate }: { project: LoadedProject; naviga
         </form>
         {error ? <div className="error" role="alert">{error}</div> : null}
         <hr />
-        <button type="button" className="btn btn--ghost" onClick={() => navigate(demoPath())}>Demostración (respaldo local para Vanessa)</button>
         <p className="hint">
           {config.project.studentName} · {config.project.courseName} · {config.project.university}
         </p>

@@ -163,7 +163,7 @@ export class LaboratoryScene extends Phaser.Scene {
     const { config } = project.bundle;
     const adv = v.group;
     const current = currentActivityId(adv, config);
-    const signature = JSON.stringify([current, adv.round.stage, adv.completed, adv.pieces.length]);
+    const signature = JSON.stringify([current, adv.round.stage, adv.completed, adv.pieces.length, adv.inventor.open === true]);
     if (signature === this.stationSignature) return;
     this.stationSignature = signature;
 
@@ -179,7 +179,9 @@ export class LaboratoryScene extends Phaser.Scene {
     if (inv) {
       const lit = adv.pieces.length >= config.inventor.requiredPieceIds.length;
       inv.image.setTexture(lit ? inv.onKey : inv.offKey).setAlpha(lit ? 1 : 0.55);
-      inv.label.setText(lit ? "Inventor" : `Inventor (${adv.pieces.length} de ${config.inventor.requiredPieceIds.length} piezas)`).setAlpha(lit ? 1 : 0.75);
+      const closing = adv.round.stage === "closing";
+      const text = !lit ? `Inventor (${adv.pieces.length} de ${config.inventor.requiredPieceIds.length} piezas)` : closing && adv.inventor.open === true ? "Inventor · abierto" : closing ? "Inventor · próximo" : "Inventor";
+      inv.label.setText(text).setAlpha(lit ? 1 : 0.75);
     }
     this.placeGuide(current);
   }
@@ -233,18 +235,25 @@ export class LaboratoryScene extends Phaser.Scene {
     }
   }
 
-  /** Un anillo que late alrededor de la mesa habilitada mientras se explora: es lo que hay que hacer ahora. */
+  /**
+   * Un anillo que late alrededor de lo que hay que hacer ahora: la mesa habilitada mientras se explora y, en el cierre, la máquina del
+   * inventor (más suave mientras Vanessa todavía no lo abre: es a donde hay que caminar).
+   */
   private drawHighlight(v: VisualState): void {
     if (!this.highlight || !this.built) return;
     const { project, reducedMotion } = getDeps(this);
     this.highlight.clear();
-    if (v.group.round.stage !== "exploration") return;
-    const id = currentActivityId(v.group, project.bundle.config);
-    const view = id ? this.built.stations.get(id) : undefined;
-    if (!view) return;
-    const b = view.image.getBounds();
+    const stage = v.group.round.stage;
+    let image: Phaser.GameObjects.Image | undefined;
+    if (stage === "exploration") {
+      const id = currentActivityId(v.group, project.bundle.config);
+      image = id ? this.built.stations.get(id)?.image : undefined;
+    } else if (stage === "closing" && v.phase !== "finished") image = this.built.inventor?.image;
+    if (!image) return;
+    const b = image.getBounds();
     const pulse = reducedMotion ? 0.7 : 0.5 + 0.5 * Math.sin(this.time.now / 300);
-    this.highlight.lineStyle(4, 0xffd9a0, 0.35 + 0.5 * pulse).strokeRoundedRect(b.x - 8, b.y - 8, b.width + 16, b.height + 16, 12);
+    const strength = stage === "closing" && v.group.inventor.open !== true ? 0.5 : 1;
+    this.highlight.lineStyle(4, 0xffd9a0, (0.35 + 0.5 * pulse) * strength).strokeRoundedRect(b.x - 8, b.y - 8, b.width + 16, b.height + 16, 12);
   }
 
   /** Marca el destino del plan vigente mientras la persona camina: la misma señal en su teléfono y en la proyección. */

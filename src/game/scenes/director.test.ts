@@ -82,18 +82,32 @@ describe("qué escena corresponde a lo que ve cada audiencia", () => {
     expect(desiredScene(visual(d, proyeccion(d, mesa("no-existe"))), ACTIVITIES)).toBe("LaboratoryScene");
   });
 
-  it("en el cierre todas las pantallas ven la máquina del inventor: quien juega (aunque tuviera una mesa abierta), la proyección y quien acompaña", () => {
+  it("en el cierre el inventor es una mesa más: mientras está cerrado todas las pantallas ven el laboratorio (hay que caminar hasta él)", () => {
     const d = sala("cierre");
     expect(d.round.stage).toBe("closing");
-    expect(desiredScene(visual(d, persona(d, "ana")), ACTIVITIES)).toBe("InventorScene");
-    expect(desiredScene(visual(d, persona(d, "ana", mesa("cajas"))), ACTIVITIES)).toBe("InventorScene"); // el cierre manda sobre la vista personal
+    expect(desiredScene(visual(d, persona(d, "ana")), ACTIVITIES)).toBe("LaboratoryScene");
+    expect(desiredScene(visual(d, persona(d, "ana", mesa("cajas"))), ACTIVITIES)).toBe("LaboratoryScene"); // en el cierre no quedan mesas abiertas
+    expect(desiredScene(visual(d, proyeccion(d)), ACTIVITIES)).toBe("LaboratoryScene");
+    expect(desiredScene(visual(d, { kind: "observer" }), ACTIVITIES)).toBe("LaboratoryScene");
+  });
+
+  it("con el inventor abierto la proyección y quien acompaña lo ven; quien juega, al entrar a él (y vuelve al laboratorio al salir)", () => {
+    const d = sala("cierre");
+    d.must(d.admin({ type: "inventor.open" }), "abrir el inventor");
     expect(desiredScene(visual(d, proyeccion(d)), ACTIVITIES)).toBe("InventorScene");
     expect(desiredScene(visual(d, proyeccion(d, mesa("rampas"))), ACTIVITIES)).toBe("InventorScene"); // ni una demostración tapa al inventor
     expect(desiredScene(visual(d, { kind: "observer" }), ACTIVITIES)).toBe("InventorScene");
+    expect(desiredScene(visual(d, persona(d, "ana")), ACTIVITIES)).toBe("LaboratoryScene"); // todavía no llega
+    d.must(d.act("ana", { type: "station.open", stationId: "inventor", origin: "quickNav" }), "entrar al inventor");
+    expect(desiredScene(visual(d, persona(d, "ana")), ACTIVITIES)).toBe("InventorScene");
+    expect(desiredScene(visual(d, persona(d, "beto")), ACTIVITIES)).toBe("LaboratoryScene");
+    d.must(d.act("ana", { type: "adventure.returnToMap" }), "volver al mapa");
+    expect(desiredScene(visual(d, persona(d, "ana")), ACTIVITIES)).toBe("LaboratoryScene");
   });
 
   it("con la aventura terminada todas siguen viendo al inventor, también en pausa", () => {
     const d = sala("cierre");
+    d.must(d.admin({ type: "inventor.open" }), "abrir el inventor");
     d.must(d.admin({ type: "final.confirm", value: { kind: "written", text: "¿Por qué cambia la sombra?" } }), "pregunta final");
     expect(d.room.phase).toBe("finished");
     expect(desiredScene(visual(d, persona(d, "beto")), ACTIVITIES)).toBe("InventorScene");
@@ -227,31 +241,34 @@ describe("SceneDirector: cambia de escena dentro del mismo juego", () => {
     expect(u.calls).toEqual([]);
   });
 
-  it("al llegar el cierre todas las pantallas pasan al inventor, aunque tuvieran una mesa abierta; un reinicio de la sala regresa al laboratorio", () => {
+  it("en el cierre quien entra al inventor pasa a su escena; un reinicio de la sala regresa al laboratorio", () => {
     const t = setup();
     const d = sala("cierre");
     t.status.LaboratoryScene = 5;
     t.handlers["game:ready"]!();
-    t.show(visual(d, persona(d, "ana", mesa("cajas"))));
-    expect(t.calls).toEqual(["stop:LaboratoryScene", "start:InventorScene"]); // abre ya en el cierre (recarga): directo al inventor
     t.show(visual(d, persona(d, "ana")));
-    t.show(visual(d, { kind: "observer" }));
-    expect(t.calls).toHaveLength(2); // sigue en el cierre: no se reinicia
+    expect(t.calls).toEqual([]); // el inventor está cerrado: se camina por el laboratorio
+    d.must(d.admin({ type: "inventor.open" }), "abrir el inventor");
+    d.must(d.act("ana", { type: "station.open", stationId: "inventor", origin: "quickNav" }), "entrar al inventor");
+    t.show(visual(d, persona(d, "ana")));
+    expect(t.calls).toEqual(["stop:LaboratoryScene", "start:InventorScene"]);
+    t.show(visual(d, persona(d, "ana")));
+    expect(t.calls).toHaveLength(2); // sigue en el inventor: no se reinicia
     d.must(d.admin({ type: "room.reset", confirm: true }), "reiniciar");
     t.show(visual(d, persona(d, "ana")));
     expect(t.calls.slice(2)).toEqual(["stop:InventorScene", "start:LaboratoryScene"]);
   });
 
-  it("de la mesa al cierre: quien tenía una mesa abierta cambia directamente de la mesa al inventor", () => {
+  it("de la mesa al cierre: quien tenía una mesa abierta vuelve al laboratorio para caminar hasta el inventor", () => {
     const t = setup();
     const d = sala("exploracion");
     t.status.LaboratoryScene = 5;
     t.handlers["game:ready"]!();
     t.show(visual(d, persona(d, "ana", mesa("sombras"))));
     const c = sala("cierre");
-    t.show(visual(c, persona(c, "ana", mesa("sombras"))));
-    expect(t.calls).toEqual(["stop:LaboratoryScene", "start:ShadowsScene", "stop:ShadowsScene", "start:InventorScene"]);
-    expect(Object.entries(t.status).filter(([, s]) => s === 5).map(([k]) => k)).toEqual(["InventorScene"]);
+    t.show(visual(c, persona(c, "ana")));
+    expect(t.calls).toEqual(["stop:LaboratoryScene", "start:ShadowsScene", "stop:ShadowsScene", "start:LaboratoryScene"]);
+    expect(Object.entries(t.status).filter(([, s]) => s === 5).map(([k]) => k)).toEqual(["LaboratoryScene"]);
   });
 
   it("la proyección sigue la demostración de Vanessa: la mesa mientras demuestra y el laboratorio al terminar", () => {

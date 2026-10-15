@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { LoadedProject } from "../../config/loadProject";
 import { readGameFlags } from "../../game/flags";
 import type { RoomClientState } from "../RoomController";
@@ -17,12 +17,17 @@ export interface AudioSignals {
   setVolume(v: number): void;
   /** El texto equivalente de la última señal importante; existe aunque el sonido esté apagado. */
   signal: Pick<Signal, "id" | "text"> | null;
+  /**
+   * El sonido está activado pero todavía no puede sonar: los navegadores esperan un primer toque o tecla en la página, y con ese gesto
+   * (en cualquier parte) empieza. El control lo muestra como activado.
+   */
+  armed: boolean;
 }
 
 /**
- * Señales de la aventura para una pantalla (SPECS 10.4): texto equivalente SIEMPRE y sonido solo si la persona lo activó con un gesto.
- * - `phone`: empieza en silencio y no recupera una preferencia anterior si `audio.phoneInitiallyMuted`.
- * - `computer` (la proyección): si la última vez estaba activado, el PRIMER gesto en la página lo vuelve a activar.
+ * Señales de la aventura para una pantalla (SPECS 10.4): texto equivalente SIEMPRE y sonido activado por defecto. Como los navegadores no
+ * dejan sonar antes de un gesto, el sonido empieza con el PRIMER toque o tecla en la página (en cualquier parte). Quien lo silencia lo
+ * deja apagado en ese dispositivo (preferencia local). Con `audio.phoneInitiallyMuted` el teléfono empieza en silencio igualmente.
  * Quien acompaña como observadora recibe las señales de grupo, pero ninguna personal.
  */
 export function useAudioSignals({ project, state, device, player: injected }: { project: LoadedProject; state: RoomClientState; device: "computer" | "phone"; player?: AudioPlayer }): AudioSignals {
@@ -54,11 +59,16 @@ export function useAudioSignals({ project, state, device, player: injected }: { 
     return out;
   }, [config, project]);
 
+  // Activado por preferencia (por defecto, sí) y a la espera del primer gesto de la página.
+  const [armed, setArmed] = useState(() => loadSoundPreference().on && !(device === "phone" && config.audio.phoneInitiallyMuted));
+
   const enable = useCallback(() => {
+    setArmed(false);
     player.setVolume(volume);
     void player.enable(urls).then((s) => saveSoundPreference({ on: s === "on", volume }));
   }, [player, urls, volume]);
   const disable = useCallback(() => {
+    setArmed(false);
     player.disable();
     saveSoundPreference({ on: false, volume });
   }, [player, volume]);
@@ -66,26 +76,29 @@ export function useAudioSignals({ project, state, device, player: injected }: { 
     (v: number) => {
       setVolumeState(v);
       player.setVolume(v);
-      saveSoundPreference({ on: player.getStatus() === "on", volume: v });
+      // Cambiar el volumen no enciende ni silencia: se conserva lo que la persona eligió.
+      saveSoundPreference({ ...loadSoundPreference(), volume: v });
     },
     [player],
   );
 
-  // En la computadora proyectada, una preferencia «activado» se retoma con el primer gesto (los navegadores no dejan sonar antes).
-  const armed = useRef(device === "computer" && loadSoundPreference().on);
+  // El primer gesto en cualquier parte de la página hace sonar el sonido activado. El propio botón de sonido queda fuera: lo que decide
+  // pulsarlo (por ejemplo, silenciarlo de entrada) lo resuelve su clic, sin que este gesto lo encienda antes.
   useEffect(() => {
-    if (!armed.current || player.getStatus() !== "off") return;
-    const arm = () => {
-      armed.current = false;
+    if (!armed || player.getStatus() !== "off") return;
+    const arm = (ev: Event) => {
+      if (ev.target instanceof Element && ev.target.closest("[data-sound-toggle]")) return;
+      setArmed(false);
+      player.setVolume(volume);
       void player.enable(urls);
     };
-    window.addEventListener("pointerdown", arm, { once: true });
-    window.addEventListener("keydown", arm, { once: true });
+    window.addEventListener("pointerdown", arm);
+    window.addEventListener("keydown", arm);
     return () => {
       window.removeEventListener("pointerdown", arm);
       window.removeEventListener("keydown", arm);
     };
-  }, [player, urls]);
+  }, [armed, player, urls, volume]);
 
   // Sin conexión no se «adivina» nada: el siguiente snapshot, ya reconectado, es solo línea de base (sin celebraciones históricas).
   useEffect(() => {
@@ -118,5 +131,5 @@ export function useAudioSignals({ project, state, device, player: injected }: { 
     return () => clearTimeout(t);
   }, [signal]);
 
-  return { status, volume, enable, disable, setVolume, signal };
+  return { status, volume, enable, disable, setVolume, signal, armed: armed && status === "off" };
 }

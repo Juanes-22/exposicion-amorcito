@@ -39,8 +39,9 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    // Hosts adicionales con los que se puede abrir el servidor de desarrollo (Vite rechaza los que no conoce): túnel de Cloudflare.
-    allowedHosts: ["manually-gnu-vids-whats.trycloudflare.com"],
+    // Hosts adicionales con los que se puede abrir el servidor de desarrollo (Vite rechaza los que no conoce). El punto inicial acepta
+    // cualquier túnel rápido de Cloudflare (`*.trycloudflare.com`): cada túnel nuevo trae otro nombre y no hay que volver a tocar esto.
+    allowedHosts: [".trycloudflare.com"],
     proxy: {
       "/api": { target: `http://localhost:${SERVER_PORT}` },
       "/socket.io": { target: `http://localhost:${SERVER_PORT}`, ws: true },

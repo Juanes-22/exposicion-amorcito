@@ -12,7 +12,7 @@ const issuesOf = (defs: Record<string, SheetDefinition>) => validateFrameDefinit
 type Mutable = { frames: SheetDefinition["frames"][number][]; animations: SheetDefinition["animations"] };
 const walk = (d: Record<string, SheetDefinition>) => d[WALK_SHEET_ID] as unknown as Mutable;
 
-describe("definiciones de frames de la hoja de caminar (CT-15)", () => {
+describe("definiciones de frames de la hoja de Vanessa y Jerry (CT-15)", () => {
   it("coinciden con la imagen real: sin recortes, sin vacíos, sin solapes", () => {
     expect(issuesOf(clone())).toEqual([]);
   });
@@ -58,11 +58,23 @@ describe("definiciones de frames de la hoja de caminar (CT-15)", () => {
     expect(msgs).toContain("no es una hoja de poses");
   });
 
-  it("el punto de apoyo está en la base de la pose, bajo Vanessa", () => {
+  it("el punto de apoyo está en la base de la pose, bajo Vanessa (Jerry, delante de ella, puede quedar un poco más abajo)", () => {
     for (const f of frameDefinitions[WALK_SHEET_ID]!.frames) {
-      expect(f.feetY).toBeGreaterThan(f.height - 8);
+      expect(f.feetY).toBeGreaterThan(f.height - 16);
       expect(f.feetX).toBeGreaterThan(0);
       expect(f.feetX).toBeLessThan(f.width * 0.6);
+    }
+  });
+
+  it("de pie parpadean de vez en cuando: la columna central (ojos cerrados) aparece poco y la pose quieta tiene los ojos abiertos", () => {
+    for (const dir of ["down", "left", "right", "up"]) {
+      const a = frameDefinitions[WALK_SHEET_ID]!.animations[`vanessa-idle-${dir}`]!;
+      const blinks = a.frames.filter((f) => f === `${dir}-1`).length;
+      expect(blinks).toBeGreaterThan(0);
+      expect(blinks / a.frames.length).toBeLessThan(0.2);
+      expect(a.restFrame).toBe(`${dir}-0`);
+      expect(a.stillFrame).toBe(`${dir}-0`);
+      expect(a.repeat).toBe(-1);
     }
   });
 });

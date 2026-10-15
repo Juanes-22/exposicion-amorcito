@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { easeCenter, fitFraming, followFraming, MAX_ZOOM, screenToWorld, worldToScreen } from "./framing";
+import { easeCenter, fitFraming, focusFraming, followFraming, MAX_ZOOM, screenToWorld, worldToScreen } from "./framing";
 
 const map = { width: 1280, height: 768 };
 
@@ -89,5 +89,33 @@ describe("encuadre de cámara", () => {
     expect(fast.centerX).toBeGreaterThan(95);
     expect(easeCenter(a, b, 16, true)).toEqual(b);
     expect(easeCenter(a, b, 0, false)).toEqual(a);
+  });
+});
+
+describe("escenas cercanas: la actividad se ve grande en el celular", () => {
+  const STAGE = { width: 960, height: 540 };
+  const visor = { x: 234, y: 24, width: 492, height: 492 };
+
+  it("en una pantalla tan ancha como el escenario (proyección, portátil) se ve el escenario entero", () => {
+    for (const view of [{ width: 1280, height: 720 }, { width: 1920, height: 900 }, { width: 960, height: 540 }]) expect(focusFraming(view, STAGE, visor)).toEqual(fitFraming(view, STAGE));
+  });
+
+  it("en un celular vertical se acerca a la zona que importa, mucho más que mostrando el escenario entero", () => {
+    const view = { width: 390, height: 312 };
+    const f = focusFraming(view, STAGE, visor);
+    expect(f.zoom).toBeCloseTo(312 / 492, 5);
+    expect(f.zoom).toBeGreaterThan(fitFraming(view, STAGE).zoom * 1.5);
+    expect([f.centerX, f.centerY]).toEqual([480, 270]); // el visor, centrado
+  });
+
+  it("nunca muestra fuera del escenario ni se aleja más que el escenario entero", () => {
+    const view = { width: 390, height: 312 };
+    const f = focusFraming(view, STAGE, { x: 0, y: 0, width: 300, height: 300 }); // una zona en la esquina
+    const halfW = view.width / f.zoom / 2;
+    const halfH = view.height / f.zoom / 2;
+    expect(f.centerX - halfW).toBeGreaterThanOrEqual(0);
+    expect(f.centerY - halfH).toBeGreaterThanOrEqual(0);
+    const huge = focusFraming(view, STAGE, { x: 0, y: 0, width: 4000, height: 4000 });
+    expect(huge.zoom).toBe(fitFraming(view, STAGE).zoom);
   });
 });

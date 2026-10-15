@@ -55,9 +55,11 @@ describe("dibujo de Sombras = modelo (SPECS 3.2)", () => {
     expect(huge.shadowTopY).toBeGreaterThanOrEqual(0);
   });
 
-  it("la descripción textual y el dibujo salen del mismo valor", () => {
-    const l = shadowLayout(20, B, H);
-    expect(describeShadow(20, l.shadowCm, H)).toContain("18 cm"); // 8 × 45 / 20
+  it("la descripción textual y el dibujo salen del mismo modelo: la sombra que se dibuja más grande se describe más grande", () => {
+    const exp = { sourceDistanceMinCm: 10, sourceDistanceMaxCm: 60, screenDistanceCm: B, objectHeightCm: H, minDistinctDistanceCm: 5, requiredSamples: 2 };
+    expect(shadowLayout(10, B, H).shadowHeightPx).toBeGreaterThan(shadowLayout(60, B, H).shadowHeightPx);
+    expect(describeShadow(exp, 10)).toContain("muy grande");
+    expect(describeShadow(exp, 60)).toContain("pequeña");
   });
 });
 

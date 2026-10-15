@@ -19,9 +19,10 @@ const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 const ease = (t: number) => 1 - (1 - t) * (1 - t);
 
 /**
- * El inventor de preguntas, escena cercana de todas las pantallas en el cierre. Tres espacios y la máquina: apagada mientras faltan
- * piezas; las piezas se incorporan solas al abrir cada mesa y, al completar las tres, cada una viaja a su espacio y se identifica con su
- * mensaje; al confirmar la pregunta final la máquina «imprime» la tarjeta. La escena solo pinta lo que dice el estado de grupo.
+ * El inventor de preguntas, la última «mesa»: la proyección la muestra cuando Vanessa abre el inventor y cada persona al entrar a él.
+ * Tres espacios y la máquina: las piezas se incorporan solas al terminar cada mesa y, al abrir la escena, cada una viaja a su espacio y
+ * se identifica con su mensaje; al confirmar la pregunta final la máquina «imprime» la tarjeta. La escena solo pinta lo que dice el
+ * estado de grupo.
  */
 export class InventorScene extends Phaser.Scene {
   private cleanups: Array<() => void> = [];
@@ -54,7 +55,8 @@ export class InventorScene extends Phaser.Scene {
       kicker: addLabel(this, 14, "#7a4f2a", false).setDepth(12),
     };
     this.jerry = new JerryReaction(this, this.gfx, { x: 110, y: TRAY_Y - 10 });
-    fitStage(this, this.cleanups);
+    // En el celular, la cámara se acerca a los espacios, la máquina y la tarjeta con la pregunta.
+    fitStage(this, this.cleanups, { x: 200, y: 0, width: 640, height: 540 });
     bindSceneLifecycle(this, this.cleanups, () => this.jerry.destroy());
     bridge.emit("game:ready", { sceneKey: INVENTOR_SCENE, token: this.token });
   }
@@ -71,8 +73,9 @@ export class InventorScene extends Phaser.Scene {
     const final = adv.notebook.find((r) => r.id === adv.inventor.finalQuestionId);
     const now = this.time.now;
 
-    // Solo se anima la TRANSICIÓN vista en esta escena; si ya estaban todas al abrir (recarga, reconexión), se muestra directo.
-    if (this.placedAt === null && placed) this.placedAt = this.seenFinal === null ? Number.NEGATIVE_INFINITY : now;
+    // Al abrir la escena (Vanessa abre el inventor, o una persona entra a él) las piezas viajan a sus espacios: es el momento de la
+    // máquina. Con la pregunta del grupo ya impresa (la aventura terminó) se muestran directo.
+    if (this.placedAt === null && placed) this.placedAt = this.seenFinal === null && final ? Number.NEGATIVE_INFINITY : now;
     if (this.seenFinal !== null && !this.seenFinal && final) this.jerry.trigger("¡Guau, guau!");
     this.seenFinal = !!final;
     if (this.placedAt !== null && this.placedAt === now) this.jerry.trigger("¡Guau!");

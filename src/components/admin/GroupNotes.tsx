@@ -3,7 +3,7 @@ import type { CommandResult, SavableNoteKind } from "../../../shared/contracts/a
 import type { LaboratorioConfig } from "../../../shared/contracts/config";
 import type { AdventureState, GroupNote } from "../../../shared/contracts/state";
 import { currentActivityId } from "../../../shared/domain/round";
-import { NOTE_LABEL, noteText } from "../notebook/notes";
+import { isShownNote, NOTE_LABEL, noteText } from "../notebook/notes";
 import { NoteForm } from "./NoteForm";
 
 interface Props {
@@ -16,7 +16,7 @@ interface Props {
 
 /**
  * Cuaderno del grupo: Vanessa guarda lo que el grupo piensa. La idea inicial de Sombras se conserva aparte de la síntesis de la
- * conversación; ambas se identifican como «Idea del grupo». Las comparaciones entran solas cuando proyecta resultados.
+ * conversación; ambas se identifican como «Idea del grupo».
  */
 export function GroupNotes({ config, adv, busy, save, edit }: Props) {
   const id = currentActivityId(adv, config);
@@ -26,8 +26,7 @@ export function GroupNotes({ config, adv, busy, save, edit }: Props) {
   const [editing, setEditing] = useState<{ id: string; openedRevision: number } | null>(null);
   const [conflicted, setConflicted] = useState<string | null>(null);
   const max = config.ui.maxRecordCharacters;
-  const savable = adv.notebook.filter((n) => n.kind !== "comparison" && n.kind !== "finalQuestion");
-  const comparisons = adv.notebook.filter((n) => n.kind === "comparison");
+  const savable = adv.notebook.filter((n) => isShownNote(n) && n.kind !== "finalQuestion");
 
   return (
     <div className="stack">
@@ -41,16 +40,16 @@ export function GroupNotes({ config, adv, busy, save, edit }: Props) {
         <p className="hint">Ya pasamos por las tres mesas: la pregunta final se escribe o se elige en el cierre.</p>
       )}
 
-      {savable.length > 0 || comparisons.length > 0 ? (
+      {savable.length > 0 ? (
         <ul className="records" aria-label="Notas del grupo">
-          {[...savable, ...comparisons].map((n) => (
+          {savable.map((n) => (
             <li key={n.id} className="record">
               <div className="record__head">
                 <strong>{NOTE_LABEL[n.kind]}</strong>
                 <span className="hint">· {n.activityId === currentActivityId(adv, config) ? "mesa de ahora" : (config.activities[n.activityId]?.title ?? n.activityId)}</span>
                 {n.revision > 1 ? <span className="chip">corregida</span> : null}
               </div>
-              {editing?.id === n.id && n.kind !== "comparison" ? (
+              {editing?.id === n.id ? (
                 <>
                   {conflicted === n.id ? <p className="error" role="alert">Esta nota cambió mientras la editabas. La versión vigente es: «{n.text}». Tu texto se conserva: revísalo y vuelve a guardarlo.</p> : null}
                   <NoteForm
@@ -73,17 +72,15 @@ export function GroupNotes({ config, adv, busy, save, edit }: Props) {
               ) : (
                 <>
                   <p className="record__text">{noteText(n)}</p>
-                  {n.history.length > 0 && n.kind !== "comparison" ? (
+                  {n.history.length > 0 ? (
                     <details className="record__history">
                       <summary>Versiones anteriores ({n.history.length})</summary>
                       <ol>{n.history.map((h) => <li key={h.revision}><span className="hint">Versión {h.revision}:</span> {h.text}</li>)}</ol>
                     </details>
                   ) : null}
-                  {n.kind !== "comparison" ? (
-                    <button type="button" className="btn btn--ghost btn--small" disabled={busy} onClick={() => { setConflicted(null); setEditing({ id: n.id, openedRevision: n.revision }); }}>
-                      Corregir
-                    </button>
-                  ) : null}
+                  <button type="button" className="btn btn--ghost btn--small" disabled={busy} onClick={() => { setConflicted(null); setEditing({ id: n.id, openedRevision: n.revision }); }}>
+                    Corregir
+                  </button>
                 </>
               )}
             </li>

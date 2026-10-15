@@ -61,35 +61,55 @@ beforeEach(() => window.localStorage.clear());
 afterEach(cleanup);
 
 describe("useAudioSignals (SPECS 10.4)", () => {
-  it("el teléfono empieza en silencio aunque la última vez lo hubieran activado, y no pide nada al navegador antes de un gesto", () => {
-    saveSoundPreference({ on: true, volume: 0.5 });
-    const player = fakePlayer();
-    const { result } = renderHook(() => useAudioSignals({ project, state: state(1), device: "phone", player }));
-    expect(result.current.status).toBe("off");
-    fireEvent.pointerDown(window); // un toque cualquiera en el teléfono NO lo activa solo
-    expect(player.enable).not.toHaveBeenCalled();
-    expect(result.current.volume).toBe(0.5);
-  });
-
-  it("en la computadora proyectada, si estaba activado, el PRIMER gesto lo retoma; sin gesto no hace nada", async () => {
-    saveSoundPreference({ on: true, volume: 0.8 });
-    const player = fakePlayer();
-    renderHook(() => useAudioSignals({ project, state: state(1), device: "computer", player }));
-    expect(player.enable).not.toHaveBeenCalled();
-    fireEvent.pointerDown(window);
-    await waitFor(() => expect(player.enable).toHaveBeenCalledTimes(1));
-    fireEvent.pointerDown(window);
-    expect(player.enable).toHaveBeenCalledTimes(1); // una sola vez
-    expect(Object.keys(player.enable.mock.calls[0]![0]).sort()).toEqual(["adventure.finished", "inventor.activated", "piece.earned", "shadows.click"]);
-  });
-
-  it("sin preferencia previa nada se activa solo en ninguna pantalla", () => {
+  it("activado por defecto en el teléfono y en la proyección: no pide nada al navegador antes de un gesto y empieza con el PRIMER toque", async () => {
     for (const device of ["phone", "computer"] as const) {
       const player = fakePlayer();
-      renderHook(() => useAudioSignals({ project, state: state(1), device, player }));
+      const { result, unmount } = renderHook(() => useAudioSignals({ project, state: state(1), device, player }));
+      expect(result.current).toMatchObject({ status: "off", armed: true }); // el control ya lo muestra activado
+      expect(player.enable).not.toHaveBeenCalled();
+      fireEvent.pointerDown(window); // un toque cualquiera en la página
+      await waitFor(() => expect(player.enable).toHaveBeenCalledTimes(1));
+      expect(result.current).toMatchObject({ status: "on", armed: false });
+      fireEvent.pointerDown(window);
+      expect(player.enable).toHaveBeenCalledTimes(1); // una sola vez
+      expect(Object.keys(player.enable.mock.calls[0]![0]).sort()).toEqual(["adventure.finished", "inventor.activated", "piece.earned", "shadows.click"]);
+      unmount();
+    }
+  });
+
+  it("una tecla también cuenta como primer gesto", async () => {
+    const player = fakePlayer();
+    renderHook(() => useAudioSignals({ project, state: state(1), device: "phone", player }));
+    fireEvent.keyDown(window, { key: "Tab" });
+    await waitFor(() => expect(player.enable).toHaveBeenCalledTimes(1));
+  });
+
+  it("quien lo silenció lo encuentra silenciado la próxima vez: ningún gesto lo enciende solo", () => {
+    saveSoundPreference({ on: false, volume: 0.5 });
+    for (const device of ["phone", "computer"] as const) {
+      const player = fakePlayer();
+      const { result, unmount } = renderHook(() => useAudioSignals({ project, state: state(1), device, player }));
+      expect(result.current).toMatchObject({ status: "off", armed: false, volume: 0.5 });
       fireEvent.pointerDown(window);
       expect(player.enable).not.toHaveBeenCalled();
+      unmount();
     }
+  });
+
+  it("silenciar antes del primer gesto lo deja apagado: el toque sobre el propio botón no lo enciende", async () => {
+    const player = fakePlayer();
+    const { result } = renderHook(() => useAudioSignals({ project, state: state(1), device: "phone", player }));
+    const boton = document.createElement("button");
+    boton.setAttribute("data-sound-toggle", "");
+    document.body.append(boton);
+    fireEvent.pointerDown(boton); // el gesto sobre el botón de sonido lo decide su clic
+    expect(player.enable).not.toHaveBeenCalled();
+    act(() => result.current.disable());
+    expect(result.current.armed).toBe(false);
+    expect(loadSoundPreference().on).toBe(false);
+    fireEvent.pointerDown(window);
+    expect(player.enable).not.toHaveBeenCalled();
+    boton.remove();
   });
 
   it("activar y silenciar guardan la preferencia LOCAL; el volumen también", async () => {
@@ -247,7 +267,7 @@ describe("useAudioSignals (SPECS 10.4)", () => {
 });
 
 describe("controles de sonido y texto de las señales", () => {
-  const audio = (over: Partial<AudioSignals> = {}): AudioSignals => ({ status: "off", volume: 0.8, enable: vi.fn(), disable: vi.fn(), setVolume: vi.fn(), signal: null, ...over });
+  const audio = (over: Partial<AudioSignals> = {}): AudioSignals => ({ status: "off", volume: 0.8, enable: vi.fn(), disable: vi.fn(), setVolume: vi.fn(), signal: null, armed: false, ...over });
 
   it("apagado: «Activar sonido»; un toque lo activa. Encendido: «Silenciar» y el volumen", () => {
     const a = audio();
@@ -262,6 +282,17 @@ describe("controles de sonido y texto de las señales", () => {
     expect(on.setVolume).toHaveBeenCalledWith(0.4);
     fireEvent.click(screen.getByRole("button", { name: /Silenciar/ }));
     expect(on.disable).toHaveBeenCalledTimes(1);
+  });
+
+  it("activado a la espera del primer toque: el botón ya dice «Silenciar» y pulsarlo lo silencia", () => {
+    const a = audio({ armed: true });
+    render(<SoundControl audio={a} />);
+    const boton = screen.getByRole("button", { name: /Silenciar/ });
+    expect(boton.getAttribute("aria-pressed")).toBe("true");
+    expect(boton.hasAttribute("data-sound-toggle")).toBe(true);
+    fireEvent.click(boton);
+    expect(a.disable).toHaveBeenCalledTimes(1);
+    expect(a.enable).not.toHaveBeenCalled();
   });
 
   it("en el teléfono (compacto) no hay deslizador de volumen", () => {

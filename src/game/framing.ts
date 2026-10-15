@@ -32,6 +32,26 @@ export function fitFraming(view: Viewport, map: MapSize): Framing {
 
 const clampAxis = (target: number, half: number, size: number): number => (half * 2 >= size ? size / 2 : Math.min(Math.max(target, half), size - half));
 
+/** Rectángulo del mundo (o del escenario): esquina superior izquierda y tamaño. */
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Escena cercana (una mesa, el inventor). En una pantalla tan ancha como el escenario o más (la proyección, un portátil) se ve el
+ * escenario entero. En una más angosta (un celular vertical) mostrarlo entero lo deja pequeño y con franjas vacías: se acerca a la zona
+ * que importa (`focus`), sin alejarse nunca más que el escenario entero, con el centro acotado para no mostrar fuera de él.
+ */
+export function focusFraming(view: Viewport, stage: MapSize, focus: Rect): Framing {
+  const fit = fitFraming(view, stage);
+  if (!(view.width > 0 && view.height > 0) || view.width / view.height >= stage.width / stage.height) return fit;
+  const zoom = Math.max(fit.zoom, Math.min(view.width / focus.width, view.height / focus.height));
+  return { zoom, centerX: clampAxis(focus.x + focus.width / 2, view.width / zoom / 2, stage.width), centerY: clampAxis(focus.y + focus.height / 2, view.height / zoom / 2, stage.height) };
+}
+
 /**
  * Sigue a `target` con una ampliación que depende de la forma de la pantalla y nunca es menor que la del mapa entero ni mayor que
  * `MAX_ZOOM`. El centro se acota para no mostrar fuera del mapa; si el mapa cabe en un eje, se centra en ese eje.

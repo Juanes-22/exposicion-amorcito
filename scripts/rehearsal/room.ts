@@ -6,6 +6,7 @@
 //   npm run ensayo                      → sala nueva; imprime la dirección que deben abrir los celulares
 //   curl 'http://127.0.0.1:3412/state'  → participantes, fase, ronda y cuántas personas están listas
 //   curl 'http://127.0.0.1:3412/start'  → comienza; luego /open (abrir la mesa) · /converse[?pending=1] · /freire · /next
+//   al final, /inventor (abrir el inventor, cuando todas las personas caminaron hasta él)
 //   y también /pause · /resume · /reset · /shot?path=/ruta/captura.png
 //
 // El panel de control solo escucha en 127.0.0.1. Las credenciales nunca salen de este proceso ni aparecen en direcciones.
@@ -79,10 +80,10 @@ const actions: Record<string, (q: URLSearchParams) => Promise<unknown>> = {
     const dialog = page.getByRole("alertdialog");
     if (await dialog.isVisible({ timeout: 500 }).catch(() => false)) {
       if (q.get("pending") !== "1") {
-        await dialog.getByRole("button", { name: "Cancelar" }).click();
+        await dialog.getByRole("button", { name: "Esperar un poco más" }).click();
         return "faltan personas por terminar; usa /converse?pending=1 para pasar a conversación con pendientes";
       }
-      await dialog.getByRole("button", { name: "Pasar a conversación con pendientes" }).click();
+      await dialog.getByRole("button", { name: "Conversar ahora" }).click();
       return "conversación, con pendientes";
     }
     return "conversación";
@@ -92,8 +93,15 @@ const actions: Record<string, (q: URLSearchParams) => Promise<unknown>> = {
     return "frase de Freire proyectada";
   },
   async next() {
+    // «Abrir siguiente mesa» aparece recién después de mostrar la frase de Freire.
+    const freire = page.getByRole("button", { name: "Mostrar la frase de Freire" });
+    if (await freire.isVisible().catch(() => false)) await freire.click();
     await page.getByRole("button", { name: /^Abrir siguiente mesa: |^Pasar al inventor/ }).click();
     return "siguiente mesa (o cierre)";
+  },
+  async inventor() {
+    await page.getByRole("button", { name: "Abrir inventor" }).click();
+    return "inventor abierto: cada persona entra y registra su pregunta";
   },
   async pause() {
     await page.getByRole("button", { name: "Pausar" }).click();

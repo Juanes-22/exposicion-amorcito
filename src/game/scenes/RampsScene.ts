@@ -1,22 +1,22 @@
 import Phaser from "phaser";
-import { formatNumber } from "../../../shared/domain/models";
+import { angleLabel } from "../../../shared/domain/models";
 import type { RampsActivityConfig } from "../../../shared/contracts/config";
 import { getDeps } from "../createGame";
 import { BALL_RADIUS_PX, GROUND_Y, RAMP_BOTTOM_X, rampLayout, rampLayoutAt, RAMP_LENGTH_PX } from "../geometry/ramps";
 import { STAGE } from "../geometry/stage";
-import { addLabel, bindSceneLifecycle, fillPolygon, fitStage, readActivity, setLabel } from "./activityShared";
+import { addLabel, bindSceneLifecycle, fillPolygon, fitStage, readActivity, setLabel, visibleStage } from "./activityShared";
 import { RAMPS_SCENE } from "./sceneKeys";
 
 
 /**
  * Rampas, escena cercana de quien explora (o de la demostración de Vanessa). La pelota sigue `s/L = min(1, (t/T)²)` con el tiempo transcurrido de la simulación visual, que sale del
- * reloj de simulación (se detiene en la pausa): ni el teléfono ni la proyección deciden cuándo empieza o termina una prueba, y el
- * tiempo mostrado es el de esa simulación, no una medición real de laboratorio (SPECS 3.3).
+ * reloj de simulación (se detiene en la pausa): ni el teléfono ni la proyección deciden cuándo empieza o termina una prueba. La escena
+ * no muestra grados ni tiempos: la inclinación se nombra y cuánto demoró la pelota es la pregunta de la conversación (SPECS 3.3).
  */
 export class RampsScene extends Phaser.Scene {
   private cleanups: Array<() => void> = [];
   private gfx!: Phaser.GameObjects.Graphics;
-  private labels!: Record<"angle" | "timer" | "result" | "count" | "results", Phaser.GameObjects.Text>;
+  private labels!: Record<"angle" | "count" | "results", Phaser.GameObjects.Text>;
 
   constructor() {
     super(RAMPS_SCENE);
@@ -33,12 +33,11 @@ export class RampsScene extends Phaser.Scene {
     this.gfx = this.add.graphics().setDepth(5);
     this.labels = {
       angle: addLabel(this, 20),
-      timer: addLabel(this, 22, "#ffd9a0"),
-      result: addLabel(this, 18, "#cdbf9d", false),
       count: addLabel(this, 16, "#cdbf9d", false),
       results: addLabel(this, 17, "#fff8e6", false).setAlign("left").setWordWrapWidth(330),
     };
-    fitStage(this, this.cleanups);
+    // En el celular, la cámara se acerca a la rampa (de la menos a la más empinada), la meta y el nombre de la inclinación.
+    fitStage(this, this.cleanups, { x: 250, y: 10, width: 640, height: 500 });
     bindSceneLifecycle(this, this.cleanups);
     bridge.emit("game:ready", { sceneKey: RAMPS_SCENE, token: this.token });
   }
@@ -91,14 +90,13 @@ export class RampsScene extends Phaser.Scene {
     g.fillStyle(0xe0574b, 1).fillCircle(L.ball.x, L.ball.y, BALL_RADIUS_PX).lineStyle(2, 0x7a1f1b, 1).strokeCircle(L.ball.x, L.ball.y, BALL_RADIUS_PX);
     g.lineStyle(3, 0xfff1d6, 1).lineBetween(L.ball.x - Math.cos(spin) * 11, L.ball.y - Math.sin(spin) * 11, L.ball.x + Math.cos(spin) * 11, L.ball.y + Math.sin(spin) * 11);
 
-    // Rótulos: el tiempo mostrado es el de la simulación visual.
-    setLabel(this.labels.angle, `Inclinación: ${formatNumber(angle)}°`, RAMP_BOTTOM_X - 130, GROUND_Y + 68);
-    setLabel(this.labels.timer, running ? `Tiempo de la simulación: ${formatNumber(Math.min(elapsed, running.durationMs) / 1000, 1)} s` : "", STAGE.width / 2, 30);
-    const lastDone = finished[finished.length - 1];
-    setLabel(this.labels.result, !running && lastDone ? `Última prueba: ${formatNumber(lastDone.angleDeg)}° → ${formatNumber(lastDone.durationMs / 1000, 1)} s (simulación)` : "", STAGE.width / 2, GROUND_Y + 100);
-    setLabel(this.labels.count, `Pruebas terminadas: ${finished.length} de ${cfg.experiment.requiredTrials}`, 130, GROUND_Y + 68);
-    // Cada resultado queda registrado solo: la persona compara sus propias pruebas, también escritas.
-    const lines = finished.slice(-4).map((t, i) => `${finished.length - Math.min(4, finished.length) + i + 1}) ${formatNumber(t.angleDeg)}° → ${formatNumber(t.durationMs / 1000, 1)} s`);
-    this.labels.results.setText(lines.join("\n")).setPosition(28, 44).setOrigin(0, 0).setVisible(lines.length > 0);
+    // Rótulos: el nombre de la inclinación, sin grados ni tiempos.
+    setLabel(this.labels.angle, angleLabel(e, angle), RAMP_BOTTOM_X - 130, GROUND_Y + 68);
+    // Los rótulos de las esquinas van a la parte visible del escenario (en el celular la cámara se acerca a la rampa).
+    const vis = visibleStage(this);
+    setLabel(this.labels.count, `Pruebas terminadas: ${finished.length} de ${cfg.experiment.requiredTrials}`, vis.left + 20, vis.top + 18, 0, 0);
+    // Cada prueba queda registrada sola: la persona recuerda qué inclinaciones probó, también escritas.
+    const lines = finished.slice(-4).map((t, i) => `${finished.length - Math.min(4, finished.length) + i + 1}) ${angleLabel(e, t.angleDeg).toLowerCase()}`);
+    this.labels.results.setText(lines.join("\n")).setPosition(vis.left + 20, vis.top + 46).setOrigin(0, 0).setVisible(lines.length > 0);
   }
 }

@@ -1,7 +1,7 @@
-import type { LaboratorioConfig, ActivityConfig } from "../contracts/config";
+import { INVENTOR_ID, type LaboratorioConfig, type ActivityConfig } from "../contracts/config";
 import type { ParticipantAction } from "../contracts/actions";
 import type { Point } from "../contracts/geometry";
-import type { ActivityState, ParticipantState, PlayerState, RoomState, RoundState, ShadowSample } from "../contracts/state";
+import type { ActivityState, ParticipantQuestion, ParticipantState, PlayerState, RoomState, RoundState, ShadowSample } from "../contracts/state";
 import type { MapIndex } from "../config/tmj";
 import { fail, type RoomError } from "./change";
 import { rampDurationMs, shadowHeightCm } from "./models";
@@ -9,6 +9,7 @@ import { createPlan, samplePlan } from "./movement";
 import { findPath, isFootprintFree, type NavGrid } from "./navigation";
 import { emptyActivityState, runningTrial } from "./results";
 import { centeredTargets, clampView } from "./telescope";
+import { normalizeRecordText } from "./text";
 
 /**
  * Estado y acciones de cada participante (propuesta de rondas, sección 9). Todas son funciones puras: cada persona modifica solo su
@@ -107,13 +108,31 @@ export function cancelRunningTrials(p: ParticipantState, activeMs: number): bool
 
 // ---- acciones --------------------------------------------------------------------------------------------------
 
+/**
+ * Entrar al inventor, como se entra a una mesa: en el cierre, con el inventor abierto y junto a la máquina (o desde el menú accesible).
+ * Modifica `p` y devuelve `null` si entró; si no, el error.
+ */
+function openInventorView(p: ParticipantState, room: RoomState, origin: "map" | "quickNav", ctx: ParticipantContext): RoomError | null {
+  if (room.adventure.round.stage !== "closing") return fail("INVALID_STEP", "El inventor se abre al final del recorrido, después de la última mesa.");
+  if (!room.adventure.inventor.open) return fail("INVALID_STEP", "Vanessa abrirá el inventor en un momento.");
+  const here = playerAt(p.character, ctx.activeMs);
+  if (origin === "map") {
+    const inv = ctx.map.inventor;
+    if (!inv) return fail("INVALID_PAYLOAD", "El inventor no está en el mapa.");
+    if (Math.hypot(here.feet.x - inv.point.x, here.feet.y - inv.point.y) > inv.interactionRadius) return fail("INVALID_STEP", "Acércate al inventor para abrirlo.");
+  }
+  p.character = { feet: here.feet, facing: here.facing, plan: null }; // el personaje se detiene donde está
+  p.view = { kind: "inventor" };
+  return null;
+}
+
 export type PersonalResult = { ok: true; participant: ParticipantState; counters: RoomState["adventure"]["counters"]; changed: boolean } | RoomError;
 
 const STAGE_TEXT: Record<RoundState["stage"], string> = {
   preparation: "Vanessa abrirá la mesa en un momento.",
   exploration: "",
   conversation: "Estamos conversando: mira la proyección.",
-  closing: "Estamos en el cierre: mira la proyección.",
+  closing: "Ya pasamos por todas las mesas: ve al inventor de preguntas.",
 };
 
 
@@ -145,7 +164,8 @@ export function reduceParticipant(room: RoomState, principalId: string, action: 
 
   switch (action.type) {
     case "player.moveTo": {
-      if (round.stage !== "preparation" && round.stage !== "exploration") return fail("INVALID_STEP", STAGE_TEXT[round.stage]);
+      // En el cierre también se camina: hay que llegar hasta el inventor.
+      if (round.stage === "conversation") return fail("INVALID_STEP", STAGE_TEXT.conversation);
       if (p.view.kind !== "map") return fail("INVALID_STEP", "Vuelve al mapa para moverte.");
       const here = playerAt(p.character, ctx.activeMs).feet;
       const fp = config.world.player.footprint;
@@ -158,6 +178,8 @@ export function reduceParticipant(room: RoomState, principalId: string, action: 
     }
 
     case "station.open": {
+      // `done` compara el antes y el después: volver a entrar a la máquina en la que ya está no cambia nada.
+      if (action.stationId === INVENTOR_ID) return openInventorView(p, room, action.origin, ctx) ?? done(false);
       if (round.stage !== "exploration") return fail("INVALID_STEP", STAGE_TEXT[round.stage] || "Todavía no se puede.");
       if (currentId === null || action.stationId !== currentId) {
         const known = config.route.indexOf(action.stationId);
@@ -188,7 +210,7 @@ export function reduceParticipant(room: RoomState, principalId: string, action: 
       if (isFail(n)) return n;
       const e = n.cfg.experiment;
       if (!Number.isFinite(action.distanceCm) || action.distanceCm < e.sourceDistanceMinCm - EPS || action.distanceCm > e.sourceDistanceMaxCm + EPS) {
-        return fail("INVALID_PAYLOAD", `La linterna debe estar entre ${e.sourceDistanceMinCm} y ${e.sourceDistanceMaxCm} cm del objeto.`);
+        return fail("INVALID_PAYLOAD", "Esa posición de la linterna no es válida: muévela con el control de la mesa.");
       }
       const last = n.st.samples.at(-1);
       if (last && Math.abs(last.distanceCm - action.distanceCm) < EPS) return done(false); // la misma posición no se registra dos veces seguidas
@@ -214,7 +236,7 @@ export function reduceParticipant(room: RoomState, principalId: string, action: 
       const e = n.cfg.experiment;
       const steps = (action.angleDeg - e.minAngleDeg) / e.angleStepDeg;
       if (!Number.isFinite(action.angleDeg) || action.angleDeg < e.minAngleDeg - EPS || action.angleDeg > e.maxAngleDeg + EPS || Math.abs(steps - Math.round(steps)) > 1e-6) {
-        return fail("INVALID_PAYLOAD", `La inclinación debe estar entre ${e.minAngleDeg}° y ${e.maxAngleDeg}°, de ${e.angleStepDeg}° en ${e.angleStepDeg}°.`);
+        return fail("INVALID_PAYLOAD", "Esa inclinación no es válida: elige una de las de la mesa.");
       }
       // El servidor asigna el ID, calcula la duración y congela las condiciones; el resultado se registra solo al terminar.
       n.st.trials.push({
@@ -243,10 +265,30 @@ export function reduceParticipant(room: RoomState, principalId: string, action: 
       n.st.x = view.x;
       n.st.y = view.y;
       n.st.zoom = view.zoom;
-      for (const target of ["moon", "stars"] as const) if (centered[target] && !n.st.observed.includes(target)) n.st.observed.push(target);
+      for (const target of ["moon", "stars", "galaxy"] as const) if (centered[target] && !n.st.observed.includes(target)) n.st.observed.push(target);
       // La cortina se cierra una sola vez y no se vuelve a abrir: no hay ninguna acción que la abra.
       if (centered.window && n.st.curtain === "open") n.st.curtain = "closed";
       return done(false);
+    }
+
+    case "inventor.question": {
+      if (round.stage !== "closing" || !room.adventure.inventor.open) return fail("INVALID_STEP", "Las preguntas se registran cuando Vanessa abre el inventor.");
+      if (p.view.kind !== "inventor") return fail("INVALID_STEP", "Entra al inventor para registrar tu pregunta.");
+      const q = action.question;
+      let question: ParticipantQuestion;
+      if (q.kind === "preset") {
+        const preset = config.inventor.questions.find((x) => x.id === q.presetId);
+        if (!preset) return fail("INVALID_PAYLOAD", "Esa pregunta no está en la lista del inventor.");
+        question = { presetId: preset.id, text: preset.text, atActiveMs: ctx.activeMs };
+      } else {
+        const t = normalizeRecordText(q.text, config.ui.maxRecordCharacters);
+        if (!t.ok) return fail("INVALID_PAYLOAD", t.message);
+        question = { presetId: null, text: t.value, atActiveMs: ctx.activeMs };
+      }
+      // La misma pregunta otra vez no cambia nada (ni siquiera la hora en que se registró).
+      if (p.question && p.question.presetId === question.presetId && p.question.text === question.text) return done(false);
+      p.question = question;
+      return done(true);
     }
 
     default: {

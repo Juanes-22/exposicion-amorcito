@@ -21,9 +21,16 @@ export type ParticipantAction =
    * registra la Luna o las estrellas si están centradas con el aumento requerido y, si la ventana está centrada de cerca, cierra la
    * cortina. El cliente nunca declara una observación ni una mesa terminada.
    */
-  | { type: "telescope.aim"; x: number; y: number; zoom: number };
+  | { type: "telescope.aim"; x: number; y: number; zoom: number }
+  /** Registra (o cambia) la pregunta de esta persona en el inventor abierto: una sugerida por las mesas o una que escribe ella. */
+  | { type: "inventor.question"; question: ParticipantQuestionInput };
 
-/** Pregunta final del inventor: la escribe Vanessa o elige una pregunta que el grupo ya guardó. */
+export type ParticipantQuestionInput = { kind: "preset"; presetId: string } | { kind: "written"; text: string };
+
+/**
+ * Pregunta final del inventor. `written` es el texto que Vanessa confirma: lo escribe ella o lo toma de las preguntas de las personas o
+ * de las sugeridas por las mesas. `saved` es una pregunta que el grupo ya guardó en el cuaderno.
+ */
 export type FinalQuestionInput = { kind: "written"; text: string } | { kind: "saved"; noteId: string };
 
 /** Notas que Vanessa decide guardar en el cuaderno común (las comparaciones se guardan al seleccionarlas). */
@@ -43,11 +50,11 @@ export type AdminAction =
   | { type: "round.showFreire" }
   /** Conversación → siguiente mesa (o cierre). Incorpora la pieza de la mesa que termina. */
   | { type: "round.next" }
+  /** En el cierre: abre el inventor para que cada persona entre y registre su pregunta. */
+  | { type: "inventor.open" }
   /** Incluye en la ronda actual a una persona que llegó después de abrirla. */
   | { type: "round.include"; principalId: string }
-  /** Proyecta los resultados de una persona en la mesa actual y los conserva en el cuaderno común. */
-  | { type: "present.select"; principalId: string }
-  | { type: "present.clear" }
+  /** Guarda una nota de Vanessa en el cuaderno común: idea inicial, síntesis o pregunta del grupo. */
   | { type: "note.save"; activityId: string; kind: SavableNoteKind; text: string }
   | { type: "note.edit"; noteId: string; expectedRevision: number; text: string }
   | { type: "final.confirm"; value: FinalQuestionInput }
@@ -82,6 +89,7 @@ export const PARTICIPANT_ACTION_TYPES = [
   "shadows.sample",
   "ramps.trial.start",
   "telescope.aim",
+  "inventor.question",
 ] as const satisfies readonly ParticipantAction["type"][];
 
 export const ADMIN_ACTION_TYPES = [
@@ -94,9 +102,8 @@ export const ADMIN_ACTION_TYPES = [
   "round.converse",
   "round.showFreire",
   "round.next",
+  "inventor.open",
   "round.include",
-  "present.select",
-  "present.clear",
   "note.save",
   "note.edit",
   "final.confirm",

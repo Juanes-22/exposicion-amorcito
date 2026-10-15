@@ -21,6 +21,11 @@ export interface RampsExperiment {
   lengthMeters: number;
   visualTimeScale: number;
   requiredTrials: number;
+  /**
+   * Nombre de cada inclinación, de la menos a la más empinada (una por paso entre `minAngleDeg` y `maxAngleDeg`). Es lo único que ven las
+   * personas: la mesa no muestra grados ni tiempos (que se pregunten cuánto demoró la pelota).
+   */
+  angleLabels: string[];
 }
 
 interface ActivityBase {
@@ -29,12 +34,17 @@ interface ActivityBase {
   pieceId: string;
   /** Objetivo corto que ve cada persona sobre el experimento (contenido editable, SPECS 9.1). */
   goal: string;
-  /** Pregunta con la que Vanessa abre la mesa: se proyecta durante la preparación. */
+  /** Pregunta de la mesa: se proyecta junto al laboratorio al abrirla, mientras las personas exploran. */
   openingQuestion: string;
-  /** Pregunta que conduce la conversación: se proyecta junto a la comparación seleccionada. */
+  /** Pregunta que conduce la conversación: se proyecta al reunir al grupo con «Conversemos». */
   conversationQuestion: string;
   /** Paráfrasis breve de la idea de Freire que se trabaja en la mesa. Es una adaptación para la exposición, no una cita. */
   freirePhrase: string;
+  /**
+   * Pregunta que se proyecta con la frase de Freire, en lugar de la de conversación. En El observatorio, la frase llega con la casa: la
+   * pregunta sobre la cortina no se adelanta a la demostración.
+   */
+  freireQuestion?: string;
   /** Texto para quien ya quedó lista en esta mesa. Si falta, se usa `ui.labels.readyYou`. */
   readyText?: string;
 }
@@ -84,13 +94,23 @@ export interface PieceConfig {
   message: string;
 }
 
+/** Pregunta sugerida para el inventor, nacida de una mesa del recorrido: cada persona puede elegirla como su pregunta. */
+export interface InventorQuestionConfig {
+  id: string;
+  /** Mesa de la que nace la pregunta (se agrupan por mesa, en el orden del recorrido). */
+  activityId: string;
+  text: string;
+}
+
 export interface InventorConfig {
   /** Gráfico de la máquina con las piezas incorporadas. El apagado es el `assetId` del objeto Inventor en el TMJ. */
   activeAssetId: string;
   requiredPieceIds: string[];
   pieces: PieceConfig[];
-  /** Pregunta con la que Vanessa abre el cierre: se proyecta junto a la máquina. */
+  /** Pregunta con la que Vanessa abre el cierre: se proyecta junto a la máquina y encabeza las preguntas en cada celular. */
   prompt: string;
+  /** Preguntas sugeridas por mesa: cada persona elige una o escribe la suya, y Vanessa las ve todas para elegir la final. */
+  questions: InventorQuestionConfig[];
   /** Mensaje de cierre una vez confirmada la pregunta final. */
   finalMessage: string;
   reflection: string[];
@@ -113,6 +133,8 @@ export interface WorldConfig {
 
 export interface ProjectConfig {
   title: string;
+  /** Pregunta de entrada de la guía de Vanessa: es lo único que se proyecta al comenzar, mientras las personas van a la primera mesa. */
+  entryQuestion: string;
   subtitle: string;
   studentName: string;
   university: string;
@@ -146,22 +168,18 @@ export const REQUIRED_LABELS = [
   "readyYou",
   "notReadyYou",
   "closingPhone",
+  "inventorOpenPhone",
   "finishedPhone",
   "observerPhone",
   "welcomePhone",
 ] as const;
-
-/** Momentos con guion de Vanessa además de una entrada por mesa del recorrido. */
-export const FACILITATOR_MOMENTS = ["bienvenida", "cierre"] as const;
-
-/** Frases de apoyo de Vanessa (SPECS 12): una por momento de la conducción. */
-export const SUPPORT_PHRASE_KEYS = ["inicio", "antesDeReunir", "alExplicar", "cierre"] as const;
 
 /** Eventos sonoros que la aplicación sabe emitir (SPECS 10.4). `laboratorio.json → audio.events` asigna un recurso a cada uno. */
 export const AUDIO_EVENT_IDS = ["shadows.click", "piece.earned", "inventor.activated", "adventure.finished"] as const;
 export type AudioEventId = (typeof AUDIO_EVENT_IDS)[number];
 
 export interface AudioConfig {
+  /** `true`: el teléfono empieza en silencio aunque el sonido esté activado por defecto (hay que pulsar «Activar sonido»). */
   phoneInitiallyMuted: boolean;
   /** evento → assetId (solo eventos de `AUDIO_EVENT_IDS`). Sin entrada, ese evento no suena (pero sigue teniendo su texto). */
   events: Record<string, string>;
@@ -185,9 +203,6 @@ export interface LaboratorioConfig {
   activities: Record<string, ActivityConfig>;
   inventor: InventorConfig;
   dialogues: Record<string, string>;
-  facilitatorNotes: Record<string, string[]>;
-  /** Frases de apoyo para conducir la exposición: claves de `SUPPORT_PHRASE_KEYS`. */
-  supportPhrases: Record<string, string>;
   ui: UiConfig;
   audio: AudioConfig;
   session: SessionConfig;

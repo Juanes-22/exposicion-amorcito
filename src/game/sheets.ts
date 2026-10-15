@@ -29,3 +29,7 @@ export function ensureSheet(scene: Phaser.Scene, assetId: string): boolean {
 export function restFrameOf(assetId: string, animId: string): string | undefined {
   return frameDefinitions[assetId]?.animations[animId]?.restFrame;
 }
+
+export function stillFrameOf(assetId: string, animId: string): string | undefined {
+  return frameDefinitions[assetId]?.animations[animId]?.stillFrame;
+}

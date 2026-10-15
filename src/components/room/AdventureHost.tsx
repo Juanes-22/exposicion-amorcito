@@ -41,6 +41,8 @@ export function AdventureHost({ project, state, port, camera, label, demo = null
   const panelNode = panel?.(bridge) ?? null;
   const playing = state.me !== null;
   const inMap = !state.me || state.me.participant.view.kind === "map";
+  // Al terminar, quien quedó dentro del inventor también tiene la barra: el celular invita a revisar sus resultados en el cuaderno.
+  const showBar = inMap || state.summary?.phase === "finished";
   return (
     <div className={`adventure__map${panelNode ? " has-activity" : ""}`}>
       {/* El escenario ocupa siempre el mismo lugar del árbol: abrir o cerrar una mesa NO recrea el canvas de Phaser. */}
@@ -48,7 +50,7 @@ export function AdventureHost({ project, state, port, camera, label, demo = null
         <PhaserGame project={project} bridge={bridge} debug={flags.debug} hooks={flags.hooks} camera={camera} label={label} />
         {!state.group ? <div className="overlay" role="status"><p>Cargando el estado de la aventura…</p></div> : null}
         {playing && inMap ? <NearbyPrompt project={project} state={state} port={port} /> : null}
-        {playing && inMap ? <MapBar project={project} state={state} port={port} /> : null}
+        {playing && showBar ? <MapBar project={project} state={state} port={port} /> : null}
         {state.summary?.phase === "paused" ? (
           <div className="overlay" role="status">
             <h2>En pausa</h2>

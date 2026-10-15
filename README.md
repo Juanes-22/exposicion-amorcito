@@ -2,8 +2,8 @@
 
 Aventura interactiva sobre la curiosidad: una sala compartida con **rondas guiadas**. Todas las personas exploran a la vez desde su
 celular, cada una con su propio personaje en el laboratorio; Vanessa Estrada conduce desde la computadora proyectada: abre **una mesa
-por ronda**, mira cuántas personas ya están listas, reúne al grupo para conversar y decide cuándo seguir. Quien prefiere acompañar sin
-jugar entra como observadora.
+por ronda**, mira cuántas personas ya están listas, reúne al grupo para conversar y decide cuándo seguir. Todas las personas que entran
+juegan.
 
 Práctica pedagógica 5 · Licenciatura en Educación Infantil · Universidad de Antioquia.
 
@@ -14,8 +14,8 @@ contradice a SPECS, manda SPECS.
 ## Estado
 
 Construido y verificado: fases 0 a 6 de PLAN (base, contratos/dominio/Tiled directo, sala y persistencia, movimiento compartido, las
-tres mesas, el inventor y la continuidad: detección de cortes, reinicio real del servicio, vencimiento y limpieza de salas, y la
-demostración local de respaldo), de la fase 7 **el audio opcional, el ensayo de capacidad y la prueba en navegadores móviles de
+tres mesas, el inventor y la continuidad: detección de cortes, reinicio real del servicio, vencimiento y limpieza de salas; la
+demostración local de respaldo se retiró después), de la fase 7 **el audio opcional, el ensayo de capacidad y la prueba en navegadores móviles de
 simulador/emulador**, y la **fase 9: participación simultánea y rondas guiadas por Vanessa**, que reemplazó el modelo de un solo
 controlador por turnos (formularios y modalidades de respuesta incluidos), y la **fase 10: la tercera mesa es El observatorio**, que
 reemplazó La caja de las sorpresas. El recorrido completo funciona de punta a punta en Chromium.
@@ -25,23 +25,32 @@ los textos son de prototipo. Detalle y evidencias en PLAN §5.
 
 ## Cómo se juega
 
-1. Vanessa crea la sala; las personas entran con el QR (nombre, color y, si quieren, «solo acompañar»). Cada una aparece como una
+1. Vanessa crea la sala; las personas entran con el QR (nombre y color). Cada una aparece como una
    silueta con su nombre encima en el laboratorio compartido.
-2. **Preparación:** la proyección muestra la pregunta de la mesa; las personas pueden caminar. **Abrir mesa:** todas pueden abrirla
-   (menú «Mesas → Ir a la mesa actual» o tocándola en el mapa) y exploran a su ritmo; los resultados se registran solos y cada persona
-   queda «Lista para conversar» al cumplir el criterio de la mesa. Vanessa ve «N de M listos».
-3. **Conversemos:** se cierran las pruebas (las que ruedan se cancelan), los celulares dicen «Miremos la proyección y compartamos lo que
-   descubrimos.», Vanessa proyecta los resultados de alguien, guarda las ideas del grupo y, cuando quiere, muestra la frase de Freire.
-   Con personas pendientes pide una confirmación excepcional que no les concede la mesa por terminada.
-4. **Abrir siguiente mesa** incorpora la pieza al inventor y devuelve a todas al mapa. Tras las tres mesas, Vanessa escribe o elige la
-   pregunta final, la confirma y se imprime en el inventor.
+2. **Preparación:** al comenzar, la proyección muestra solo la pregunta de entrada («¿Recuerdan algo que hayan aprendido porque les dio
+   curiosidad?»); las personas pueden caminar. **Abrir mesa:** la pregunta de la mesa aparece junto al laboratorio y todas pueden
+   abrirla (menú «Mesas → Ir a la mesa actual» o tocándola en el mapa) y explorar a su ritmo; los resultados se registran solos y cada
+   persona queda «Lista para conversar» al cumplir el criterio de la mesa (recién entonces puede volver al mapa). Vanessa ve «N de M listos».
+3. **Conversemos:** se cierran las pruebas (las que ruedan se cancelan), los celulares dicen «Ya exploramos: deja los controles y mira la
+   proyección para escuchar lo que descubrieron los demás.», la proyección muestra la pregunta de la conversación, Vanessa guarda las ideas del grupo y, cuando quiere, muestra la
+   frase de Freire (recién entonces aparece «Abrir siguiente mesa»). Con personas pendientes avisa «Todavía hay personas explorando», nombra a quienes faltan y pide confirmarlo; no les
+   concede la mesa por terminada.
+4. **Abrir siguiente mesa** incorpora la pieza al inventor y devuelve a todas al mapa.
+5. **El inventor es una mesa más.** «Pasar al inventor» devuelve a todas al mapa y caminan hasta la máquina; Vanessa pulsa **Abrir
+   inventor** y cada persona entra (tocando la máquina o con «Mesas → Ir al inventor»), elige una de las preguntas sugeridas por mesa o
+   escribe la suya y la registra. Vanessa las ve en «Preguntas del inventor», elige con el grupo la pregunta final, la confirma y se
+   imprime en el inventor.
 
-Las mesas son **Sombras** (acercar y alejar una linterna), **Rampas** (soltar una pelota con distintas inclinaciones) y **El
-observatorio**: cada persona mira por su propio telescopio un panorama nocturno, acerca la Luna y encuentra un grupo de estrellas
-(arrastrando el visor o con flechas, aumentos y zonas). En el horizonte hay una casa con dos siluetas que discuten; si alguien la mira
+Los textos del juego siguen la **Guía para Vanessa** (un documento aparte; la consola ya no tiene «Guía para conversar»). Las preguntas
+sugeridas del inventor se editan en `public/config/laboratorio.json → inventor.questions`.
+
+Las mesas son **Sombras** (acercar y alejar una linterna y comparar el tamaño de la sombra, sin centímetros), **Rampas** (soltar una
+pelota eligiendo entre seis inclinaciones con nombre; no se muestran grados ni tiempos: cuánto demoró la pelota se pregunta en la
+conversación, donde no se proyectan resultados) y **El observatorio**: cada persona mira por su propio telescopio un panorama nocturno, acerca la Luna y encuentra un grupo de estrellas
+(arrastrando el visor o con flechas y aumentos, sin atajos); quien explora más allá puede descubrir una galaxia. En el horizonte hay una casa con dos siluetas que discuten; si alguien la mira
 de cerca, una silueta cierra la cortina, una sola vez y solo para esa persona. No es un requisito ni da puntos, y la consola nunca dice
-quién la miró. En la conversación Vanessa no proyecta la exploración de nadie: pulsa **Mostrar la casa** para que todo el grupo vea la
-escena y conversar sobre el límite entre la curiosidad y la privacidad.
+quién la miró. En la conversación Vanessa no proyecta la exploración de nadie: al pulsar **Mostrar la frase de Freire**, la proyección muestra
+también la casa (las siluetas discuten y una cierra la cortina) para conversar sobre el límite entre la curiosidad y la privacidad.
 
 ## Requisitos
 
@@ -69,7 +78,6 @@ Cada persona usa su propio navegador/contexto: la credencial se guarda por sala 
 | `npm run ensayo` | Sala preparada para **ensayar en celulares reales** de la red local (puertos 3400/3412; ver «Ensayo en dispositivos»). |
 | `npm run build` | Valida, comprueba tipos y compila el frontend en `dist/`. |
 | `npm start` | Servicio de producción: sirve `dist/`, la API y Socket.IO desde el mismo origen. |
-| `npm run preview:demo` | Compila y sirve SOLO el frontend en <http://127.0.0.1:4173/demo>, sin servidor de salas ni base de datos: la demostración de respaldo (ver «Respaldo»). |
 
 ## Estructura
 
@@ -149,27 +157,10 @@ Notas por proveedor (precios y límites consultados el 2026-10-07; revísalos an
   región en Bogotá (se retira): elige la más cercana con `fly platform regions` y desactiva el apagado automático de la máquina.
 - Vercel y similares sin servidor **no sirven**: la aplicación necesita un proceso persistente con WebSockets y disco.
 
-## Respaldo: la demostración local
+## Si el servidor falla
 
-`/demo` es la misma aventura (mismo dominio, reglas y escenas) **sin servidor ni red**. Vanessa conduce las rondas y explora sola, con su propio personaje. Siempre
-muestra el rótulo «Demostración». Su estado vive en el navegador, en un espacio propio (`…:demo:estado`), sin credenciales ni IDs de
-sala: **nunca se mezcla ni se sincroniza con una sala**. Si se recarga, vuelve en pausa con lo confirmado. «Reiniciar la demostración»
-solo borra el avance de la demostración.
-
-**Antes de exponer** (hacerlo con la sala funcionando):
-
-1. `npm run build` y `npm start` (o el servicio desplegado). Abre la sala como Vanessa y espera unos segundos: la consola descarga sola el
-   módulo de la demostración y calienta la caché con los recursos del catálogo.
-2. Abre `/demo` una vez en esa computadora y recorre una mesa. Así queda comprobado que funciona ahí.
-
-**Si el servidor deja de responder con la página ya abierta** (backend caído): a los ~5 s aparece «La conexión con la sala no vuelve»
-con el botón **Usar la demostración**. No se activa sola: decide Vanessa. Desde la demostración, **Volver a la sala** retoma la sala con su
-estado propio (si el servicio se reinició, la encuentra pausada y elige cuándo continuar). Los celulares de las personas no tienen
-demostración: siguen la proyección.
-
-**Si la computadora se queda sin red o sin servidor y hay que abrir la página de nuevo**: una página que nunca se descargó o que se
-recargó con el servidor apagado no se puede abrir. Por eso se prepara el build local: `npm run preview:demo` lo sirve desde la propia
-computadora (no necesita internet) y abre `/demo`. No es obligatorio ningún service worker. Ensayar ambos casos antes del día.
+Ya no hay demostración local de respaldo (`/demo`). Si el servidor deja de responder, las pantallas dicen «Reconectando con la sala…» y
+vuelven solas cuando el servicio regresa: la sala reaparece pausada con lo confirmado y Vanessa decide cuándo reanudar.
 
 ## Pruebas
 
@@ -185,18 +176,19 @@ de rampa y lo vuelve a arrancar con el mismo archivo SQLite.
 Los e2e actuales (`scripts/e2e/`) cubren: ciclo de vida de Phaser bajo StrictMode (`strictmode.ts`, CT-04); sala con administradora y
 dos participantes en contextos independientes, nombres repetidos, pausa y recargas (`room-flow.ts`); movimiento compartido con toque
 real, planes simultáneos de dos personas, pausa, redimensionado, pestaña congelada, mesas y latencia (`movement.ts`); **las tres rondas
-completas con proyección, dos celulares y una observadora** —contador, «Conversemos» con pendientes, pruebas que se cancelan, resultados
-y frase de Freire proyectados, notas del grupo, pregunta final, cuaderno y nombres sobre los avatares— (`rounds.ts`); el reinicio real
-del servicio con dos pruebas en marcha (`restart.ts`); la demostración local con el servidor apagado y con la red cortada
-(`demo.ts`); y la edición directa del TMJ (`tiled-direct.ts`, CT-01). Las capturas de evidencia de las fases 2 a 6 en `docs/evidencia/`
+completas con proyección y dos celulares** —contador, «Conversemos» con pendientes, pruebas que se cancelan, frase de Freire
+proyectada, notas del grupo, el inventor como mesa (caminar hasta la máquina, abrirla, registrar preguntas y elegir la final), cuaderno y
+nombres sobre los avatares— (`rounds.ts`); el reinicio real del servicio con dos
+pruebas en marcha (`restart.ts`); y la edición directa del TMJ (`tiled-direct.ts`, CT-01). Las capturas de evidencia de las fases 2 a 6 en `docs/evidencia/`
 son del modelo de turnos; las del modelo de rondas solo se escriben con `E2E_EVIDENCE=1` (`docs/evidencia/rondas/`).
 `?debug` en la URL de la sala superpone colisiones y radios; `?hooks` solo expone el juego para las pruebas. **No** sustituyen el ensayo en
 Safari/iPhone, Chrome/Android y el equipo proyectado (PLAN fase 7).
 
 ## Audio y señales
 
-El sonido es **opcional y empieza apagado**: un celular nunca suena hasta que la persona pulsa «Activar sonido» (el botón crea el
-`AudioContext` dentro de ese gesto). La preferencia se guarda solo en ese dispositivo. Los efectos salen de **transiciones del
+El sonido está **activado por defecto** en el celular y en la proyección. Como los navegadores no dejan sonar antes de un gesto, empieza
+con el primer toque o tecla en la página (el `AudioContext` se crea dentro de ese gesto); el botón ya aparece como «Silenciar». Quien lo
+silencia lo deja apagado en ese dispositivo (preferencia local). Los efectos salen de **transiciones del
 estado** (pieza conseguida, inventor encendido y aventura terminada, que oyen todas las pantallas; el clic de una posición de Sombras,
 que oye solo quien lo provoca; El observatorio funciona sin sonido) con un identificador por efecto, así que una reconexión, un estado repetido
 o el primero que se recibe no repiten sonidos. Cada evento tiene además su
@@ -244,8 +236,6 @@ Vanessa, Jerry, los botones/paneles crema y las margaritas son recursos reales d
   varias salas y con disco lento.
 - Falsos cortes de conexión con celulares reales (pantalla que se apaga, cambio de wifi a datos) y el comportamiento en segundo plano
   de Safari/iPhone: sin probar en aparatos físicos. Los cortes de las pruebas son de red simulada en la misma computadora.
-- La demostración exige que la página **ya esté abierta** o que se sirva el build local; no hay service worker ni modo sin conexión
-  para una web que nunca se descargó (decisión de SPECS 6.4).
 - El audio no usa el sonido de Phaser (sigue desactivado con `noAudio`): lo reproduce un módulo propio de la aplicación (`src/app/audio/`)
   con `AudioContext` creado bajo gesto (ver PLAN §5, decisiones).
 - Phaser vuelve a dibujar a 60 fps aunque no pase nada: en el emulador Android sin GPU pesaba mucho. Se deja para P7-04.

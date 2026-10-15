@@ -2,16 +2,15 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CommandResult, FinalQuestionInput, SavableNoteKind } from "../../../shared/contracts/actions";
-import type { Comparison, GroupNote, NoteKind } from "../../../shared/contracts/state";
-import { formatNumber, rampDurationMs, shadowHeightCm } from "../../../shared/domain/models";
+import type { ParticipantInfo } from "../../../shared/contracts/events";
+import type { GroupNote, NoteKind } from "../../../shared/contracts/state";
+import { rampDurationMs } from "../../../shared/domain/models";
 import { CLOSE_ZOOM, TELESCOPE_TARGETS } from "../../../shared/domain/telescope";
 import type { Driver } from "../../../shared/testing/drive";
 import { config, denied, enEtapa, mesaAbierta, OK, sala } from "../../testing/clientState";
-import { ComparisonView } from "../admin/ComparisonView";
 import { FinalQuestion } from "../admin/FinalQuestion";
 import { GroupNotes } from "../admin/GroupNotes";
-import { Guide } from "../admin/Guide";
-import { ProjectionBadge, ProjectionPanel } from "../admin/ProjectionPanel";
+import { hasProjection, ProjectionBadge, ProjectionPanel } from "../admin/ProjectionPanel";
 import { RoundControls } from "../admin/RoundControls";
 import { NotebookView } from "./NotebookView";
 import { NOTE_LABEL, noteText, personalLines } from "./notes";
@@ -23,7 +22,6 @@ const adv = (d: Driver) => d.room.adventure;
 const note = (d: Driver, kind: NoteKind, n = 0): GroupNote => adv(d).notebook.filter((x) => x.kind === kind)[n]!;
 /** Lo que Vanessa guarda en el cuaderno del grupo, por la misma acción que usa la consola. */
 const guardar = (d: Driver, kind: SavableNoteKind, text: string, activityId = "sombras") => d.must(d.admin({ type: "note.save", activityId, kind, text }), `guardar ${kind}`);
-const posicion = (cm: number) => `linterna a ${formatNumber(cm)} cm → sombra de ${formatNumber(shadowHeightCm(cm, 25, 8), 1)} cm`;
 
 /** Las tres mesas completas, con las dos personas listas en cada una, hasta el cierre. */
 const alCierre = () => enEtapa("closing");
@@ -76,7 +74,7 @@ describe("notes.ts", () => {
     expect(NOTE_LABEL.synthesis).toBe("Idea del grupo");
     expect(NOTE_LABEL.initialIdea).not.toBe(NOTE_LABEL.synthesis);
     expect(NOTE_LABEL.question).toBe("Pregunta del grupo");
-    expect(NOTE_LABEL.comparison).toBe("Resultados comparados");
+    expect(Object.keys(NOTE_LABEL)).not.toContain("comparison"); // ya no se proyectan resultados de una persona
     expect(NOTE_LABEL.finalQuestion).toBe("Pregunta final");
   });
 
@@ -86,45 +84,34 @@ describe("notes.ts", () => {
     expect(noteText(note(d, "synthesis"))).toBe("La luz y la distancia cambian la sombra");
   });
 
-  it("una comparación se escribe con el nombre de quien la hizo y sus datos, para lectores de pantalla", () => {
-    const d = mesaAbierta(0, ["ana", "beto"]);
-    d.must(d.admin({ type: "round.converse" }), "conversar");
-    d.must(d.admin({ type: "present.select", principalId: "ana" }), "proyectar");
-    const texto = noteText(note(d, "comparison"));
-    expect(texto.startsWith("Ana: ")).toBe(true); // el nombre visible que dio la sala
-    expect(texto).toContain(posicion(20));
-    expect(texto).toContain(posicion(50));
-  });
-
-  it("una nota sin texto ni comparación queda vacía en lugar de «null»", () => {
+  it("una nota sin texto queda vacía en lugar de «null»", () => {
     const vacia: GroupNote = { id: "n9", activityId: "sombras", kind: "synthesis", text: null, revision: 1, createdAt: "", updatedAt: "", history: [] };
     expect(noteText(vacia)).toBe("");
   });
 
   describe("personalLines: solo lo que el juego registró", () => {
     it("sin estado no hay líneas", () => {
-      expect(personalLines(undefined)).toEqual([]);
+      expect(personalLines(undefined, config.activities.sombras)).toEqual([]);
     });
 
-    it("Sombras: una línea por posición que cuenta; las muy parecidas no aparecen", () => {
+    it("Sombras: cuántas posiciones distintas probó, sin decir qué tan grande fue la sombra; las muy parecidas no cuentan", () => {
       const d = mesaAbierta(0);
       d.openStation("ana", "sombras");
       for (const cm of [20, 22, 50]) d.must(d.act("ana", { type: "shadows.sample", distanceCm: cm }), `posición ${cm}`);
-      const lineas = personalLines(d.person("ana").activities.sombras);
-      expect(lineas).toEqual([`Posición 1: ${posicion(20)}`, `Posición 2: ${posicion(50)}`]);
+      const lineas = personalLines(d.person("ana").activities.sombras, config.activities.sombras);
+      expect(lineas).toEqual(["Probaste la linterna en 2 posiciones distintas."]); // sin decir qué tan grande fue la sombra: eso lo observa cada persona
     });
 
-    it("Rampas: una línea por prueba terminada, con la inclinación y el tiempo de la simulación; la que rueda no aparece", () => {
+    it("Rampas: una línea por prueba terminada con el nombre de su inclinación, sin grados ni tiempo; la que rueda no aparece", () => {
       const d = mesaAbierta(1);
       d.openStation("ana", "rampas");
       d.must(d.act("ana", { type: "ramps.trial.start", angleDeg: 20 }), "prueba 1");
-      expect(personalLines(d.person("ana").activities.rampas)).toEqual([]); // todavía rueda
+      expect(personalLines(d.person("ana").activities.rampas, config.activities.rampas)).toEqual([]); // todavía rueda
       d.tick(6000);
       d.must(d.act("ana", { type: "ramps.trial.start", angleDeg: 40 }), "prueba 2"); // rodando
-      const lineas = personalLines(d.person("ana").activities.rampas);
+      expect(personalLines(d.person("ana").activities.rampas, config.activities.rampas)).toEqual(["Prueba 1: la menos empinada"]);
       const t1 = d.person("ana").activities.rampas as { trials: Array<{ durationMs: number }> };
-      expect(lineas).toEqual([`Prueba 1: 20° → ${formatNumber(t1.trials[0]!.durationMs / 1000, 1)} s (simulación)`]);
-      expect(t1.trials[0]!.durationMs).toBe(rampDurationMs(20, 2, 2.4));
+      expect(t1.trials[0]!.durationMs).toBe(rampDurationMs(20, 2, 2.4)); // el servidor sí lo guarda
     });
 
     it("Rampas: una prueba cancelada al pasar a la conversación no es un resultado", () => {
@@ -132,17 +119,19 @@ describe("notes.ts", () => {
       d.openStation("ana", "rampas");
       d.must(d.act("ana", { type: "ramps.trial.start", angleDeg: 20 }), "prueba");
       d.must(d.admin({ type: "round.converse", withPending: true }), "conversar");
-      expect(personalLines(d.person("ana").activities.rampas)).toEqual([]);
+      expect(personalLines(d.person("ana").activities.rampas, config.activities.rampas)).toEqual([]);
     });
 
     it("El observatorio: solo «Luna observada» y «Estrellas observadas», en ese orden, sin importar cuál se observó primero", () => {
       const d = mesaAbierta(2);
       d.openStation("ana", "cajas");
-      expect(personalLines(d.person("ana").activities.cajas)).toEqual([]);
+      expect(personalLines(d.person("ana").activities.cajas, config.activities.cajas)).toEqual([]);
       d.must(d.act("ana", { type: "telescope.aim", x: TELESCOPE_TARGETS.stars.x, y: TELESCOPE_TARGETS.stars.y, zoom: 0 }), "estrellas");
-      expect(personalLines(d.person("ana").activities.cajas)).toEqual(["Estrellas observadas"]);
+      expect(personalLines(d.person("ana").activities.cajas, config.activities.cajas)).toEqual(["Estrellas observadas"]);
       d.must(d.act("ana", { type: "telescope.aim", x: TELESCOPE_TARGETS.moon.x, y: TELESCOPE_TARGETS.moon.y, zoom: CLOSE_ZOOM }), "Luna");
-      expect(personalLines(d.person("ana").activities.cajas)).toEqual(["Luna observada", "Estrellas observadas"]);
+      expect(personalLines(d.person("ana").activities.cajas, config.activities.cajas)).toEqual(["Luna observada", "Estrellas observadas"]);
+      d.must(d.act("ana", { type: "telescope.aim", x: TELESCOPE_TARGETS.galaxy.x, y: TELESCOPE_TARGETS.galaxy.y, zoom: CLOSE_ZOOM }), "galaxia");
+      expect(personalLines(d.person("ana").activities.cajas, config.activities.cajas)).toEqual(["Luna observada", "Estrellas observadas", "Galaxia observada"]);
     });
 
     it("El observatorio: la ventana y la cortina nunca se anotan en el cuaderno", () => {
@@ -150,7 +139,7 @@ describe("notes.ts", () => {
       d.openStation("ana", "cajas");
       d.must(d.act("ana", { type: "telescope.aim", x: TELESCOPE_TARGETS.window.x, y: TELESCOPE_TARGETS.window.y, zoom: CLOSE_ZOOM }), "ventana");
       expect(d.person("ana").activities.cajas).toMatchObject({ curtain: "closed" });
-      expect(personalLines(d.person("ana").activities.cajas)).toEqual([]);
+      expect(personalLines(d.person("ana").activities.cajas, config.activities.cajas)).toEqual([]);
     });
   });
 });
@@ -165,8 +154,9 @@ describe("NotebookView: «Mis resultados» y «Lo que anotó el grupo»", () => 
   it("agrupa los resultados propios por mesa, en el orden del recorrido", () => {
     render(cuaderno(alCierre()));
     expect(within(misResultados()).getAllByRole("heading", { level: 4 }).map((h) => h.textContent)).toEqual(["Sombras", "Rampas", "El observatorio"]);
-    expect(within(misResultados()).getByText(`Posición 1: ${posicion(20)}`)).toBeTruthy();
-    expect(within(misResultados()).getByText(/^Prueba 2: 40° → /)).toBeTruthy();
+    expect(within(misResultados()).getByText("Probaste la linterna en 2 posiciones distintas.")).toBeTruthy();
+    expect(within(misResultados()).getByText("Prueba 2: muy empinada")).toBeTruthy();
+    expect(misResultados().textContent).not.toMatch(/cm|°|segundos|\d,\d/); // sin medidas
     expect(within(misResultados()).getByText("Luna observada")).toBeTruthy();
     expect(within(misResultados()).getByText("Estrellas observadas")).toBeTruthy();
   });
@@ -243,23 +233,21 @@ describe("NotebookView: «Mis resultados» y «Lo que anotó el grupo»", () => 
       expect(within(fila).getByText(/Versión 1:/).closest("li")!.textContent).toContain("Será por la luz");
     });
 
-    it("los resultados proyectados entran escritos con su nombre; si se vuelven a proyectar quedan como corregidos", () => {
-      const d = mesaAbierta(0, ["ana", "beto"]);
-      d.must(d.admin({ type: "round.converse" }), "conversar");
-      d.must(d.admin({ type: "present.select", principalId: "beto" }), "proyectar");
-      const { rerender } = render(cuaderno(d));
-      expect(screen.getByText("Resultados comparados")).toBeTruthy();
-      expect(screen.getByText(new RegExp(`^Beto: ${posicion(20)}`))).toBeTruthy();
-      d.must(d.admin({ type: "present.select", principalId: "beto" }), "proyectar otra vez");
-      rerender(cuaderno(d));
-      expect(screen.getByText("corregida")).toBeTruthy();
-      expect(screen.getByText("(resultados anteriores)")).toBeTruthy();
+    it("una sala guardada antes de quitar la proyección puede traer comparaciones: el cuaderno no las muestra", () => {
+      const d = mesaAbierta(0);
+      guardar(d, "synthesis", "La luz importa");
+      const vieja = { id: "n99", activityId: "sombras", kind: "comparison", text: null, revision: 1, createdAt: "", updatedAt: "", history: [] } as unknown as GroupNote;
+      d.room.adventure = { ...d.room.adventure, notebook: [...d.room.adventure.notebook, vieja] };
+      render(cuaderno(d));
+      expect(within(delGrupo()).getAllByRole("listitem")).toHaveLength(1);
+      expect(within(delGrupo()).getByText("La luz importa")).toBeTruthy();
     });
 
     it("la pregunta final aparece bajo «El inventor», y las notas de cada mesa bajo su título, en el orden del recorrido", () => {
       const d = alCierre();
       guardar(d, "question", "¿Cómo vuela una pelota?", "rampas");
       guardar(d, "synthesis", "La luz importa", "sombras");
+      d.must(d.admin({ type: "inventor.open" }), "abrir el inventor");
       d.must(d.admin({ type: "final.confirm", value: { kind: "saved", noteId: note(d, "question").id } }), "confirmar");
       render(cuaderno(d));
       expect(within(delGrupo()).getAllByRole("heading", { level: 4 }).map((h) => h.textContent)).toEqual(["Sombras", "Rampas", "El inventor"]);
@@ -361,20 +349,18 @@ describe("GroupNotes: lo que Vanessa guarda del grupo", () => {
   });
 
   describe("las notas ya guardadas", () => {
-    it("cada una dice qué es y de qué mesa; las comparaciones no se corrigen", () => {
+    it("cada una dice qué es y de qué mesa, y se puede corregir", () => {
       const d = mesaAbierta(0, ["ana", "beto"]);
       guardar(d, "initialIdea", "Será por la luz");
       d.must(d.admin({ type: "round.converse" }), "conversar");
-      d.must(d.admin({ type: "present.select", principalId: "ana" }), "proyectar");
       guardar(d, "synthesis", "La distancia importa");
       d.must(d.admin({ type: "round.next" }), "siguiente");
       render(montar(d).ui());
       const lista = screen.getByRole("list", { name: "Notas del grupo" });
       const filas = within(lista).getAllByRole("listitem");
-      expect(filas).toHaveLength(3);
+      expect(filas).toHaveLength(2);
       // De la mesa anterior: se nombra la mesa en lugar de «mesa de ahora».
       for (const fila of filas) expect(fila.textContent).toContain("Sombras");
-      expect(within(lista).getByText("Resultados comparados").closest("li")!.querySelector("button")).toBeNull();
       expect(within(lista).getByText("Idea inicial del grupo").closest("li")!.querySelector("button")!.textContent).toBe("Corregir");
     });
 
@@ -508,48 +494,99 @@ describe("GroupNotes: lo que Vanessa guarda del grupo", () => {
 describe("FinalQuestion", () => {
   type Confirmar = (value: FinalQuestionInput) => Promise<CommandResult>;
   type Corregir = (expectedRevision: number, text: string) => Promise<CommandResult>;
-  const montar = (d: Driver, over: { confirm?: Confirmar; correct?: Corregir; busy?: boolean } = {}) => {
+  /** Una persona de la presencia de Vanessa, con la pregunta que registró en el inventor (o ninguna). */
+  const persona = (displayName: string, question: ParticipantInfo["question"] = null, observer = false): ParticipantInfo => ({
+    principalId: displayName.toLowerCase(),
+    role: "participant",
+    displayName,
+    name: displayName,
+    color: "azul",
+    distinction: 1,
+    connected: true,
+    observer,
+    inRound: false,
+    ready: false,
+    progress: null,
+    question,
+  });
+  const escrita = (text: string) => ({ presetId: null, text });
+  const sugerida = (id: string) => ({ presetId: id, text: config.inventor.questions.find((q) => q.id === id)!.text });
+  const montar = (d: Driver, over: { confirm?: Confirmar; correct?: Corregir; busy?: boolean; participants?: ParticipantInfo[] } = {}) => {
     const confirm = vi.fn<Confirmar>(over.confirm ?? (async () => OK));
     const correct = vi.fn<Corregir>(over.correct ?? (async () => OK));
-    const ui = (a = adv(d)) => <FinalQuestion config={config} adv={a} busy={over.busy ?? false} confirm={confirm} correct={correct} />;
+    const ui = (a = adv(d)) => <FinalQuestion config={config} adv={a} participants={over.participants ?? []} busy={over.busy ?? false} confirm={confirm} correct={correct} />;
     return { confirm, correct, ui };
   };
-  /** Al cierre con dos preguntas del grupo ya guardadas. */
+  const conInventor = () => enEtapa("inventor");
+  /** Con el inventor abierto y dos preguntas del grupo ya guardadas. */
   const conPreguntas = () => {
-    const d = alCierre();
+    const d = enEtapa("closing");
     guardar(d, "question", "¿Qué pasa si movemos el objeto?", "sombras");
     guardar(d, "question", "¿Cómo seguimos investigando con respeto?", "cajas");
+    d.must(d.admin({ type: "inventor.open" }), "abrir el inventor");
     return d;
   };
+  const revisar = () => screen.getByRole("button", { name: "Revisar y confirmar" }) as HTMLButtonElement;
+  const confirmarEnDialogo = () => fireEvent.click(within(screen.getByRole("alertdialog", { name: "¿Esta es la pregunta final?" })).getByRole("button", { name: "Sí, imprimirla en el inventor" }));
 
   describe("antes de confirmar", () => {
-    it("sin preguntas guardadas solo se puede escribir, y se recuerda la pregunta del inventor", () => {
-      render(montar(alCierre()).ui());
+    it("recuerda la pregunta del inventor, cuenta quiénes registraron la suya y agrupa las sugeridas por mesa", () => {
+      const participants = [persona("Ana", escrita("¿Por qué la Luna cambia de forma?")), persona("Beto"), persona("Vero", null, true)];
+      render(montar(conInventor(), { participants }).ui());
       expect(screen.getByText(config.inventor.prompt)).toBeTruthy();
-      expect((screen.getByRole("radio", { name: "Elegir una pregunta guardada" }) as HTMLInputElement).disabled).toBe(true);
-      expect((screen.getByRole("radio", { name: "Escribir una pregunta" }) as HTMLInputElement).checked).toBe(true);
-      expect(screen.getByLabelText("Pregunta final del grupo")).toBeTruthy();
+      expect(screen.getByRole("status").textContent).toBe("1 de 2 personas registraron su pregunta."); // quien observa no cuenta
+      const grupos = screen.getAllByRole("group").filter((g) => g.hasAttribute("aria-labelledby")).map((g) => document.getElementById(g.getAttribute("aria-labelledby")!)!.textContent);
+      expect(grupos).toEqual(["Escritas por las personas", "Sugeridas en Sombras", "Sugeridas en Rampas", "Sugeridas en El observatorio", "Otra pregunta"]);
+      for (const q of config.inventor.questions) expect(screen.getByRole("radio", { name: q.text })).toBeTruthy();
+      expect(screen.queryByRole("radio", { checked: true })).toBeNull(); // nada elegido de antemano
+      expect(revisar().disabled).toBe(true);
     });
 
-    it("con preguntas guardadas ofrece elegirlas, con la primera preseleccionada", () => {
-      render(montar(conPreguntas()).ui());
-      expect((screen.getByRole("radio", { name: "Elegir una pregunta guardada" }) as HTMLInputElement).checked).toBe(true);
-      const lista = screen.getByLabelText("Preguntas guardadas por el grupo") as HTMLSelectElement;
-      expect(within(lista).getAllByRole("option").map((o) => o.textContent)).toEqual(["¿Qué pasa si movemos el objeto?", "¿Cómo seguimos investigando con respeto?"]);
-      expect(lista.value).toBe(note(conPreguntas(), "question").id);
+    it("las preguntas escritas por las personas aparecen con su nombre y las iguales se reúnen; las sugeridas dicen quién las eligió", () => {
+      const participants = [
+        persona("Ana", escrita("¿Por qué la Luna cambia de forma?")),
+        persona("Beto", escrita("¿por qué la luna  cambia de forma?")),
+        persona("Cata", escrita("¿Qué come Jerry?")),
+        persona("Dani", sugerida("rampas-peso")),
+        persona("Eli", sugerida("rampas-peso")),
+      ];
+      render(montar(conInventor(), { participants }).ui());
+      expect(screen.getByRole("status").textContent).toBe("5 de 5 personas registraron su pregunta.");
+      const luna = screen.getByRole("radio", { name: /Luna cambia de forma/ }).closest("label")!;
+      expect(luna.textContent).toContain("Ana, Beto");
+      expect(screen.getAllByRole("radio", { name: /cambia de forma/ })).toHaveLength(1);
+      expect(screen.getByRole("radio", { name: /Jerry/ }).closest("label")!.textContent).toContain("Cata");
+      expect(screen.getByRole("radio", { name: new RegExp(sugerida("rampas-peso").text.slice(0, 20)) }).closest("label")!.textContent).toContain("Elegida por 2: Dani, Eli");
     });
 
-    it("escribir una pregunta muestra un diálogo de confirmación y NO envía nada hasta confirmarlo", async () => {
-      const { confirm, ui } = montar(alCierre());
+    it("elegir la pregunta de una persona o una sugerida pide confirmar ese texto y lo envía", async () => {
+      const participants = [persona("Ana", escrita("¿Por qué la Luna cambia de forma?"))];
+      const { confirm, ui } = montar(conInventor(), { participants });
       render(ui());
+      fireEvent.click(screen.getByRole("radio", { name: /Luna cambia de forma/ }));
+      fireEvent.click(revisar());
+      expect(within(screen.getByRole("alertdialog")).getByText("¿Por qué la Luna cambia de forma?")).toBeTruthy();
+      expect(confirm).not.toHaveBeenCalled();
+      confirmarEnDialogo();
+      await waitFor(() => expect(confirm).toHaveBeenCalledWith({ kind: "written", text: "¿Por qué la Luna cambia de forma?" }));
+      const preset = config.inventor.questions[4]!;
+      fireEvent.click(screen.getByRole("radio", { name: preset.text }));
+      fireEvent.click(revisar());
+      confirmarEnDialogo();
+      await waitFor(() => expect(confirm).toHaveBeenLastCalledWith({ kind: "written", text: preset.text }));
+    });
+
+    it("escribir otra pregunta muestra un diálogo de confirmación y NO envía nada hasta confirmarlo", async () => {
+      const { confirm, ui } = montar(conInventor());
+      render(ui());
+      fireEvent.click(screen.getByRole("radio", { name: "Escribir otra pregunta" }));
       fireEvent.change(screen.getByLabelText("Pregunta final del grupo"), { target: { value: "  ¿Por qué la luna cambia de forma?  " } });
-      fireEvent.click(screen.getByRole("button", { name: "Revisar y confirmar" }));
+      fireEvent.click(revisar());
       const dialogo = screen.getByRole("alertdialog", { name: "¿Esta es la pregunta final?" });
       expect(within(dialogo).getByText("¿Por qué la luna cambia de forma?")).toBeTruthy(); // se muestra tal como quedará
       expect(within(dialogo).getByText(/Quedará impresa en el inventor y la aventura terminará/)).toBeTruthy();
       expect(confirm).not.toHaveBeenCalled();
-
-      fireEvent.click(within(dialogo).getByRole("button", { name: "Sí, imprimirla en el inventor" }));
+      confirmarEnDialogo();
       await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
       expect(confirm).toHaveBeenCalledTimes(1);
       const [valor] = confirm.mock.calls[0]!;
@@ -558,59 +595,58 @@ describe("FinalQuestion", () => {
     });
 
     it("cancelar el diálogo no envía nada y conserva lo escrito", () => {
-      const { confirm, ui } = montar(alCierre());
+      const { confirm, ui } = montar(conInventor());
       render(ui());
+      fireEvent.click(screen.getByRole("radio", { name: "Escribir otra pregunta" }));
       fireEvent.change(screen.getByLabelText("Pregunta final del grupo"), { target: { value: "¿Por qué?" } });
-      fireEvent.click(screen.getByRole("button", { name: "Revisar y confirmar" }));
+      fireEvent.click(revisar());
       fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
       expect(screen.queryByRole("alertdialog")).toBeNull();
       expect((screen.getByLabelText("Pregunta final del grupo") as HTMLTextAreaElement).value).toBe("¿Por qué?");
       expect(confirm).not.toHaveBeenCalled();
     });
 
-    it("elegir una pregunta guardada pide confirmar esa pregunta y envía su nota", async () => {
+    it("las preguntas guardadas en el cuaderno también se ofrecen y envían su nota", async () => {
       const d = conPreguntas();
       const { confirm, ui } = montar(d);
       render(ui());
+      expect(screen.getByText("Guardadas en el cuaderno del grupo")).toBeTruthy();
       const segunda = note(d, "question", 1);
-      fireEvent.change(screen.getByLabelText("Preguntas guardadas por el grupo"), { target: { value: segunda.id } });
-      fireEvent.click(screen.getByRole("button", { name: "Revisar y confirmar" }));
-      const dialogo = screen.getByRole("alertdialog", { name: "¿Esta es la pregunta final?" });
-      expect(within(dialogo).getByText("¿Cómo seguimos investigando con respeto?")).toBeTruthy();
-      expect(confirm).not.toHaveBeenCalled();
-      fireEvent.click(within(dialogo).getByRole("button", { name: "Sí, imprimirla en el inventor" }));
-      await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
-      expect(confirm).toHaveBeenCalledWith({ kind: "saved", noteId: segunda.id });
+      fireEvent.click(screen.getByRole("radio", { name: "¿Cómo seguimos investigando con respeto?" }));
+      fireEvent.click(revisar());
+      expect(within(screen.getByRole("alertdialog")).getByText("¿Cómo seguimos investigando con respeto?")).toBeTruthy();
+      confirmarEnDialogo();
+      await waitFor(() => expect(confirm).toHaveBeenCalledWith({ kind: "saved", noteId: segunda.id }));
     });
 
-    it("se puede cambiar entre elegir y escribir antes de confirmar", () => {
-      render(montar(conPreguntas()).ui());
-      fireEvent.click(screen.getByRole("radio", { name: "Escribir una pregunta" }));
-      expect(screen.getByLabelText("Pregunta final del grupo")).toBeTruthy();
-      expect(screen.queryByLabelText("Preguntas guardadas por el grupo")).toBeNull();
-      fireEvent.click(screen.getByRole("radio", { name: "Elegir una pregunta guardada" }));
-      expect(screen.getByLabelText("Preguntas guardadas por el grupo")).toBeTruthy();
+    it("sin personas ni notas: lo dice, y sin cuaderno no aparece ese grupo", () => {
+      render(montar(conInventor()).ui());
+      expect(screen.getByRole("status").textContent).toBe("Todavía no hay personas en la sala.");
+      expect(screen.getByText("Todavía nadie escribió su propia pregunta.")).toBeTruthy();
+      expect(screen.queryByText("Guardadas en el cuaderno del grupo")).toBeNull();
     });
 
     it("si el servidor rechaza la confirmación el diálogo sigue abierto para decidir de nuevo", async () => {
-      const { confirm, ui } = montar(alCierre(), { confirm: async () => denied("INVALID_STEP", "La pregunta final se confirma en el cierre.") });
+      const { confirm, ui } = montar(conInventor(), { confirm: async () => denied("INVALID_STEP", "Primero abre el inventor.") });
       render(ui());
-      fireEvent.change(screen.getByLabelText("Pregunta final del grupo"), { target: { value: "¿Por qué?" } });
-      fireEvent.click(screen.getByRole("button", { name: "Revisar y confirmar" }));
-      fireEvent.click(screen.getByRole("button", { name: "Sí, imprimirla en el inventor" }));
+      fireEvent.click(screen.getByRole("radio", { name: config.inventor.questions[0]!.text }));
+      fireEvent.click(revisar());
+      confirmarEnDialogo();
       await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
       await waitFor(() => expect((screen.getByRole("button", { name: "Sí, imprimirla en el inventor" }) as HTMLButtonElement).disabled).toBe(false));
       expect(screen.getByRole("alertdialog")).toBeTruthy();
     });
 
     it("no permite revisar una pregunta vacía y con la consola ocupada se deshabilita", () => {
-      const { unmount } = render(montar(alCierre()).ui());
-      expect((screen.getByRole("button", { name: "Revisar y confirmar" }) as HTMLButtonElement).disabled).toBe(true);
+      const { unmount } = render(montar(conInventor()).ui());
+      fireEvent.click(screen.getByRole("radio", { name: "Escribir otra pregunta" }));
+      expect(revisar().disabled).toBe(true);
       fireEvent.change(screen.getByLabelText("Pregunta final del grupo"), { target: { value: "   " } });
-      expect((screen.getByRole("button", { name: "Revisar y confirmar" }) as HTMLButtonElement).disabled).toBe(true);
+      expect(revisar().disabled).toBe(true);
       unmount();
       render(montar(conPreguntas(), { busy: true }).ui());
-      expect((screen.getByRole("button", { name: "Revisar y confirmar" }) as HTMLButtonElement).disabled).toBe(true);
+      fireEvent.click(screen.getByRole("radio", { name: "¿Qué pasa si movemos el objeto?" }));
+      expect(revisar().disabled).toBe(true);
     });
   });
 
@@ -680,26 +716,29 @@ describe("FinalQuestion", () => {
 describe("ProjectionPanel y ProjectionBadge: lo que se proyecta en cada fase", () => {
   const panel = (d: Driver) => <ProjectionPanel config={config} adv={adv(d)} />;
 
-  it("preparación: la pregunta con la que Vanessa abre la mesa, y nada más", () => {
+  it("al comenzar (preparación de la primera mesa) solo se proyecta la pregunta de entrada", () => {
     const d = enEtapa("preparation");
     const { container } = render(panel(d));
-    expect(screen.getByRole("heading", { name: config.activities.sombras!.openingQuestion })).toBeTruthy();
-    expect(screen.getByText("Mesa 1 de 3 · Sombras")).toBeTruthy();
-    expect(container.querySelector(".comparison, .projection__freire")).toBeNull();
+    expect(hasProjection(config, adv(d))).toBe(true);
+    expect(screen.getByText("Pregunta de entrada")).toBeTruthy();
+    expect(screen.getAllByRole("heading").map((h) => h.textContent)).toEqual([config.project.entryQuestion]);
+    expect(screen.queryByText(config.activities.sombras!.openingQuestion)).toBeNull(); // la de la mesa aparece al abrirla
+    expect(container.querySelector(".projection__freire")).toBeNull();
     expect(screen.queryByText(/listos/)).toBeNull();
   });
 
-  it("la pregunta de apertura cambia con la mesa", () => {
+  it("antes de abrir las mesas siguientes no se proyecta nada: el laboratorio ocupa toda la pantalla", () => {
     const d = sala();
     d.toExploration(1);
     d.must(d.admin({ type: "round.converse", withPending: true }), "conversar");
     d.must(d.admin({ type: "round.next" }), "siguiente");
-    render(panel(d)); // El observatorio, en preparación
-    expect(screen.getByRole("heading", { name: config.activities.cajas!.openingQuestion })).toBeTruthy();
-    expect(screen.getByText("Mesa 3 de 3 · El observatorio")).toBeTruthy();
+    expect(d.round).toMatchObject({ index: 2, stage: "preparation" });
+    expect(hasProjection(config, adv(d))).toBe(false);
+    const { container } = render(panel(d));
+    expect(container.innerHTML).toBe("");
   });
 
-  it("exploración: el panel no proyecta nada y la esquina solo dice «N de M listos»", () => {
+  it("al abrir cada mesa se proyecta su pregunta; la esquina dice «N de M listos»", () => {
     const d = mesaAbierta(0, ["ana"]);
     const { container } = render(
       <>
@@ -707,11 +746,17 @@ describe("ProjectionPanel y ProjectionBadge: lo que se proyecta en cada fase", (
         <ProjectionBadge config={config} adv={adv(d)} counter={{ ready: 1, total: 2 }} />
       </>,
     );
-    expect(container.querySelector(".projection")).toBeNull();
+    expect(screen.getByText("Mesa 1 de 3 · Sombras")).toBeTruthy();
+    expect(screen.getAllByRole("heading").map((h) => h.textContent)).toEqual([config.activities.sombras!.openingQuestion]);
     expect(container.querySelector(".projection-badge")!.textContent).toBe("Sombras · 1 de 2 listos");
-    // Ni preguntas, ni resultados de nadie, ni frase de Freire.
-    expect(screen.queryByRole("heading")).toBeNull();
-    expect(container.querySelector(".comparison, .projection__freire")).toBeNull();
+    expect(container.querySelector(".projection__freire")).toBeNull(); // ni resultados de nadie ni frase de Freire
+    cleanup();
+    for (const [n, id] of [[1, "rampas"], [2, "cajas"]] as const) {
+      const { unmount } = render(panel(mesaAbierta(n)));
+      expect(screen.getByRole("heading", { name: config.activities[id]!.openingQuestion }), id).toBeTruthy();
+      expect(screen.getByText(`Mesa ${n + 1} de 3 · ${config.activities[id]!.title}`)).toBeTruthy();
+      unmount();
+    }
   });
 
   it("exploración sin contador todavía dice que se está explorando; fuera de la exploración la esquina no existe", () => {
@@ -724,7 +769,7 @@ describe("ProjectionPanel y ProjectionBadge: lo que se proyecta en cada fase", (
     }
   });
 
-  it("conversación: la pregunta de conversación; sin resultados seleccionados ni frase de Freire", () => {
+  it("conversación: la pregunta de conversación; sin frase de Freire hasta que Vanessa la muestra", () => {
     const { container } = render(panel(enEtapa("conversation")));
     expect(screen.getByRole("heading", { name: config.activities.sombras!.conversationQuestion })).toBeTruthy();
     expect(screen.getByText("Sombras · conversemos")).toBeTruthy();
@@ -733,16 +778,16 @@ describe("ProjectionPanel y ProjectionBadge: lo que se proyecta en cada fase", (
     expect(screen.queryByText(config.activities.sombras!.freirePhrase)).toBeNull();
   });
 
-  it("conversación: muestra la comparación que Vanessa seleccionó, con el nombre de quien la hizo", () => {
-    const d = mesaAbierta(0, ["ana", "beto"]);
-    d.must(d.admin({ type: "round.converse" }), "conversar");
-    d.must(d.admin({ type: "present.select", principalId: "beto" }), "proyectar");
-    const { container, rerender } = render(panel(d));
-    expect(screen.getByText("Resultados de Beto")).toBeTruthy();
-    expect(container.querySelector(".comparison")).toBeTruthy();
-    d.must(d.admin({ type: "present.clear" }), "quitar");
+  it("en El observatorio, al mostrar la frase de Freire (y la casa) la pregunta pasa a ser la de la cortina", () => {
+    const d = mesaAbierta(2, ["ana"]);
+    d.must(d.admin({ type: "round.converse", withPending: true }), "conversar");
+    const { rerender } = render(panel(d));
+    const cajas = config.activities.cajas!;
+    expect(screen.getByRole("heading", { name: cajas.conversationQuestion })).toBeTruthy(); // primero, qué descubrieron en el cielo
+    expect(screen.queryByText(/cortina/)).toBeNull(); // no se adelanta a la demostración
+    d.must(d.admin({ type: "round.showFreire" }), "Freire");
     rerender(panel(d));
-    expect(container.querySelector(".comparison")).toBeNull();
+    expect(screen.getByRole("heading", { name: cajas.freireQuestion! })).toBeTruthy();
   });
 
   it("conversación: la frase de Freire aparece solo cuando se muestra (freireShown)", () => {
@@ -754,10 +799,9 @@ describe("ProjectionPanel y ProjectionBadge: lo que se proyecta en cada fase", (
     expect(container.querySelector(".projection__freire")!.textContent).toBe(config.activities.sombras!.freirePhrase);
   });
 
-  it("una conversación nueva en la mesa siguiente vuelve a ocultar la frase y la comparación", () => {
+  it("una conversación nueva en la mesa siguiente vuelve a ocultar la frase", () => {
     const d = mesaAbierta(0, ["ana", "beto"]);
     d.must(d.admin({ type: "round.converse" }), "conversar");
-    d.must(d.admin({ type: "present.select", principalId: "ana" }), "proyectar");
     d.must(d.admin({ type: "round.showFreire" }), "Freire");
     d.must(d.admin({ type: "round.next" }), "siguiente");
     d.must(d.admin({ type: "round.open" }), "abrir");
@@ -777,100 +821,25 @@ describe("ProjectionPanel y ProjectionBadge: lo que se proyecta en cada fase", (
     for (const p of config.inventor.pieces) expect(within(piezas).getByText(p.message, { exact: false })).toBeTruthy();
   });
 
-  it("cierre con la pregunta final: la proyecta y deja la reflexión de cierre", () => {
+  it("cierre con la pregunta final: la proyecta y deja la reflexión de cierre y la invitación para seguir pensando", () => {
     const d = enEtapa("finished");
     render(panel(d));
     expect(screen.getByRole("heading", { name: "¿Por qué la luna cambia de forma?" })).toBeTruthy();
     expect(screen.getByText(config.inventor.finalMessage)).toBeTruthy();
     for (const r of config.inventor.reflection) expect(screen.getByText(r)).toBeTruthy();
+    expect(screen.getByText("Para seguir pensando")).toBeTruthy();
+    expect(screen.getByText(config.inventor.closingQuestion)).toBeTruthy();
     expect(screen.queryByRole("list", { name: "Piezas del inventor" })).toBeNull();
-  });
-});
-
-// ---- comparación ----------------------------------------------------------------------------------------------------------------
-
-describe("ComparisonView", () => {
-  const de = (d: Driver, quien: string): Comparison => {
-    d.must(d.admin({ type: "present.select", principalId: quien }), "proyectar");
-    return note(d, "comparison").comparison!;
-  };
-  /** Lo que lee un lector de pantalla: el texto de la figura sin las barras (decoración, `aria-hidden`). */
-  const leido = (container: HTMLElement) => container.querySelector("figure")!.textContent!.replace(/\s+/g, " ");
-
-  it("Sombras: barras proporcionales (la mayor ocupa todo el ancho) y el mismo contenido escrito", () => {
-    const d = mesaAbierta(0, ["ana", "beto"]);
-    d.must(d.admin({ type: "round.converse" }), "conversar");
-    const c = de(d, "ana");
-    const { container } = render(<ComparisonView comparison={c} />);
-    expect(screen.getByText("Resultados de Ana")).toBeTruthy();
-    const filas = [...container.querySelectorAll(".comparison__rows li")];
-    expect(filas).toHaveLength(2);
-    expect(filas[0]!.textContent).toContain("Linterna a 20 cm");
-    expect(filas[0]!.textContent).toContain(`sombra de ${formatNumber(shadowHeightCm(20, 25, 8), 1)} cm`);
-    const anchos = [...container.querySelectorAll<HTMLElement>(".comparison__bar > span")].map((b) => b.style.width);
-    expect(anchos[0]).toBe("100%"); // 20 cm da la sombra mayor
-    expect(parseInt(anchos[1]!, 10)).toBeLessThan(100);
-    // El contenido escrito está en las propias filas: no se repite en un párrafo oculto que el lector leería dos veces.
-    expect(container.querySelector("p.visually-hidden")).toBeNull();
-    expect(leido(container)).toContain("Linterna a 20 cm");
-    expect(leido(container)).toContain(`sombra de ${formatNumber(shadowHeightCm(20, 25, 8), 1)} cm`);
-  });
-
-  it("las barras son decoración (aria-hidden): el valor siempre está escrito junto a cada una", () => {
-    const d = mesaAbierta(0, ["ana", "beto"]);
-    d.must(d.admin({ type: "round.converse" }), "conversar");
-    const { container } = render(<ComparisonView comparison={de(d, "ana")} />);
-    for (const barra of container.querySelectorAll(".comparison__bar")) expect(barra.getAttribute("aria-hidden")).toBe("true");
-    for (const fila of container.querySelectorAll(".comparison__rows li")) {
-      expect(fila.querySelector(".comparison__label")!.textContent).toMatch(/Linterna a \d+ cm/);
-      expect(fila.querySelector(".comparison__value")!.textContent).toMatch(/sombra de .* cm/);
-    }
-  });
-
-  it("Rampas: la prueba más lenta y la más rápida, con inclinación y tiempo de la simulación, y el texto equivalente", () => {
-    const d = mesaAbierta(1, ["ana", "beto"]);
-    d.must(d.admin({ type: "round.converse" }), "conversar");
-    const c = de(d, "ana");
-    const { container } = render(<ComparisonView comparison={c} />);
-    const filas = [...container.querySelectorAll(".comparison__rows li")];
-    expect(filas).toHaveLength(2);
-    expect(filas[0]!.textContent).toContain("Inclinación de 20°");
-    expect(filas[0]!.textContent).toContain("en la simulación");
-    expect(filas[1]!.textContent).toContain("Inclinación de 40°");
-    expect(container.querySelector("p.visually-hidden")).toBeNull();
-    expect(leido(container)).toMatch(/Inclinación de 20°.* s en la simulación.*Inclinación de 40°.* s en la simulación/);
-  });
-
-  it("los resultados siempre están escritos (no solo dibujados), para cualquier tipo de resultado", () => {
-    const d = mesaAbierta(0, ["ana", "beto"]);
-    d.must(d.admin({ type: "round.converse" }), "conversar");
-    const sombras = de(d, "beto");
-    const casos: Comparison[] = [
-      sombras,
-      { activityId: "rampas", authorId: "x", authorName: "X", data: { type: "ramps", trials: [{ angleDeg: 15, durationMs: 3200 }] } },
-    ];
-    for (const c of casos) {
-      const { container, unmount } = render(<ComparisonView comparison={c} />);
-      expect(leido(container).length, c.data.type).toBeGreaterThan(`Resultados de ${c.authorName}`.length + 10);
-      expect(container.querySelector("figure figcaption")!.textContent).toBe(`Resultados de ${c.authorName}`);
-      unmount();
-    }
-  });
-
-  it("una sola prueba de rampa ocupa todo el ancho, y una barra mínima nunca desaparece", () => {
-    const una: Comparison = { activityId: "rampas", authorId: "x", authorName: "X", data: { type: "ramps", trials: [{ angleDeg: 15, durationMs: 4000 }] } };
-    const { container, rerender } = render(<ComparisonView comparison={una} />);
-    expect(container.querySelector<HTMLElement>(".comparison__bar > span")!.style.width).toBe("100%");
-    rerender(<ComparisonView comparison={{ ...una, data: { type: "ramps", trials: [{ angleDeg: 15, durationMs: 4000 }, { angleDeg: 45, durationMs: 10 }] } }} />);
-    expect(container.querySelectorAll<HTMLElement>(".comparison__bar > span")[1]!.style.width).toBe("8%");
   });
 });
 
 // ---- pasos de la ronda ------------------------------------------------------------------------------------------------------------
 
+/** La conversación con la frase de Freire ya mostrada: recién entonces se ofrece abrir la siguiente mesa. */
+const conFreire = (d: Driver): Driver => (d.must(d.admin({ type: "round.showFreire" }), "Freire"), d);
+
 describe("RoundControls", () => {
-  type Demo = { active: boolean; start: () => void; stop: () => void };
-  const montar = (d: Driver, over: { counter?: { ready: number; total: number } | null; pending?: string[]; disabled?: boolean; houseDemo?: Demo } = {}) => {
+  const montar = (d: Driver, over: { counter?: { ready: number; total: number } | null; pending?: string[]; disabled?: boolean } = {}) => {
     const admin = vi.fn(async () => OK as unknown);
     const ui = (dd: Driver = d, extra = over) => (
       <RoundControls
@@ -880,7 +849,6 @@ describe("RoundControls", () => {
         pending={extra.pending ?? []}
         disabled={extra.disabled ?? false}
         admin={admin}
-        houseDemo={extra.houseDemo}
       />
     );
     return { admin, ui };
@@ -915,28 +883,6 @@ describe("RoundControls", () => {
     expect(screen.queryByText("✓ Todas las personas están listas")).toBeNull(); // sin nadie en la ronda no hay nada que avisar
   });
 
-  it("observatorio, conversación: «Mostrar la casa» y «Volver al laboratorio» manejan la demostración sin enviar nada a la sala", () => {
-    const d = mesaAbierta(2, ["ana", "beto"]);
-    d.must(d.admin({ type: "round.converse" }), "conversar");
-    const demo = { active: false, start: vi.fn(), stop: vi.fn() };
-    const { admin, ui } = montar(d, { houseDemo: demo });
-    const { rerender } = render(ui());
-    fireEvent.click(boton("Mostrar la casa"));
-    expect(demo.start).toHaveBeenCalledTimes(1);
-    rerender(ui(d, { houseDemo: { ...demo, active: true } }));
-    expect(screen.queryByRole("button", { name: "Mostrar la casa" })).toBeNull();
-    fireEvent.click(boton("Volver al laboratorio"));
-    expect(demo.stop).toHaveBeenCalledTimes(1);
-    expect(admin).not.toHaveBeenCalled();
-    expect(screen.queryByRole("button", { name: /Espiar/ })).toBeNull();
-  });
-
-  it("sin demostración (otras mesas o fuera de la conversación) no aparece «Mostrar la casa»", () => {
-    const { ui } = montar(enEtapa("conversation"));
-    render(ui());
-    expect(screen.queryByRole("button", { name: "Mostrar la casa" })).toBeNull();
-  });
-
   it("exploración sin pendientes envía round.converse directamente, sin withPending", () => {
     const { admin, ui } = montar(mesaAbierta(0, ["ana", "beto"]), { counter: { ready: 2, total: 2 } });
     render(ui());
@@ -945,29 +891,35 @@ describe("RoundControls", () => {
     expect(admin.mock.calls).toEqual([[{ type: "round.converse" }]]);
   });
 
-  it("exploración con pendientes: el diálogo enumera sus nombres y solo al confirmar envía withPending: true", async () => {
+  it("exploración con pendientes: el diálogo dice cuántas están listas, enumera a quienes faltan y solo al confirmar envía withPending: true", async () => {
     const { admin, ui } = montar(mesaAbierta(0, ["ana"]), { counter: { ready: 1, total: 2 }, pending: ["Beto"] });
     render(ui());
     fireEvent.click(boton("Conversemos"));
-    const dialogo = screen.getByRole("alertdialog", { name: "Pasar a conversación con pendientes" });
-    expect(within(dialogo).getByText(/Faltan 1 persona por terminar: Beto\./)).toBeTruthy();
-    expect(within(dialogo).getByText(/las pruebas que estén en marcha se cancelan/)).toBeTruthy();
+    const dialogo = screen.getByRole("alertdialog", { name: "Todavía hay personas explorando" });
+    expect(dialogo.textContent).toContain("Ya terminaron 1 de 2.");
+    expect(within(dialogo).getByText("Aún no termina:")).toBeTruthy();
+    expect(within(within(dialogo).getByRole("list", { name: "Personas que aún no terminan" })).getByText("Beto")).toBeTruthy();
+    expect(within(dialogo).getByText("lo que hicieron se conserva;")).toBeTruthy();
+    expect(within(dialogo).queryByText(/pelota/)).toBeNull(); // en Sombras no hay pruebas que se cancelen
     expect(admin).not.toHaveBeenCalled();
-    fireEvent.click(within(dialogo).getByRole("button", { name: "Pasar a conversación con pendientes" }));
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Conversar ahora" }));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     expect(admin.mock.calls).toEqual([[{ type: "round.converse", withPending: true }]]);
   });
 
-  it("conversación: Freire y la siguiente mesa; ya mostrada Freire el botón se deshabilita y lo dice", () => {
+  it("conversación: «Abrir siguiente mesa» no aparece hasta mostrar la frase de Freire; entonces ocupa el lugar de ese botón", async () => {
     const d = enEtapa("conversation");
-    const { ui } = montar(d);
+    const { admin, ui } = montar(d);
     const { rerender } = render(ui());
     expect(boton("Mostrar la frase de Freire").disabled).toBe(false);
-    expect(boton("Abrir siguiente mesa: Rampas")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /siguiente mesa|Pasar al inventor/ })).toBeNull();
     expect(screen.queryByRole("button", { name: "Conversemos" })).toBeNull();
+    await act(async () => void fireEvent.click(boton("Mostrar la frase de Freire"))); // espera a que termine el envío
+    expect(admin).toHaveBeenCalledWith({ type: "round.showFreire" });
     d.must(d.admin({ type: "round.showFreire" }), "Freire");
     rerender(ui(d));
-    expect(boton("Frase de Freire mostrada").disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: /Freire/ })).toBeNull();
+    expect(boton("Abrir siguiente mesa: Rampas").disabled).toBe(false);
   });
 
   it("conversación: avisa con cuántas personas pendientes se pasó a conversar, en singular y en plural", () => {
@@ -991,12 +943,14 @@ describe("RoundControls", () => {
   it("el siguiente paso lleva el nombre de la mesa que sigue; tras la última, «Pasar al inventor»", () => {
     const rampas = mesaAbierta(1, ["ana", "beto"]);
     rampas.must(rampas.admin({ type: "round.converse" }), "conversar");
+    rampas.must(rampas.admin({ type: "round.showFreire" }), "Freire");
     const a = montar(rampas);
     const { unmount } = render(a.ui());
     expect(boton("Abrir siguiente mesa: El observatorio")).toBeTruthy();
     unmount();
     const observatorio = mesaAbierta(2, ["ana", "beto"]);
     observatorio.must(observatorio.admin({ type: "round.converse" }), "conversar");
+    observatorio.must(observatorio.admin({ type: "round.showFreire" }), "Freire");
     const b = montar(observatorio);
     render(b.ui());
     expect(screen.queryByRole("button", { name: /siguiente mesa/ })).toBeNull();
@@ -1004,11 +958,17 @@ describe("RoundControls", () => {
     expect(b.admin).toHaveBeenCalledWith({ type: "round.next" });
   });
 
-  it("en el cierre ya no hay pasos de ronda", () => {
-    const { ui } = montar(alCierre());
-    const { container } = render(ui());
+  it("en el cierre el único paso es «Abrir inventor»; abierto, solo queda cuántas personas registraron su pregunta", async () => {
+    const d = alCierre();
+    const { admin, ui } = montar(d);
+    const { rerender } = render(ui());
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Abrir inventor"]);
+    await act(async () => void fireEvent.click(boton("Abrir inventor")));
+    expect(admin).toHaveBeenCalledWith({ type: "inventor.open" });
+    d.must(d.admin({ type: "inventor.open" }), "abrir el inventor");
+    rerender(<RoundControls config={config} adv={adv(d)} counter={null} pending={[]} questions={{ registered: 1, total: 2 }} disabled={false} admin={admin} />);
     expect(screen.queryAllByRole("button")).toHaveLength(0);
-    expect(container.querySelector(".round-controls")!.children).toHaveLength(0);
+    expect(screen.getByRole("status").textContent).toBe("1 de 2 preguntas registradas");
   });
 
   it("deshabilitada (sin conexión o en pausa) ningún paso se puede pulsar", () => {
@@ -1016,7 +976,8 @@ describe("RoundControls", () => {
       ["Abrir mesa: Sombras", enEtapa("preparation")],
       ["Conversemos", mesaAbierta(0)],
       ["Mostrar la frase de Freire", enEtapa("conversation")],
-      ["Abrir siguiente mesa: Rampas", enEtapa("conversation")],
+      ["Abrir siguiente mesa: Rampas", conFreire(enEtapa("conversation"))],
+      ["Abrir inventor", alCierre()],
     ];
     for (const [nombre, d] of etapas) {
       const { admin, ui } = montar(d, { disabled: true });
@@ -1047,54 +1008,6 @@ describe("RoundControls", () => {
       const { unmount } = render(montar(enEtapa(etapa)).ui());
       expect(screen.queryByRole("button", { name: /Probar la mesa|Terminar la demostración/ }), etapa).toBeNull();
       unmount();
-    }
-  });
-});
-
-// ---- guía --------------------------------------------------------------------------------------------------------------------------
-
-describe("Guide", () => {
-  const guion = (d: Driver) => d.room.phase;
-
-  it("en la bienvenida muestra el guion de la bienvenida aunque ya haya una primera mesa", () => {
-    const d = enEtapa("welcome");
-    render(<Guide config={config} adv={adv(d)} phase={guion(d)} />);
-    for (const linea of config.facilitatorNotes.bienvenida!) expect(screen.getByText(linea)).toBeTruthy();
-    for (const linea of config.facilitatorNotes.sombras!) expect(screen.queryByText(linea)).toBeNull();
-  });
-
-  it("durante cada mesa muestra el guion de esa mesa", () => {
-    for (const [n, id] of [[0, "sombras"], [1, "rampas"], [2, "cajas"]] as const) {
-      const d = mesaAbierta(n);
-      const { unmount } = render(<Guide config={config} adv={adv(d)} phase={guion(d)} />);
-      for (const linea of config.facilitatorNotes[id]!) expect(screen.getByText(linea), id).toBeTruthy();
-      unmount();
-    }
-  });
-
-  it("en el cierre y al terminar muestra el guion del cierre", () => {
-    for (const etapa of ["closing", "finished"] as const) {
-      const d = enEtapa(etapa);
-      const { unmount } = render(<Guide config={config} adv={adv(d)} phase={guion(d)} />);
-      for (const linea of config.facilitatorNotes.cierre!) expect(screen.getByText(linea), etapa).toBeTruthy();
-      unmount();
-    }
-  });
-
-  it("las frases de apoyo están siempre a mano, una por momento, con su etiqueta", () => {
-    const d = mesaAbierta(0);
-    render(<Guide config={config} adv={adv(d)} phase={guion(d)} />);
-    expect(screen.getByText("Frases de apoyo")).toBeTruthy();
-    const esperadas: Array<[string, string]> = [
-      ["Para empezar", config.supportPhrases.inicio!],
-      ["Antes de reunir al grupo", config.supportPhrases.antesDeReunir!],
-      ["Al explicar con Freire", config.supportPhrases.alExplicar!],
-      ["Para cerrar", config.supportPhrases.cierre!],
-    ];
-    for (const [etiqueta, frase] of esperadas) {
-      const termino = screen.getByText(etiqueta);
-      expect(termino.tagName).toBe("DT");
-      expect(termino.nextElementSibling!.textContent).toBe(frase);
     }
   });
 });

@@ -56,7 +56,7 @@ describe("señales de grupo: efectos del servidor (SPECS 10.4)", () => {
     t.group(grupo(d, 1));
     expect(t.group(grupo(d, 2, [earned("lupa")]))).toEqual([{ id: "1:piece:lupa", event: "piece.earned", text: "Pieza conseguida: Lupa." }]);
     expect(t.group(grupo(d, 3, [earned("lupa")]))).toEqual([]); // mismo effectId: ya sonó
-    expect(t.group(grupo(d, 4, [earned("dialogo")]))).toMatchObject([{ event: "piece.earned", text: "Pieza conseguida: Bocadillo." }]);
+    expect(t.group(grupo(d, 4, [earned("dialogo")]))).toMatchObject([{ event: "piece.earned", text: "Pieza conseguida: Diálogo." }]);
   });
 
   it("encender el inventor y terminar la aventura tienen su evento y su texto, en el orden en que llegan", () => {
@@ -91,7 +91,7 @@ describe("señales de grupo: efectos del servidor (SPECS 10.4)", () => {
     expect(admin({ type: "round.open" })).toEqual([]);
     d.readyRamps("ana");
     admin({ type: "round.converse" });
-    expect(admin({ type: "round.next" }).map((s) => s.text)).toEqual(["Pieza conseguida: Bocadillo."]);
+    expect(admin({ type: "round.next" }).map((s) => s.text)).toEqual(["Pieza conseguida: Diálogo."]);
 
     admin({ type: "round.open" });
     d.readyTelescope("ana");
@@ -101,6 +101,7 @@ describe("señales de grupo: efectos del servidor (SPECS 10.4)", () => {
       ["inventor.activated", labels.signalPiecesPlaced],
     ]);
 
+    expect(admin({ type: "inventor.open" })).toEqual([]); // abrir el inventor no repite el anuncio
     expect(admin({ type: "final.confirm", value: { kind: "written", text: "¿Por qué cambia la sombra?" } }).map((s) => [s.event, s.text])).toEqual([["adventure.finished", labels.signalFinished]]);
   });
 

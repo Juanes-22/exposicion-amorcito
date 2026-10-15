@@ -1,22 +1,23 @@
 import { lazy, Suspense } from "react";
 import { useAudioSignals } from "../../app/audio/useAudioSignals";
 import type { RoomClientState, RoomController } from "../../app/RoomController";
-import { phoneCaption } from "../../app/view";
+import { isInventorOpen, phoneCaption } from "../../app/view";
 import type { LoadedProject } from "../../config/loadProject";
 import { PersonalPanel } from "../activities/PersonalPanel";
+import { InventorPanel } from "../inventor/InventorPanel";
 import { SignalText, SoundControl } from "./SoundControl";
 
 const AdventureHost = lazy(() => import("./AdventureHost").then((m) => ({ default: m.AdventureHost })));
 
 /**
  * Celular de quien juega: su personaje en el laboratorio compartido y, al abrir la mesa habilitada, los controles de su experimento
- * (propuesta de rondas, sección 3). El texto de arriba dice qué toca en cada momento y, durante la conversación, manda a mirar la
- * proyección.
+ * (propuesta de rondas, sección 3); en el cierre, al entrar al inventor, las preguntas para registrar la suya. El texto de arriba dice qué
+ * toca en cada momento y, durante la conversación, manda a mirar la proyección.
  */
 export function ParticipantView({ project, state, controller }: { project: LoadedProject; state: RoomClientState; controller: RoomController }) {
   const summary = state.summary!;
   const { config } = project.bundle;
-  // El teléfono empieza en silencio (config.audio.phoneInitiallyMuted); el texto de cada señal aparece igual.
+  // El sonido está activado por defecto y empieza con el primer toque (salvo `config.audio.phoneInitiallyMuted`); el texto de cada señal aparece igual.
   const audio = useAudioSignals({ project, state, device: "phone" });
   const caption = phoneCaption(state, config);
   const stage = state.group?.adventure.round.stage;
@@ -39,6 +40,15 @@ export function ParticipantView({ project, state, controller }: { project: Loade
           panel={(bridge) =>
             state.me && state.group && state.me.participant.view.kind === "activity" && (stage === "exploration" || stage === "preparation") ? (
               <PersonalPanel config={config} adv={state.group.adventure} participant={state.me.participant} act={(a) => controller.act(a)} setLocal={(p) => bridge.setLocal(p)} onLocal={(cb) => bridge.on("app:local", cb)} busy={state.pending > 0} interactive={exploring} />
+            ) : state.me && state.group && state.me.participant.view.kind === "inventor" && stage === "closing" ? (
+              <InventorPanel
+                config={config}
+                participant={state.me.participant}
+                act={(a) => controller.act(a)}
+                busy={state.pending > 0}
+                interactive={summary.phase === "running" && isInventorOpen(state.group.adventure)}
+                finished={summary.phase === "finished"}
+              />
             ) : null
           }
         />

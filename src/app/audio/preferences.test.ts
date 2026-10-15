@@ -8,8 +8,8 @@ beforeEach(() => window.localStorage.clear());
 afterEach(() => vi.restoreAllMocks());
 
 describe("preferencia local de sonido (SPECS 10.4)", () => {
-  it("sin nada guardado: apagado y volumen por defecto", () => {
-    expect(loadSoundPreference()).toEqual({ on: false, volume: 0.8 });
+  it("sin nada guardado: activado y volumen por defecto", () => {
+    expect(loadSoundPreference()).toEqual({ on: true, volume: 0.8 });
   });
 
   it("guarda y recupera «activado» y el volumen", () => {
@@ -17,9 +17,11 @@ describe("preferencia local de sonido (SPECS 10.4)", () => {
     expect(loadSoundPreference()).toEqual({ on: true, volume: 0.4 });
   });
 
-  it("un volumen fuera de 0–1 o que no es número se descarta, y «activado» solo cuenta si es exactamente true", () => {
+  it("un volumen fuera de 0–1 o que no es número se descarta, y solo queda silenciado si se guardó exactamente false", () => {
     window.localStorage.setItem(KEY, JSON.stringify({ on: "yes", volume: 5 }));
-    expect(loadSoundPreference()).toEqual({ on: false, volume: 0.8 });
+    expect(loadSoundPreference()).toEqual({ on: true, volume: 0.8 });
+    window.localStorage.setItem(KEY, JSON.stringify({ on: false, volume: 0.5 }));
+    expect(loadSoundPreference()).toEqual({ on: false, volume: 0.5 });
     window.localStorage.setItem(KEY, JSON.stringify({ on: true, volume: -0.1 }));
     expect(loadSoundPreference()).toEqual({ on: true, volume: 0.8 });
     window.localStorage.setItem(KEY, JSON.stringify({ on: true, volume: "alto" }));
@@ -28,7 +30,7 @@ describe("preferencia local de sonido (SPECS 10.4)", () => {
 
   it("un valor guardado corrupto no rompe nada", () => {
     window.localStorage.setItem(KEY, "{no es json");
-    expect(loadSoundPreference()).toEqual({ on: false, volume: 0.8 });
+    expect(loadSoundPreference()).toEqual({ on: true, volume: 0.8 });
   });
 
   it("sin almacenamiento (modo privado, bloqueado) ni lee ni guarda con error", () => {
@@ -38,7 +40,7 @@ describe("preferencia local de sonido (SPECS 10.4)", () => {
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new Error("lleno");
     });
-    expect(loadSoundPreference()).toEqual({ on: false, volume: 0.8 });
+    expect(loadSoundPreference()).toEqual({ on: true, volume: 0.8 });
     expect(() => saveSoundPreference({ on: true, volume: 0.5 })).not.toThrow();
   });
 });

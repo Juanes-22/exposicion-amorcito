@@ -13,12 +13,12 @@
     "audio": 5
   },
   "assets": {
-    "character.vanessa-jerry.walk.poses-v4": {
-      "path": "characters/vanessa-jerry/pose-sheets/vanessa-jerry-walk-poses-v4.png",
+    "character.vanessa-jerry.stand.poses-v5": {
+      "path": "characters/vanessa-jerry/pose-sheets/vanessa-jerry-stand-poses-v5.png",
       "type": "image",
       "format": "png",
       "category": "characters",
-      "label": "Vanessa y Jerry: doce poses de movimiento, versión v4",
+      "label": "Vanessa y Jerry: doce poses de pie (cuatro direcciones, con parpadeo en la columna central), versión v5",
       "kind": "pose-sheet",
       "poseCount": 12,
       "visualLayout": {
@@ -36,9 +36,9 @@
       "height": 1448,
       "hasAlphaChannel": true,
       "transparent": true,
-      "sizeBytes": 1148764,
-      "sha256": "efa38d2c32eb783e3dbe1598f470f38ad6b89586cf66c3e0f4f8c46f027424e8",
-      "originalPath": "assets/bitacora-amorcito-assets-v4/poses_movimiento_con_jerry.png"
+      "sizeBytes": 1435010,
+      "sha256": "cd5a864ac0746def802caa25c7f75aca8fa18a1ec8458ae969d06a0b345aeb31",
+      "originalPath": "Imagen entregada en la conversación del 15 de octubre de 2026 (WebP convertido a PNG sin cambios de tamaño)"
     },
     "ui.button.green.default": {
       "path": "ui/buttons/button-green.png",

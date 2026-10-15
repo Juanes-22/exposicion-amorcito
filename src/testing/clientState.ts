@@ -25,9 +25,12 @@ export function sala(people: Record<string, string> = { ana: "Ana", beto: "Beto"
   return d;
 }
 
-export type Etapa = "welcome" | "preparation" | "exploration" | "conversation" | "closing" | "finished";
+export type Etapa = "welcome" | "preparation" | "exploration" | "conversation" | "closing" | "inventor" | "finished";
 
-/** Una sala conducida de verdad hasta la etapa pedida (con Ana y Beto, que no han hecho nada, salvo en el cierre, donde ambos terminaron las tres mesas). */
+/**
+ * Una sala conducida de verdad hasta la etapa pedida (con Ana y Beto, que no han hecho nada, salvo en el cierre, donde ambos terminaron las
+ * tres mesas). `closing` es el cierre con el inventor todavía cerrado; `inventor`, ya abierto.
+ */
 export function enEtapa(etapa: Etapa, people?: Record<string, string>): Driver {
   const d = sala(people);
   if (etapa === "welcome") return d;
@@ -41,6 +44,9 @@ export function enEtapa(etapa: Etapa, people?: Record<string, string>): Driver {
     return d;
   }
   d.playToClosing();
+  if (etapa === "closing") return d;
+  // «inventor»: el cierre con el inventor ya abierto (las personas pueden entrar y registrar su pregunta).
+  d.must(d.admin({ type: "inventor.open" }), "abrir el inventor");
   if (etapa === "finished") d.must(d.admin({ type: "final.confirm", value: { kind: "written", text: "¿Por qué la luna cambia de forma?" } }), "pregunta final");
   return d;
 }
@@ -110,6 +116,7 @@ function presenceOf(d: Driver, o: ViewOptions): PresenceUpdate {
       inRound: members.has(p.id),
       ready: r?.ready ?? false,
       progress: r ? { done: r.done, needed: r.needed } : null,
+      question: st?.question ? { presetId: st.question.presetId, text: st.question.text } : null,
     };
   });
   const counter = roundCounter(d.room, config);

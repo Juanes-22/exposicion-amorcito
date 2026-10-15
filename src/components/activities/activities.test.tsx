@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { PARTICIPANT_ACTION_TYPES, type CommandResult, type ParticipantAction } from "../../../shared/contracts/actions";
 import type { RampsActivityConfig, ShadowsActivityConfig, TelescopeActivityConfig } from "../../../shared/contracts/config";
 import type { RampsState, ShadowsState, TelescopeState } from "../../../shared/contracts/state";
-import { describeShadow, formatNumber, rampDurationMs, shadowHeightCm } from "../../../shared/domain/models";
+import { describeShadow, rampDurationMs } from "../../../shared/domain/models";
 import { readiness } from "../../../shared/domain/results";
 import { CLOSE_ZOOM, startView, TELESCOPE_TARGETS } from "../../../shared/domain/telescope";
 import type { Driver } from "../../../shared/testing/drive";
@@ -42,10 +42,10 @@ function alDominio(d: Driver, id = "ana") {
 }
 
 /** El panel personal de una persona con sus acciones registradas; `ui(d)` lo vuelve a pintar con el estado actual de la sala. */
-function panel(d: Driver, over: { busy?: boolean; interactive?: boolean; onClose?: () => void; act?: (a: ParticipantAction) => Promise<CommandResult> } = {}) {
+function panel(d: Driver, over: { busy?: boolean; interactive?: boolean; act?: (a: ParticipantAction) => Promise<CommandResult> } = {}) {
   const act = vi.fn(over.act ?? (async (_a: ParticipantAction) => OK));
   const setLocal = vi.fn();
-  const ui = (dd: Driver = d) => <PersonalPanel config={config} adv={dd.room.adventure} participant={ana(dd)} act={act} setLocal={setLocal} busy={over.busy ?? false} interactive={over.interactive ?? true} {...(over.onClose ? { onClose: over.onClose } : {})} />;
+  const ui = (dd: Driver = d) => <PersonalPanel config={config} adv={dd.room.adventure} participant={ana(dd)} act={act} setLocal={setLocal} busy={over.busy ?? false} interactive={over.interactive ?? true} />;
   return { act, setLocal, ui };
 }
 
@@ -89,8 +89,13 @@ describe("PersonalPanel", () => {
     expect(screen.getByText(config.ui.labels.notReadyYou!)).toBeTruthy();
   });
 
-  it("«Volver al mapa» envía la acción personal y se bloquea mientras hay un comando en vuelo", () => {
+  it("«Volver al mapa» aparece recién al completar la mesa, envía la acción personal y se bloquea mientras hay un comando en vuelo", () => {
     const d = conMesa(0);
+    const { unmount: quitar } = render(panel(d).ui());
+    expect(screen.queryByRole("button", { name: "Volver al mapa" })).toBeNull(); // todavía explorando
+    quitar();
+    d.must(d.act("ana", { type: "shadows.sample", distanceCm: 20 }), "muestra 1");
+    d.must(d.act("ana", { type: "shadows.sample", distanceCm: 50 }), "muestra 2");
     const { act: enviar, ui } = panel(d);
     const { unmount } = render(ui());
     fireEvent.click(boton("Volver al mapa"));
@@ -98,17 +103,6 @@ describe("PersonalPanel", () => {
     unmount();
     render(panel(d, { busy: true }).ui());
     expect(boton("Volver al mapa").disabled).toBe(true);
-  });
-
-  it("en la demostración de Vanessa no hay «Volver al mapa»: se termina la demostración", () => {
-    const d = conMesa(0);
-    const onClose = vi.fn();
-    const { act: enviar, ui } = panel(d, { onClose });
-    render(ui());
-    expect(screen.queryByRole("button", { name: "Volver al mapa" })).toBeNull();
-    fireEvent.click(boton("Terminar la demostración"));
-    expect(onClose).toHaveBeenCalledTimes(1);
-    expect(enviar).not.toHaveBeenCalled();
   });
 
   describe("el chip «Listo para conversar» sale de `readiness`, no de que alguien lo marque", () => {
@@ -199,7 +193,7 @@ describe("PersonalPanel", () => {
       const d = conMesa(0, ["ana", "beto"]);
       d.must(d.admin({ type: "round.converse" }), "conversar");
       render(panel(d, { interactive: false }).ui());
-      expect(screen.getByText("Miremos la proyección y compartamos lo que descubrimos.")).toBeTruthy();
+      expect(screen.getByText("Ya exploramos: deja los controles y mira la proyección para escuchar lo que descubrieron los demás.")).toBeTruthy();
       expect(slider("Distancia de la linterna al objeto").disabled).toBe(true);
       expect(boton("Alejar la linterna del objeto").disabled).toBe(true);
       expect(boton("Acercar la linterna al objeto").disabled).toBe(true);
@@ -236,8 +230,8 @@ describe("PersonalPanel", () => {
       sinControlesEliminados(container);
     });
 
-    it("las únicas acciones personales de las mesas son las del juego: no hay acciones de formularios ni de «anotar»", () => {
-      expect([...PARTICIPANT_ACTION_TYPES].sort()).toEqual(["adventure.returnToMap", "player.moveTo", "ramps.trial.start", "shadows.sample", "station.open", "telescope.aim"].sort());
+    it("las únicas acciones personales son las del juego (y registrar la propia pregunta en el inventor): no hay formularios ni «anotar»", () => {
+      expect([...PARTICIPANT_ACTION_TYPES].sort()).toEqual(["adventure.returnToMap", "player.moveTo", "ramps.trial.start", "shadows.sample", "station.open", "telescope.aim", "inventor.question"].sort());
     });
   });
 });
@@ -301,15 +295,16 @@ describe("LightControls: la linterna se ajusta en local y la posición se regist
     expect(onCommit).toHaveBeenLastCalledWith(40);
   });
 
-  it("el slider va de «más lejos» (izquierda) a «más cerca» (derecha) y dice la distancia en centímetros", () => {
+  it("el slider va de «más lejos» (izquierda) a «más cerca» (derecha) y dice con palabras dónde está la linterna, sin centímetros", () => {
     const { ui } = luz({ initialCm: 40 });
     const { container } = render(ui());
     const s = slider(SLIDER);
-    expect(s.getAttribute("aria-valuetext")).toBe("40 centímetros del objeto");
+    expect(s.getAttribute("aria-valuetext")).toBe("Linterna lejos del objeto");
     expect(s.value).toBe(alSlider(40));
     expect([...container.querySelectorAll(".light-controls__ends span")].map((x) => x.textContent)).toEqual(["Más lejos del objeto", "Más cerca del objeto"]);
-    fireEvent.change(s, { target: { value: String(Number(s.value) + 5) } }); // hacia la derecha = más cerca
-    expect(s.getAttribute("aria-valuetext")).toBe("35 centímetros del objeto");
+    fireEvent.change(s, { target: { value: String(Number(s.value) + 20) } }); // hacia la derecha = más cerca
+    expect(s.getAttribute("aria-valuetext")).toBe("Linterna cerca del objeto");
+    expect(container.textContent).not.toMatch(/cm|centímetro/);
   });
 
   describe("botones −/+ equivalentes", () => {
@@ -398,8 +393,8 @@ describe("LightControls: la linterna se ajusta en local y la posición se regist
 describe("ShadowsControls", () => {
   const SLIDER = "Distancia de la linterna al objeto";
   const alSlider = (cm: number) => String(exp.sourceDistanceMinCm + exp.sourceDistanceMaxCm - cm);
-  const sombra = (cm: number) => shadowHeightCm(cm, exp.screenDistanceCm, exp.objectHeightCm);
-  const anuncio = (c: HTMLElement) => c.querySelector(".experiment__readout .visually-hidden")!.textContent;
+  /** Lo que se anuncia a lectores de pantalla: la única descripción de la sombra, porque esas personas no pueden ver la escena. */
+  const anuncio = (c: HTMLElement) => c.querySelector("p.visually-hidden[role=status]")!.textContent;
   const actions = (over: Partial<PersonalActions> = {}) => ({ act: vi.fn(async (_a: ParticipantAction) => OK), setLocal: vi.fn(), busy: false, interactive: true, config, ...over });
   const vista = (d: Driver, a = actions()) => ({ a, ui: (dd: Driver = d) => <ShadowsControls cfg={sombras} st={estado(dd, "sombras", "shadows")} a={a} /> });
 
@@ -464,14 +459,17 @@ describe("ShadowsControls", () => {
     expect(a.setLocal).toHaveBeenCalledTimes(1); // solo la posición inicial
   });
 
-  it("el texto que describe la sombra sale del mismo modelo que el dibujo y se actualiza con la linterna", () => {
+  it("la pantalla no dice qué tan grande es la sombra ni dónde está la linterna: cada persona lo observa en la escena", () => {
     const d = conMesa(0);
+    for (const cm of [20, 50]) d.must(d.act("ana", { type: "shadows.sample", distanceCm: cm }), `posición ${cm}`);
     const { ui } = vista(d);
     const { container } = render(ui());
-    const visible = () => container.querySelector(".experiment__readout [aria-hidden=true]")!.textContent;
-    expect(visible()).toBe(describeShadow(exp.sourceDistanceMinCm, sombra(exp.sourceDistanceMinCm), exp.objectHeightCm));
     fireEvent.change(slider(SLIDER), { target: { value: alSlider(40) } });
-    expect(visible()).toBe(describeShadow(40, sombra(40), exp.objectHeightCm));
+    // Lo visible no describe ni la sombra ni las posiciones (lo único escrito es la ayuda y los extremos del control).
+    const visible = [...container.querySelectorAll("p, li, span")].filter((el) => !el.closest(".visually-hidden")).map((el) => el.textContent).join(" ");
+    expect(visible).not.toMatch(/sombra es|sombra (muy )?grande|sombra pequeña|sombra mediana|Posición \d/);
+    expect(container.querySelector(".experiment__readout, ol.results")).toBeNull();
+    expect(screen.queryByRole("list")).toBeNull();
   });
 
   it("a los lectores de pantalla se les anuncia el valor solo cuando se estabiliza, no a cada movimiento del slider", () => {
@@ -479,32 +477,24 @@ describe("ShadowsControls", () => {
     const d = conMesa(0);
     const { ui } = vista(d);
     const { container } = render(ui());
-    const inicial = describeShadow(exp.sourceDistanceMinCm, sombra(exp.sourceDistanceMinCm), exp.objectHeightCm);
-    expect(anuncio(container)).toBe(inicial);
+    const inicial = describeShadow(exp, exp.sourceDistanceMinCm);
+    expect(anuncio(container)).toBe("La linterna está muy cerca del objeto. La sombra es muy grande.");
     for (const cm of [20, 30, 40]) {
       fireEvent.change(slider(SLIDER), { target: { value: alSlider(cm) } });
       avanzar(300);
     }
     expect(anuncio(container)).toBe(inicial); // el slider sigue en movimiento: nada nuevo que leer
     avanzar(700);
-    expect(anuncio(container)).toBe(describeShadow(40, sombra(40), exp.objectHeightCm));
+    expect(anuncio(container)).toBe(describeShadow(exp, 40));
   });
 
   describe("posiciones registradas", () => {
-    it("lista solo las que cuentan, numeradas, con la distancia y la sombra que produjeron", () => {
-      const d = conMesa(0);
-      for (const cm of [20, 22, 50]) d.must(d.act("ana", { type: "shadows.sample", distanceCm: cm }), `posición ${cm}`);
-      render(vista(d).ui());
-      const lista = screen.getByRole("list", { name: "Posiciones registradas" });
-      expect(within(lista).getAllByRole("listitem").map((li) => li.textContent)).toEqual([`Posición 1: linterna a 20 cm → sombra de ${formatNumber(sombra(20), 1)} cm`, `Posición 2: linterna a 50 cm → sombra de ${formatNumber(sombra(50), 1)} cm`]);
-    });
-
     it("la ayuda dice cuánto falta, avisa de las muy parecidas y felicita al llegar a dos", () => {
       const d = conMesa(0);
       const { ui } = vista(d);
       const { rerender, container } = render(ui());
       const ayuda = () => container.querySelector("p.hint")!.textContent;
-      expect(ayuda()).toBe(`Mueve la linterna y suéltala en otro lugar: hacen falta 2 posiciones separadas al menos 5 cm (llevas 0).`);
+      expect(ayuda()).toBe("Mueve la linterna y suéltala en otro lugar: hacen falta 2 posiciones bien distintas, una más cerca y otra más lejos (llevas 0).");
       d.must(d.act("ana", { type: "shadows.sample", distanceCm: 20 }), "1");
       d.must(d.act("ana", { type: "shadows.sample", distanceCm: 22 }), "casi igual");
       rerender(ui(d));
@@ -530,7 +520,6 @@ describe("ShadowsControls", () => {
       rerender(ui(d));
     };
     await mover(30);
-    expect(screen.getByText(`Posición 1: linterna a 30 cm → sombra de ${formatNumber(sombra(30), 1)} cm`)).toBeTruthy();
     expect(screen.getByText("Explorando · 1 de 2")).toBeTruthy();
     await mover(55);
     expect(screen.getByText("✓ Listo para conversar")).toBeTruthy();
@@ -543,14 +532,17 @@ describe("ShadowsControls", () => {
 describe("RampsControls", () => {
   const e = rampas.experiment;
   const ANGULO = "Inclinación de la rampa";
+  /** Los nombres de las seis inclinaciones, de la menos a la más empinada: la mesa no muestra grados. */
+  const N = e.angleLabels;
+  const pruebas = () => within(screen.getByRole("list", { name: "Tus pruebas de la rampa" })).getAllByRole("listitem").map((li) => li.textContent);
   const actions = (over: Partial<PersonalActions> = {}) => ({ act: vi.fn(async (_a: ParticipantAction) => OK), setLocal: vi.fn(), busy: false, interactive: true, config, ...over });
   const vista = (d: Driver, a = actions()) => ({ a, ui: (dd: Driver = d) => <RampsControls cfg={rampas} st={estado(dd, "rampas", "ramps")} a={a} /> });
 
-  it("empieza en la inclinación mínima, la dice y la escena la recibe como ajuste local", () => {
+  it("empieza en la inclinación más baja, la nombra sin grados y la escena la recibe como ajuste local", () => {
     const { a, ui } = vista(conMesa(1));
-    render(ui());
-    expect(screen.getByText(`${e.minAngleDeg}°`, { selector: "strong" })).toBeTruthy();
-    expect(screen.getByText(/la pelota recorre 2 m/)).toBeTruthy();
+    const { container } = render(ui());
+    expect(screen.getByText(N[0]!, { selector: "strong" })).toBeTruthy();
+    expect(container.textContent).not.toMatch(/°|grados|segundos|simulación|\d+ m\b/);
     expect(a.setLocal).toHaveBeenCalledWith({ angleDeg: e.minAngleDeg });
     expect(a.act).not.toHaveBeenCalled();
   });
@@ -562,29 +554,31 @@ describe("RampsControls", () => {
     const { a, ui } = vista(d);
     render(ui());
     expect(a.setLocal).toHaveBeenCalledWith({ angleDeg: 30 });
-    expect(screen.getByText("30°", { selector: "strong" })).toBeTruthy();
+    expect(screen.getByText(N[2]!, { selector: "strong" })).toBeTruthy();
   });
 
-  it("− y + cambian la inclinación de un paso en un paso solo en local, y el slider dice los grados", () => {
+  it("− y + cambian la inclinación de un paso en un paso solo en local, y el slider dice su nombre", () => {
     const { a, ui } = vista(conMesa(1));
     render(ui());
     expect(boton("Bajar la inclinación").disabled).toBe(true); // ya está en el mínimo
     fireEvent.click(boton("Subir la inclinación"));
     expect(a.setLocal).toHaveBeenLastCalledWith({ angleDeg: e.minAngleDeg + e.angleStepDeg });
-    expect(slider(ANGULO).getAttribute("aria-valuetext")).toBe("20 grados");
+    expect(slider(ANGULO).getAttribute("aria-valuetext")).toBe(N[1]);
     fireEvent.click(boton("Bajar la inclinación"));
     expect(a.setLocal).toHaveBeenLastCalledWith({ angleDeg: e.minAngleDeg });
     fireEvent.change(slider(ANGULO), { target: { value: "3" } });
-    expect(screen.getByText("30°", { selector: "strong" })).toBeTruthy();
-    expect(slider(ANGULO).getAttribute("aria-valuetext")).toBe("30 grados");
+    expect(screen.getByText(N[3]!, { selector: "strong" })).toBeTruthy();
+    expect(slider(ANGULO).getAttribute("aria-valuetext")).toBe(N[3]);
     expect(a.act).not.toHaveBeenCalled(); // elegir un ángulo no registra nada
   });
 
-  it("no se sale del rango: en la inclinación máxima «Subir» se deshabilita", () => {
+  it("hay seis inclinaciones y no se sale del rango: en la más empinada «Subir» se deshabilita", () => {
     const { ui } = vista(conMesa(1));
     render(ui());
-    fireEvent.change(slider(ANGULO), { target: { value: "6" } });
-    expect(screen.getByText(`${e.maxAngleDeg}°`, { selector: "strong" })).toBeTruthy();
+    expect(N).toHaveLength(6);
+    expect(slider(ANGULO).max).toBe("5");
+    fireEvent.change(slider(ANGULO), { target: { value: "5" } });
+    expect(screen.getByText(N[5]!, { selector: "strong" })).toBeTruthy();
     expect(boton("Subir la inclinación").disabled).toBe(true);
     expect(boton("Bajar la inclinación").disabled).toBe(false);
   });
@@ -592,7 +586,7 @@ describe("RampsControls", () => {
   it("«Soltar la pelota» envía ramps.trial.start con el ángulo elegido", () => {
     const { a, ui } = vista(conMesa(1));
     render(ui());
-    fireEvent.change(slider(ANGULO), { target: { value: "4" } });
+    fireEvent.change(slider(ANGULO), { target: { value: "3" } }); // «Bastante empinada»
     fireEvent.click(boton("Soltar la pelota"));
     expect(a.act).toHaveBeenCalledTimes(1);
     expect(a.act).toHaveBeenCalledWith({ type: "ramps.trial.start", angleDeg: 35 });
@@ -615,10 +609,10 @@ describe("RampsControls", () => {
       expect(boton("Subir la inclinación").disabled).toBe(true);
       fireEvent.click(b);
       expect(a.act).not.toHaveBeenCalled();
-      expect(screen.getByText("rodando…")).toBeTruthy();
+      expect(pruebas()).toEqual([`Prueba 1: ${N[0]!.toLowerCase()} · rodando…`]);
     });
 
-    it("al terminar la prueba se desbloquea, y el tiempo de la simulación queda en la tabla", () => {
+    it("al terminar la prueba se desbloquea y queda en la lista sin decir cuánto demoró", () => {
       const d = rodando();
       const { ui } = vista(d);
       const { rerender } = render(ui());
@@ -626,15 +620,14 @@ describe("RampsControls", () => {
       rerender(ui(d));
       expect(boton("Soltar la pelota").disabled).toBe(false);
       expect(slider(ANGULO).disabled).toBe(false);
-      expect(screen.queryByText("rodando…")).toBeNull();
-      expect(screen.getByText(`${formatNumber(rampDurationMs(20, e.lengthMeters, e.visualTimeScale) / 1000, 1)} s`)).toBeTruthy();
+      expect(pruebas()).toEqual([`Prueba 1: ${N[0]!.toLowerCase()}`]);
     });
 
     it("una prueba cancelada al pasar a la conversación se ve como «cancelada» y no cuenta", () => {
       const d = rodando();
       d.must(d.admin({ type: "round.converse", withPending: true }), "conversar");
       render(vista(d).ui());
-      expect(screen.getByText("cancelada")).toBeTruthy();
+      expect(pruebas()).toEqual([`Prueba 1: ${N[0]!.toLowerCase()} · cancelada`]);
       expect(screen.getByText(/\(llevas 0\)/)).toBeTruthy();
     });
   });
@@ -655,41 +648,37 @@ describe("RampsControls", () => {
     expect(a.act).not.toHaveBeenCalled();
   });
 
-  it("la tabla de pruebas tiene título accesible, cabeceras y una fila por prueba; el tiempo es el de la simulación", () => {
+  it("la lista de pruebas tiene título accesible y nombra la inclinación de cada una; nunca dice cuánto demoró", () => {
     const d = conMesa(1);
     for (const angulo of [20, 40]) {
       d.must(d.act("ana", { type: "ramps.trial.start", angleDeg: angulo }), `prueba ${angulo}`);
       d.tick(8000);
     }
     const { container } = render(vista(d).ui());
-    const tabla = screen.getByRole("table", { name: "Tus pruebas de la rampa" });
-    expect(within(tabla).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Prueba", "Inclinación", "Tiempo de la simulación"]);
-    const filas = within(tabla).getAllByRole("row").slice(1);
-    expect(filas).toHaveLength(2);
-    expect(filas[0]!.textContent).toContain("20°");
-    expect(filas[1]!.textContent).toContain("40°");
-    expect(container.textContent).toContain("El tiempo es el de la simulación, no una medición real.");
+    expect(pruebas()).toEqual([`Prueba 1: ${N[0]!.toLowerCase()}`, `Prueba 2: ${N[4]!.toLowerCase()}`]);
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(container.textContent).not.toMatch(/°|segundos|simulación|\d,\d/);
   });
 
   it("sin pruebas no hay tabla; la ayuda dice cuántas hacen falta y, con dos comparables, que ya se puede comparar", () => {
     const d = conMesa(1);
     const { ui } = vista(d);
     const { rerender, container } = render(ui());
-    expect(screen.queryByRole("table")).toBeNull();
-    expect(container.querySelector("p.hint")!.textContent).toContain("Para comparar hacen falta 2 pruebas terminadas con inclinaciones que se diferencien al menos 5° (llevas 0).");
+    expect(screen.queryByRole("list", { name: "Tus pruebas de la rampa" })).toBeNull();
+    expect(container.querySelector("p.hint")!.textContent).toBe("Suelta la pelota con 2 inclinaciones distintas y mira cómo baja (llevas 0). ¿Cuánto crees que demora en caer?");
     for (const angulo of [20, 40]) {
       d.must(d.act("ana", { type: "ramps.trial.start", angleDeg: angulo }), `prueba ${angulo}`);
       d.tick(8000);
     }
     rerender(ui(d));
-    expect(container.querySelector("p.hint")!.textContent).toContain("Ya tienes pruebas que se pueden comparar: puedes seguir probando.");
+    expect(container.querySelector("p.hint")!.textContent).toContain("Ya soltaste la pelota con inclinaciones distintas: puedes seguir probando.");
   });
 
-  it("de punta a punta: soltar la pelota arranca una prueba en el dominio y, al terminar, queda registrada con su ángulo y tiempo", async () => {
+  it("de punta a punta: soltar la pelota arranca una prueba en el dominio y, al terminar, queda registrada (el servidor guarda su tiempo; la mesa no lo muestra)", async () => {
     const d = conMesa(1);
     const { act: enviar, ui } = panel(d, { act: alDominio(d) });
     const { rerender } = render(ui());
-    fireEvent.change(slider(ANGULO), { target: { value: "5" } }); // 40°
+    fireEvent.change(slider(ANGULO), { target: { value: "4" } }); // «Muy empinada»
     fireEvent.click(boton("Soltar la pelota"));
     await waitFor(() => expect(enviar).toHaveBeenCalledWith({ type: "ramps.trial.start", angleDeg: 40 }));
     rerender(ui(d));
@@ -706,8 +695,18 @@ describe("RampsControls", () => {
 // ---- El observatorio ----------------------------------------------------------------------------------------------------------
 
 describe("TelescopeControls", () => {
-  const { moon, stars, window: win } = TELESCOPE_TARGETS;
+  const { moon, window: win } = TELESCOPE_TARGETS;
   const e = observatorio.experiment;
+  /** Las flechas y el aumento: U, D, L, R, + y −. No hay atajos («ir a la Luna», «volver al cielo»): se recorre todo con esto. */
+  const TECLA: Record<string, string> = { U: "Mirar más arriba", D: "Mirar más abajo", L: "Mirar a la izquierda", R: "Mirar a la derecha", "+": "Acercar la vista: aumento cercano", "-": "Alejar la vista: aumento general" };
+  const pulsar = (ruta: string) => {
+    for (const k of ruta) fireEvent.click(boton(TECLA[k]!));
+  };
+  /** Rutas desde el cielo inicial (calculadas con el mismo dominio): la Luna de cerca, las estrellas, la ventana y la galaxia. */
+  const LUNA = "LL+"; // (534, 420) cercano
+  const ESTRELLAS_DESDE_LUNA = "-RRRRRRRRR"; // (1731, 420) general
+  const VENTANA = "DDDRRRR+DD"; // (1332, 909) cercano
+  const GALAXIA = "RRRRRRRRRRR+RRRUUU"; // (2153, 287) cercano
   /** Acciones de la mesa con `onLocal`: `arrastrar` simula lo que la escena avisa cuando la persona arrastra el visor. */
   const actions = (over: { act?: (a: ParticipantAction) => Promise<CommandResult>; interactive?: boolean } = {}) => {
     let listener: ((l: LocalExperiment) => void) | null = null;
@@ -725,15 +724,19 @@ describe("TelescopeControls", () => {
     return { a: { ...a, act: enviar, setLocal }, arrastrar };
   };
   const vista = (d: Driver, acc = actions()) => ({ ...acc, ui: (dd: Driver = d) => <TelescopeControls cfg={observatorio} st={estado(dd, "cajas", "telescope")} a={acc.a} /> });
-  /** Lo que se ve, escrito (la versión visible; la anunciada espera a que la vista se asiente). */
-  const descripcion = (container: HTMLElement) => container.querySelector(".experiment__readout [aria-hidden=true]")!.textContent!;
+  /** Lo que se anuncia a lectores de pantalla (espera a que la vista se asiente ~0,7 s): la única descripción de lo que se ve. */
+  const descripcion = (container: HTMLElement) => container.querySelector("p.visually-hidden[role=status]")!.textContent!;
+  /** Lo escrito a la vista: no describe el cielo, la Luna ni la casa (cada persona lo observa). */
+  const aLaVista = (container: HTMLElement) => [...container.querySelectorAll("p, li, span")].filter((el) => !el.closest(".visually-hidden")).map((el) => el.textContent).join(" ");
   const pasar = (ms: number) => act(() => void vi.advanceTimersByTime(ms));
 
-  it("empieza en el cielo con el aumento general, lo describe con palabras y le pasa la vista a la escena", () => {
+  it("empieza en el cielo con el aumento general, le pasa la vista a la escena y solo describe con palabras a los lectores de pantalla", () => {
     vi.useFakeTimers();
     const { a, ui } = vista(conMesa(2));
     const { container, unmount } = render(ui());
     expect(descripcion(container)).toBe("Aumento general. La Luna está a la vista. Abajo se ven los tejados de unas casas.");
+    expect(aLaVista(container)).not.toMatch(/Luna está a la vista|tejados|cráteres|siluetas/);
+    expect(container.querySelector(".experiment__readout")).toBeNull();
     expect(within(screen.getByRole("list", { name: "Observaciones del cielo" })).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Luna: acércala y céntrala", "Grupo de estrellas: búscalo y céntralo"]);
     expect(a.setLocal).toHaveBeenCalledWith({ telescope: startView(e) });
     pasar(5000);
@@ -746,16 +749,19 @@ describe("TelescopeControls", () => {
     vi.useFakeTimers();
     const { a, ui } = vista(conMesa(2));
     const { container } = render(ui());
-    fireEvent.click(boton("Luna"));
+    pulsar("LL");
     pasar(e.dwellMs);
-    expect(a.act).not.toHaveBeenCalled(); // centrada con el aumento general no es una observación de la Luna
-    fireEvent.click(boton("Acercar la vista: aumento cercano"));
-    expect(descripcion(container)).toBe("Aumento cercano. La Luna de cerca: zonas claras y oscuras y algunos cráteres.");
-    expect(a.setLocal).toHaveBeenLastCalledWith({ telescope: { x: moon.x, y: moon.y, zoom: CLOSE_ZOOM } });
+    expect(a.act).not.toHaveBeenCalled(); // con el aumento general no es una observación de la Luna
+    pulsar("+");
+    const [{ telescope: v }] = a.setLocal.mock.lastCall as [{ telescope: { x: number; y: number; zoom: number } }];
+    expect(v.zoom).toBe(CLOSE_ZOOM);
+    expect(Math.hypot(v.x - moon.x, v.y - moon.y)).toBeLessThan(40);
     pasar(e.dwellMs - 1);
     expect(a.act).not.toHaveBeenCalled();
     pasar(1);
-    expect(a.act.mock.calls).toEqual([[{ type: "telescope.aim", x: moon.x, y: moon.y, zoom: CLOSE_ZOOM }]]);
+    expect(a.act.mock.calls).toEqual([[{ type: "telescope.aim", ...v }]]);
+    expect(descripcion(container)).toBe("Aumento cercano. La Luna de cerca: zonas claras y oscuras y algunos cráteres.");
+    expect(aLaVista(container)).not.toMatch(/cráteres|zonas claras/);
   });
 
   it("las flechas recorren el panorama; sin observar nada, la vista quieta se guarda un poco después", () => {
@@ -774,20 +780,17 @@ describe("TelescopeControls", () => {
     expect(a.act.mock.calls).toEqual([[{ type: "telescope.aim", ...v }]]);
   });
 
-  it("zonas accesibles: Luna, Estrellas, Horizonte y Volver al cielo; ninguna lleva a la ventana ni se llama «Espiar»", () => {
+  it("no hay atajos (ni «Luna», ni «Estrellas», ni «Horizonte», ni «Volver al cielo»): las flechas y el aumento recorren todo el panorama", () => {
     vi.useFakeTimers();
     const { ui } = vista(conMesa(2));
     const { container } = render(ui());
-    const zonas = within(screen.getByRole("group", { name: "Ir a una zona del panorama" })).getAllByRole("button").map((b) => b.textContent);
-    expect(zonas).toEqual(["Luna", "Estrellas", "Horizonte", "Volver al cielo"]);
-    expect(screen.queryByRole("button", { name: /espiar|casa|ventana/i })).toBeNull();
-    fireEvent.click(boton("Horizonte"));
+    expect(screen.queryByRole("group", { name: "Ir a una zona del panorama" })).toBeNull();
+    for (const nombre of [/^Luna$/, /^Estrellas$/, /^Horizonte$/, /Volver al cielo/, /espiar|casa|ventana/i]) expect(screen.queryByRole("button", { name: nombre }), String(nombre)).toBeNull();
+    expect(screen.getAllByRole("button").map((b) => b.getAttribute("aria-label"))).toEqual(["Mirar más arriba", "Mirar a la izquierda", "Mirar a la derecha", "Mirar más abajo", "Alejar la vista: aumento general", "Acercar la vista: aumento cercano"]);
+    pulsar(VENTANA);
+    pasar(700);
     expect(descripcion(container)).toContain("Abajo se ven los tejados de unas casas.");
     expect(descripcion(container)).toContain("Ventana iluminada; dos siluetas gesticulan como si discutieran.");
-    fireEvent.click(boton("Estrellas"));
-    expect(descripcion(container)).toContain("Un grupo de estrellas brillantes, muy juntas.");
-    fireEvent.click(boton("Volver al cielo"));
-    expect(descripcion(container)).toBe("Aumento general. La Luna está a la vista. Abajo se ven los tejados de unas casas.");
   });
 
   it("la ventana de cerca: tras la pausa se envía; «Una persona cierra la cortina» se dice una vez y después queda cerrada", async () => {
@@ -797,19 +800,23 @@ describe("TelescopeControls", () => {
     const { ui, arrastrar } = vista(d, acc);
     const { container, rerender } = render(ui());
     arrastrar(win.x, win.y, CLOSE_ZOOM); // la persona arrastró el visor hasta la ventana
+    pasar(700);
     expect(descripcion(container)).toContain("Ventana iluminada; dos siluetas gesticulan como si discutieran.");
-    pasar(e.curtainDelayMs);
+    expect(aLaVista(container)).not.toMatch(/siluetas|ventana/i);
+    pasar(e.curtainDelayMs - 700);
     expect(acc.a.act).toHaveBeenCalledWith({ type: "telescope.aim", x: win.x, y: win.y, zoom: CLOSE_ZOOM });
     expect(estado(d, "cajas", "telescope").curtain).toBe("closed");
     rerender(ui(d));
+    pasar(700);
     expect(descripcion(container)).toContain("Una persona cierra la cortina.");
-    pasar(4000);
+    pasar(4000); // el aviso de la cortina dura 4 s…
+    pasar(700); // …y lo nuevo se anuncia cuando se asienta
     expect(descripcion(container)).toContain("La ventana tiene la cortina cerrada.");
     vi.mocked(acc.a.act).mockClear();
-    fireEvent.click(boton("Volver al cielo")); // sigue disponible después
-    arrastrar(win.x, win.y, CLOSE_ZOOM);
+    arrastrar(moon.x, moon.y, 0); // se aleja hacia el cielo…
+    arrastrar(win.x, win.y, CLOSE_ZOOM); // …y vuelve a la ventana
     pasar(e.curtainDelayMs);
-    expect(acc.a.act).not.toHaveBeenCalled(); // ya está cerrada: no se repite nada
+    expect(acc.a.act).not.toHaveBeenCalledWith(expect.objectContaining({ x: win.x, y: win.y })); // ya está cerrada: no se repite nada
   });
 
   it("al reabrir la mesa parte de la vista y la cortina que guardó el servidor", () => {
@@ -837,17 +844,33 @@ describe("TelescopeControls", () => {
     const d = conMesa(2);
     const { act: enviar, ui } = panel(d, { act: alDominio(d) });
     const { rerender } = render(ui());
-    fireEvent.click(boton("Estrellas"));
+    pulsar(LUNA);
     pasar(e.dwellMs);
-    expect(enviar).toHaveBeenCalledWith({ type: "telescope.aim", x: stars.x, y: stars.y, zoom: 0 });
-    rerender(ui(d));
-    expect(screen.getByText("✓ Estrellas observadas")).toBeTruthy();
-    fireEvent.click(boton("Luna"));
-    fireEvent.click(boton("Acercar la vista: aumento cercano"));
-    pasar(e.dwellMs);
+    expect(enviar).toHaveBeenCalledWith(expect.objectContaining({ type: "telescope.aim", zoom: CLOSE_ZOOM }));
     rerender(ui(d));
     expect(screen.getByText("✓ Luna observada")).toBeTruthy();
+    pulsar(ESTRELLAS_DESDE_LUNA);
+    pasar(e.dwellMs);
+    rerender(ui(d));
+    expect(screen.getByText("✓ Estrellas observadas")).toBeTruthy();
     expect(screen.getByText("✓ Listo para conversar")).toBeTruthy();
-    expect(estado(d, "cajas", "telescope")).toMatchObject({ observed: ["stars", "moon"], curtain: "open" });
+    expect(estado(d, "cajas", "telescope")).toMatchObject({ observed: ["moon", "stars"], curtain: "open" });
+  });
+
+  it("la galaxia no se anuncia: no está en la lista hasta que alguien la encuentra y la centra de cerca; entonces aparece como hallazgo", () => {
+    vi.useFakeTimers();
+    const d = conMesa(2);
+    const { ui } = panel(d, { act: alDominio(d) });
+    const { container, rerender } = render(ui());
+    expect(container.textContent).not.toMatch(/galaxia/i);
+    pulsar(GALAXIA);
+    pasar(700);
+    expect(descripcion(container)).toContain("Una galaxia en espiral");
+    expect(aLaVista(container)).not.toMatch(/galaxia|espiral|remolino/i);
+    pasar(e.dwellMs);
+    rerender(ui(d));
+    expect(estado(d, "cajas", "telescope").observed).toEqual(["galaxy"]);
+    expect(screen.getByText("✓ Galaxia observada")).toBeTruthy();
+    expect(screen.getByText("Explorando · 0 de 2")).toBeTruthy(); // es un hallazgo: no reemplaza a la Luna ni a las estrellas
   });
 });

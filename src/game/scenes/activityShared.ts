@@ -3,7 +3,7 @@ import type { ActivityConfig } from "../../../shared/contracts/config";
 import type { ActivityState, AdventureState, RoomPhase } from "../../../shared/contracts/state";
 import { crispText } from "../crispText";
 import { getDeps } from "../createGame";
-import { fitFraming } from "../framing";
+import { fitFraming, focusFraming, type Rect } from "../framing";
 import { STAGE } from "../geometry/stage";
 
 export const FONT = "Nunito Variable, Nunito, sans-serif";
@@ -34,15 +34,29 @@ export function readActivity<T extends ActivityState["type"]>(scene: Phaser.Scen
   return { id, config, state: state as Extract<ActivityState, { type: T }>, adv: v.group, phase: v.phase };
 }
 
-/** Muestra el escenario lógico entero, centrado y a escala uniforme, y lo vuelve a ajustar si cambia el tamaño. */
-export function fitStage(scene: Phaser.Scene, cleanups: Array<() => void>): void {
+/**
+ * Muestra el escenario lógico entero, centrado y a escala uniforme, y lo vuelve a ajustar si cambia el tamaño. Con `focus`, en una
+ * pantalla más angosta que el escenario (el celular vertical) se acerca a esa zona para que la actividad se vea grande.
+ */
+export function fitStage(scene: Phaser.Scene, cleanups: Array<() => void>, focus?: Rect): void {
   const apply = () => {
-    const f = fitFraming({ width: scene.scale.width, height: scene.scale.height }, STAGE);
+    const view = { width: scene.scale.width, height: scene.scale.height };
+    const f = focus ? focusFraming(view, STAGE, focus) : fitFraming(view, STAGE);
     scene.cameras.main.setZoom(f.zoom).centerOn(f.centerX, f.centerY);
   };
   apply();
   scene.scale.on(Phaser.Scale.Events.RESIZE, apply);
   cleanups.push(() => scene.scale.off(Phaser.Scale.Events.RESIZE, apply));
+}
+
+/**
+ * La parte del escenario que se ve con la cámara actual, acotada al escenario. En el celular la cámara se acerca a la actividad: los
+ * rótulos de las esquinas se colocan aquí para que no queden fuera de la vista.
+ */
+export function visibleStage(scene: Phaser.Scene): { left: number; top: number; right: number; bottom: number } {
+  const v = scene.cameras.main.worldView;
+  if (!(v.width > 0 && v.height > 0)) return { left: 0, top: 0, right: STAGE.width, bottom: STAGE.height };
+  return { left: Math.max(0, v.x), top: Math.max(0, v.y), right: Math.min(STAGE.width, v.right), bottom: Math.min(STAGE.height, v.bottom) };
 }
 
 /** Polígono relleno con la API de trazado (no pide `Vector2`). El color y la opacidad se fijan antes con `fillStyle`. */

@@ -1,12 +1,13 @@
 // Definiciones de frames de la hoja de poses de Vanessa y Jerry (SPECS 9.4). NO forman parte de assets.json y no lo modifican:
-// referencian el assetId real del catálogo. Copiadas de Bitácora Amorcito @041d326 y vueltas a comprobar contra la imagen en
-// `npm run validate:project` y en scripts/frameDefinitions.test.ts (CT-15): una pose-sheet con `requiresFrameDefinition` no es un
-// spritesheet hasta que sus frames se validan.
+// referencian el assetId real del catálogo y se comprueban contra la imagen en `npm run validate:project` y en
+// scripts/frameDefinitions.test.ts (CT-15): una pose-sheet con `requiresFrameDefinition` no es un spritesheet hasta que sus frames se
+// validan.
 //
-// La hoja NO es una cuadrícula regular: hay poses que cruzan los límites nominales de 362 px (el cabello de la fila «up», la
-// cola de Jerry en «left»). Cada frame es la caja real de su pose con 4 px de margen transparente.
-// `feetX`/`feetY` son el punto de apoyo (suelo bajo Vanessa) dentro del recorte, en píxeles de la textura; sirven de pivote
-// para que el personaje no «salte» al cambiar de pose.
+// La hoja v5 (15 de octubre de 2026) tiene a Vanessa y Jerry DE PIE en cuatro direcciones (filas) y tres columnas: ojos abiertos,
+// parpadeo y ojos abiertos. No es una cuadrícula regular: hay poses que cruzan los límites nominales de 362 px. Cada frame es la caja
+// real de su pose con 4 px de margen transparente.
+// `feetX`/`feetY` son el punto de apoyo (el suelo bajo los zapatos de Vanessa) dentro del recorte, en píxeles de la textura; sirven de
+// pivote para que el personaje no «salte» al cambiar de pose. Jerry queda un poco más abajo: está delante de ella.
 
 export interface FrameSpec {
   name: string;
@@ -35,36 +36,49 @@ export interface SheetDefinition {
   animations: Readonly<Record<string, AnimationSpec>>;
 }
 
-export const WALK_SHEET_ID = "character.vanessa-jerry.walk.poses-v4";
+export const WALK_SHEET_ID = "character.vanessa-jerry.stand.poses-v5";
 
 const walkFrames: readonly FrameSpec[] = [
-  { name: "down-0", x: 66, y: 20, width: 261, height: 328, feetX: 115, feetY: 324 },
-  { name: "down-1", x: 433, y: 20, width: 257, height: 328, feetX: 106, feetY: 324 },
-  { name: "down-2", x: 794, y: 20, width: 259, height: 328, feetX: 110, feetY: 324 },
-  { name: "left-0", x: 75, y: 374, width: 298, height: 329, feetX: 85, feetY: 325 },
-  { name: "left-1", x: 434, y: 374, width: 296, height: 330, feetX: 88, feetY: 326 },
-  { name: "left-2", x: 800, y: 374, width: 284, height: 330, feetX: 87, feetY: 326 },
-  { name: "right-0", x: 74, y: 727, width: 293, height: 335, feetX: 108, feetY: 331 },
-  { name: "right-1", x: 422, y: 727, width: 304, height: 335, feetX: 111, feetY: 331 },
-  { name: "right-2", x: 792, y: 727, width: 290, height: 335, feetX: 105, feetY: 331 },
-  { name: "up-0", x: 60, y: 1080, width: 289, height: 344, feetX: 109, feetY: 340 },
-  { name: "up-1", x: 422, y: 1078, width: 289, height: 346, feetX: 113, feetY: 342 },
-  { name: "up-2", x: 786, y: 1077, width: 281, height: 347, feetX: 114, feetY: 343 },
+  { name: "down-0", x: 65, y: 20, width: 270, height: 330, feetX: 114, feetY: 319 },
+  { name: "down-1", x: 428, y: 20, width: 264, height: 330, feetX: 112, feetY: 319 },
+  { name: "down-2", x: 790, y: 20, width: 267, height: 330, feetX: 112, feetY: 319 },
+  { name: "left-0", x: 74, y: 369, width: 288, height: 333, feetX: 88, feetY: 327 },
+  { name: "left-1", x: 433, y: 369, width: 291, height: 333, feetX: 90, feetY: 327 },
+  { name: "left-2", x: 797, y: 369, width: 283, height: 333, feetX: 91, feetY: 327 },
+  { name: "right-0", x: 72, y: 722, width: 293, height: 336, feetX: 114, feetY: 331 },
+  { name: "right-1", x: 432, y: 723, width: 292, height: 336, feetX: 112, feetY: 330 },
+  { name: "right-2", x: 795, y: 723, width: 285, height: 336, feetX: 114, feetY: 330 },
+  { name: "up-0", x: 60, y: 1073, width: 298, height: 340, feetX: 112, feetY: 333 },
+  { name: "up-1", x: 422, y: 1073, width: 295, height: 339, feetX: 114, feetY: 333 },
+  { name: "up-2", x: 785, y: 1073, width: 283, height: 340, feetX: 114, feetY: 333 },
 ];
 
-/** Cada fila es una dirección (`rowDirections` del manifiesto); la columna central es la pose de pie. */
-const walkAnimation = (dir: string): AnimationSpec => ({ frames: [`${dir}-0`, `${dir}-1`, `${dir}-2`, `${dir}-1`], frameRate: 8, repeat: -1, restFrame: `${dir}-1` });
+/**
+ * De pie en una dirección, con un parpadeo cada tanto (la columna central). La hoja no tiene pasos: si el personaje se desplaza,
+ * se mueve con esta misma animación. `restFrame` (ojos abiertos) es la pose sin animar y `stillFrame` la de movimiento reducido.
+ */
+const standAnimation = (dir: string): AnimationSpec => ({
+  frames: [`${dir}-0`, `${dir}-0`, `${dir}-0`, `${dir}-0`, `${dir}-0`, `${dir}-0`, `${dir}-0`, `${dir}-0`, `${dir}-1`, `${dir}-2`, `${dir}-2`, `${dir}-2`, `${dir}-2`, `${dir}-2`, `${dir}-2`, `${dir}-2`, `${dir}-1`, `${dir}-0`],
+  frameRate: 6,
+  repeat: -1,
+  restFrame: `${dir}-0`,
+  stillFrame: `${dir}-0`,
+});
 
 export const frameDefinitions: Readonly<Record<string, SheetDefinition>> = {
   [WALK_SHEET_ID]: {
     assetId: WALK_SHEET_ID,
     frames: walkFrames,
     animations: {
-      "vanessa-idle": { frames: ["down-1"], frameRate: 1, repeat: -1, restFrame: "down-1" },
-      "vanessa-walk-down": walkAnimation("down"),
-      "vanessa-walk-left": walkAnimation("left"),
-      "vanessa-walk-right": walkAnimation("right"),
-      "vanessa-walk-up": walkAnimation("up"),
+      "vanessa-idle": standAnimation("down"),
+      "vanessa-idle-down": standAnimation("down"),
+      "vanessa-idle-left": standAnimation("left"),
+      "vanessa-idle-right": standAnimation("right"),
+      "vanessa-idle-up": standAnimation("up"),
+      "vanessa-walk-down": standAnimation("down"),
+      "vanessa-walk-left": standAnimation("left"),
+      "vanessa-walk-right": standAnimation("right"),
+      "vanessa-walk-up": standAnimation("up"),
     },
   },
 };

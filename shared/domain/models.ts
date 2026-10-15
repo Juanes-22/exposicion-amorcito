@@ -1,3 +1,5 @@
+import type { RampsExperiment, ShadowsExperiment } from "../contracts/config";
+
 /**
  * Modelos matemáticos de las mesas (SPECS 3.2 y 3.3). Se implementan una sola vez: servidor, proyección y teléfono
  * usan estas mismas funciones, y la descripción textual deriva del mismo valor que el dibujo.
@@ -11,10 +13,31 @@ export function shadowHeightCm(sourceDistanceCm: number, screenDistanceCm: numbe
   return (objectHeightCm * (sourceDistanceCm + screenDistanceCm)) / sourceDistanceCm;
 }
 
-/** Descripción textual del cambio de la sombra, a partir del mismo valor calculado. */
-export function describeShadow(sourceDistanceCm: number, shadowCm: number, objectHeightCm: number): string {
-  const times = shadowCm / objectHeightCm;
-  return `La linterna está a ${formatNumber(sourceDistanceCm)} cm del objeto. La sombra mide ${formatNumber(shadowCm)} cm: ${formatNumber(times, 1)} veces la altura del objeto.`;
+/**
+ * Sombras sin medidas: dónde está la linterna y qué tan grande es la sombra, con palabras. La mesa compara tamaños; no muestra
+ * centímetros. Las palabras salen del mismo modelo que el dibujo, relativas al rango de la mesa (de la sombra más pequeña posible a la
+ * más grande).
+ */
+export function shadowWords(e: ShadowsExperiment, sourceDistanceCm: number): { lantern: string; shadow: string } {
+  const { sourceDistanceMinCm: min, sourceDistanceMaxCm: max, screenDistanceCm: b, objectHeightCm: h } = e;
+  const t = (sourceDistanceCm - min) / (max - min);
+  const smallest = shadowHeightCm(max, b, h);
+  const u = (shadowHeightCm(sourceDistanceCm, b, h) - smallest) / (shadowHeightCm(min, b, h) - smallest);
+  const lantern = t < 0.2 ? "muy cerca" : t < 0.45 ? "cerca" : t < 0.75 ? "lejos" : "muy lejos";
+  const shadow = u >= 0.66 ? "muy grande" : u >= 0.33 ? "grande" : u >= 0.12 ? "mediana" : "pequeña";
+  return { lantern, shadow };
+}
+
+/** Descripción textual de la sombra, para lectores de pantalla y para quien no ve la escena. */
+export function describeShadow(e: ShadowsExperiment, sourceDistanceCm: number): string {
+  const w = shadowWords(e, sourceDistanceCm);
+  return `La linterna está ${w.lantern} del objeto. La sombra es ${w.shadow}.`;
+}
+
+/** Rampas sin grados: el nombre de una inclinación (configurable), de la menos a la más empinada. */
+export function angleLabel(e: RampsExperiment, angleDeg: number): string {
+  const i = Math.round((angleDeg - e.minAngleDeg) / e.angleStepDeg);
+  return e.angleLabels[Math.min(Math.max(0, i), e.angleLabels.length - 1)] ?? "";
 }
 
 /** Rampas: esfera homogénea ideal rodando sin deslizar y sin pérdidas. `a = (5/7) · g · sin θ`. */
