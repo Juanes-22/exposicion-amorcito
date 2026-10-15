@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import type { MapIndex } from "../../../shared/config/tmj";
 import type { LaboratorioConfig } from "../../../shared/contracts/config";
 import type { AssetRegistry } from "../../config/assetRegistry";
+import { crispText } from "../crispText";
 
 /** Clave del mapa en la caché de Phaser. */
 export const MAP_KEY = "laboratorio";
@@ -78,8 +79,9 @@ export function buildMap(scene: Phaser.Scene, { map, config, assets, debug }: Bu
   }
 
   const label = (x: number, y: number, text: string) =>
-    scene.add
-      .text(x, y, text, { fontFamily: "Nunito Variable, Nunito, sans-serif", fontSize: "15px", fontStyle: "bold", color: "#fff8e6", backgroundColor: "#3b2a1acc", padding: { x: 6, y: 3 } })
+    crispText(
+      scene.add.text(x, y, text, { fontFamily: "Nunito Variable, Nunito, sans-serif", fontSize: "15px", fontStyle: "bold", color: "#fff8e6", backgroundColor: "#3b2a1acc", padding: { x: 6, y: 3 } }),
+    )
       .setOrigin(0.5, 1)
       .setDepth(FOREGROUND_DEPTH / 4);
 

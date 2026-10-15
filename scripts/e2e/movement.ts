@@ -29,6 +29,8 @@ const check = (cond: unknown, m: string) => {
   console.log(`  ✔ ${m}`);
 };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// E2E_DPR=2 repite todo con una pantalla de alta densidad (celular/Retina): el lienzo se dibuja a esa densidad y los toques deben seguir cayendo bien.
+const DPR = Number(process.env.E2E_DPR ?? 1);
 
 interface View {
   player: { x: number; y: number };
@@ -110,7 +112,7 @@ const labReady = (page: Page) =>
 const opened: Record<string, Page> = {};
 
 async function open(name: string, viewport: { width: number; height: number }, path: string) {
-  const ctx = await browser.newContext({ viewport, deviceScaleFactor: 1 });
+  const ctx = await browser.newContext({ viewport, deviceScaleFactor: DPR });
   const page = await ctx.newPage();
   opened[name] = page;
   page.on("pageerror", (e) => problems.push(`${name} pageerror: ${e.message}`));

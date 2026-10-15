@@ -223,7 +223,7 @@ export class LaboratoryScene extends Phaser.Scene {
         view = new CharacterView(this, sample.feet, { own: c.principalId === own, colorId: c.color, displayName: c.displayName });
         this.characters.set(c.principalId, view);
       }
-      view.place(sample.feet, this.cameras.main.zoom);
+      view.place(sample.feet, this.cameras.main.zoom * this.scale.zoom); // zoom en píxeles CSS: el lienzo va a la densidad de la pantalla
       view.update(c.displayName, c.connected);
     }
     for (const [id, view] of this.characters) {

@@ -43,12 +43,7 @@ export function PhaserGame({ project, bridge, debug = false, hooks = false, came
     // Un toque en el mapa le da el foco: el teclado del juego solo escucha ahí.
     const focus = () => container.focus({ preventScroll: true });
     container.addEventListener("pointerdown", focus);
-    // Phaser solo se entera de que cambió la ventana, no de que cambió el hueco del escenario (p. ej. al aparecer la pregunta de la
-    // conversación junto al laboratorio): sin esto el lienzo conservaba el tamaño anterior y el mapa quedaba descentrado y recortado.
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => game.isBooted && game.scale.getParentBounds() && game.scale.refresh());
-    observer?.observe(container);
     return () => {
-      observer?.disconnect();
       container.removeEventListener("pointerdown", focus);
       game.destroy(true);
     };

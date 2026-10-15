@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import type { ActivityConfig } from "../../../shared/contracts/config";
 import type { ActivityState, AdventureState, RoomPhase } from "../../../shared/contracts/state";
+import { crispText } from "../crispText";
 import { getDeps } from "../createGame";
 import { fitFraming } from "../framing";
 import { STAGE } from "../geometry/stage";
@@ -55,7 +56,7 @@ export function fillPolygon(g: Phaser.GameObjects.Graphics, points: ReadonlyArra
 }
 
 export function addLabel(scene: Phaser.Scene, size = 18, color = "#fff8e6", bold = true): Phaser.GameObjects.Text {
-  return scene.add.text(0, 0, "", { fontFamily: FONT, fontSize: `${size}px`, fontStyle: bold ? "bold" : "normal", color }).setDepth(10);
+  return crispText(scene.add.text(0, 0, "", { fontFamily: FONT, fontSize: `${size}px`, fontStyle: bold ? "bold" : "normal", color })).setDepth(10);
 }
 
 /** Cambia el texto solo si es distinto (cada `setText` regenera la textura). */
@@ -89,7 +90,7 @@ export class JerryReaction {
     private readonly gfx: Phaser.GameObjects.Graphics,
     private readonly at: { x: number; y: number },
   ) {
-    this.label = scene.add.text(0, 0, "", { fontFamily: FONT, fontSize: "20px", fontStyle: "bold", color: "#3b2a1a" }).setDepth(12).setVisible(false);
+    this.label = crispText(scene.add.text(0, 0, "", { fontFamily: FONT, fontSize: "20px", fontStyle: "bold", color: "#3b2a1a" })).setDepth(12).setVisible(false);
   }
   trigger(text = "¡Guau!", ms = 1300): void {
     this.text = text;
