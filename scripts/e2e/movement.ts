@@ -302,7 +302,8 @@ try {
   await walk({ page: beto.page, name: "Beto" }, 400, 450);
   const lat: number[] = [];
   for (let i = 0; i < 12; i++) {
-    const prev = (await read(admin.page, "Beto")).plan?.id ?? "";
+    // Durante la exploración la proyección muestra la mesa, no el mapa: el plan se lee del estado que recibe, no de la escena.
+    const prev = await currentPlanId(admin.page, "Beto");
     const clickedAt = await tapWorld(beto.page, i % 2 ? 400 : 520, 450);
     await admin.page.waitForFunction(`((${planOf("Beto")})?.planId ?? "") !== ${JSON.stringify(prev)}`, undefined, { timeout: 5000 });
     lat.push(Date.now() - clickedAt);

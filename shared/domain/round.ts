@@ -221,7 +221,7 @@ export function confirmFinal(room: RoomState, value: FinalQuestionInput, ctx: Ro
   const counters = { ...adv.counters, note: adv.counters.note + 1 };
   const note: GroupNote = { id: `n${counters.note}`, activityId: INVENTOR_ID, kind: "finalQuestion", text, ...(sourceNoteId ? { sourceNoteId } : {}), revision: 1, createdAt: ctx.nowIso, updatedAt: ctx.nowIso, history: [] };
   return ok(
-    { ...bump(room), phase: "finished", resumePhase: null, adventure: { ...adv, counters, notebook: [...adv.notebook, note], inventor: { finalQuestionId: note.id } } },
+    { ...bump(room), phase: "finished", resumePhase: null, adventure: { ...adv, counters, notebook: [...adv.notebook, note], inventor: { ...adv.inventor, finalQuestionId: note.id } } },
     [{ effectId: `${room.roomGeneration}:adventure.finished`, kind: "adventure.finished" }],
   );
 }

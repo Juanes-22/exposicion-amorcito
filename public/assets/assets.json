@@ -3,14 +3,14 @@
   "project": "El laboratorio de las cosas cotidianas",
   "basePath": ".",
   "pathConvention": "Paths are relative to the directory containing this assets.json.",
-  "assetCount": 19,
+  "assetCount": 20,
   "categoryCounts": {
     "characters": 1,
     "ui": 6,
     "decorations": 1,
     "backgrounds": 1,
     "stations": 5,
-    "audio": 5
+    "audio": 6
   },
   "assets": {
     "character.vanessa-jerry.stand.poses-v5": {
@@ -334,6 +334,19 @@
       "durationMs": 960,
       "placeholder": true,
       "provenance": "Generado para el prototipo con síntesis simple (tools/audio/generate_sfx.py), sin licencia externa. Sustituir por sonidos finales antes de mode: presentation."
+    },
+    "lab.audio.lava": {
+      "path": "audio/lava.wav",
+      "type": "audio",
+      "format": "wav",
+      "category": "audio",
+      "label": "Sonido de la flor de la esquina",
+      "kind": "sfx",
+      "sizeBytes": 117056,
+      "sha256": "8eb56f98bb81f9a2c1f91504cc48b185d97c6e5666c0784e6544e08ffa2edcb8",
+      "durationMs": 1326,
+      "placeholder": false,
+      "provenance": "Entregado por la persona usuaria (lava.flac, 15 de octubre de 2026); convertido a WAV mono de 44,1 kHz con ffmpeg para que suene igual en todos los navegadores."
     },
     "lab.audio.inventor": {
       "path": "audio/inventor.wav",

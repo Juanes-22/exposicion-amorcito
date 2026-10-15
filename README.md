@@ -28,7 +28,7 @@ los textos son de prototipo. Detalle y evidencias en PLAN §5.
 1. Vanessa crea la sala; las personas entran con el QR (nombre y color). Cada una aparece como una
    silueta con su nombre encima en el laboratorio compartido.
 2. **Preparación:** al comenzar, la proyección muestra solo la pregunta de entrada («¿Recuerdan algo que hayan aprendido porque les dio
-   curiosidad?»); las personas pueden caminar. **Abrir mesa:** la pregunta de la mesa aparece junto al laboratorio y todas pueden
+   curiosidad?»); las personas pueden caminar. **Abrir mesa:** la proyección muestra la actividad de la mesa con su pregunta al lado, y todas pueden
    abrirla (menú «Mesas → Ir a la mesa actual» o tocándola en el mapa) y explorar a su ritmo; los resultados se registran solos y cada
    persona queda «Lista para conversar» al cumplir el criterio de la mesa (recién entonces puede volver al mapa). Vanessa ve «N de M listos».
 3. **Conversemos:** se cierran las pruebas (las que ruedan se cancelan), los celulares dicen «Ya exploramos: deja los controles y mira la
@@ -40,6 +40,9 @@ los textos son de prototipo. Detalle y evidencias en PLAN §5.
    inventor** y cada persona entra (tocando la máquina o con «Mesas → Ir al inventor»), elige una de las preguntas sugeridas por mesa o
    escribe la suya y la registra. Vanessa las ve en «Preguntas del inventor», elige con el grupo la pregunta final, la confirma y se
    imprime en el inventor.
+
+Al terminar, quien quedó dentro del inventor puede volver al mapa para revisar su cuaderno. Y un detalle: tocar la flor de arriba a la
+izquierda suena y a Vanessa y Jerry les aparece un «?» (solo en ese celular).
 
 Los textos del juego siguen la **Guía para Vanessa** (un documento aparte; la consola ya no tiene «Guía para conversar»). Las preguntas
 sugeridas del inventor se editan en `public/config/laboratorio.json → inventor.questions`.

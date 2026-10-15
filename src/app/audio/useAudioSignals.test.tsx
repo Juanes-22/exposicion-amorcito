@@ -72,7 +72,7 @@ describe("useAudioSignals (SPECS 10.4)", () => {
       expect(result.current).toMatchObject({ status: "on", armed: false });
       fireEvent.pointerDown(window);
       expect(player.enable).toHaveBeenCalledTimes(1); // una sola vez
-      expect(Object.keys(player.enable.mock.calls[0]![0]).sort()).toEqual(["adventure.finished", "inventor.activated", "piece.earned", "shadows.click"]);
+      expect(Object.keys(player.enable.mock.calls[0]![0]).sort()).toEqual(["adventure.finished", "flower.tap", "inventor.activated", "piece.earned", "shadows.click"]);
       unmount();
     }
   });
@@ -267,7 +267,7 @@ describe("useAudioSignals (SPECS 10.4)", () => {
 });
 
 describe("controles de sonido y texto de las señales", () => {
-  const audio = (over: Partial<AudioSignals> = {}): AudioSignals => ({ status: "off", volume: 0.8, enable: vi.fn(), disable: vi.fn(), setVolume: vi.fn(), signal: null, armed: false, ...over });
+  const audio = (over: Partial<AudioSignals> = {}): AudioSignals => ({ status: "off", volume: 0.8, enable: vi.fn(), disable: vi.fn(), setVolume: vi.fn(), signal: null, armed: false, play: vi.fn(), ...over });
 
   it("apagado: «Activar sonido»; un toque lo activa. Encendido: «Silenciar» y el volumen", () => {
     const a = audio();

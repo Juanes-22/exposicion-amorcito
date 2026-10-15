@@ -273,6 +273,7 @@ export function reduceParticipant(room: RoomState, principalId: string, action: 
 
     case "inventor.question": {
       if (round.stage !== "closing" || !room.adventure.inventor.open) return fail("INVALID_STEP", "Las preguntas se registran cuando Vanessa abre el inventor.");
+      if (room.adventure.inventor.finalQuestionId) return fail("INVALID_STEP", "La pregunta del grupo ya quedó impresa en el inventor.");
       if (p.view.kind !== "inventor") return fail("INVALID_STEP", "Entra al inventor para registrar tu pregunta.");
       const q = action.question;
       let question: ParticipantQuestion;

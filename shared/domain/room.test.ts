@@ -672,6 +672,13 @@ describe("el inventor, como una mesa: caminar hasta él, abrirlo y registrar cad
     d.must(d.admin({ type: "final.confirm", value: { kind: "written", text: preset.text } }), "confirmar la sugerida");
     expect(d.room.adventure.notebook.at(-1)).toMatchObject({ kind: "finalQuestion", text: preset.text });
     expect(d.act("ana", { type: "inventor.question", question: { kind: "written", text: "¿Otra?" } })).toBe(false);
+    // Terminada, solo se puede salir al mapa y volver a mirar la máquina; nada más.
+    d.must(d.act("ana", { type: "adventure.returnToMap" }), "volver al mapa al terminar");
+    expect(d.person("ana").view).toEqual({ kind: "map" });
+    expect(d.act("ana", { type: "player.moveTo", target: { x: 600, y: 450 } })).toBe(false);
+    expect(d.lastError?.message).toBe("La aventura terminó.");
+    d.must(d.act("ana", { type: "station.open", stationId: "inventor", origin: "quickNav" }), "volver a mirar la máquina");
+    expect(d.act("ana", { type: "inventor.question", question: { kind: "written", text: "¿Otra?" } })).toBe(false);
     d.must(d.admin({ type: "room.reset", confirm: true }), "reiniciar");
     expect(d.person("ana").question).toBeUndefined();
     expect(d.room.adventure.inventor).toEqual({});

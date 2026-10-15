@@ -21,8 +21,12 @@ export const ALL_SCENES = [LABORATORY_SCENE, SHADOWS_SCENE, RAMPS_SCENE, TELESCO
  * Una mesa desconocida cae en el laboratorio en lugar de dejar un lienzo en blanco.
  */
 export function desiredScene(visual: VisualState, activities: Record<string, Pick<ActivityConfig, "type">>): string {
-  // Con la pregunta del grupo impresa (aunque después se pause) la aventura terminó: todas las pantallas ven la máquina.
-  if (visual.phase === "finished" || visual.group.inventor.finalQuestionId) return INVENTOR_SCENE;
+  // Con la pregunta del grupo impresa (aunque después se pause) la aventura terminó: la proyección y quien observa ven la máquina; quien
+  // juega la ve si está dentro del inventor y, si volvió al mapa (para revisar su cuaderno), el laboratorio.
+  if (visual.phase === "finished" || visual.group.inventor.finalQuestionId) {
+    if (visual.viewer.kind !== "participant") return INVENTOR_SCENE;
+    return visual.viewer.me.view.kind === "inventor" ? INVENTOR_SCENE : LABORATORY_SCENE;
+  }
   // Quien no tiene personaje (la proyección y quien observa) no entra a la máquina: la ve en cuanto se abre.
   if (visual.group.round.stage === "closing" && visual.viewer.kind !== "participant" && visual.group.inventor.open === true) return INVENTOR_SCENE;
   const personal = visual.viewer.kind === "participant" ? visual.viewer.me : visual.viewer.kind === "projection" ? visual.viewer.demo : null;

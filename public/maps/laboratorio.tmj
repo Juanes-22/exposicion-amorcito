@@ -81,6 +81,11 @@
        "name": "depthMode",
        "type": "string",
        "value": "feet"
+      },
+      {
+       "name": "tapEvent",
+       "type": "string",
+       "value": "flower.tap"
       }
      ]
     },

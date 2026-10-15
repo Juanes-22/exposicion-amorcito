@@ -120,8 +120,16 @@ export class LaboratoryScene extends Phaser.Scene {
     const w = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
     const world = { x: w.x, y: w.y };
 
-    const stationId = this.stationAt(world);
     if (bridge.visual?.viewer.kind !== "participant") return; // la proyección solo mira
+    // La flor de la esquina (y cualquier decoración con `tapEvent`): suena y Vanessa y Jerry se preguntan qué pasó. No mueve a nadie.
+    const tap = this.built?.taps.find((t) => Phaser.Geom.Rectangle.Contains(t.image.getBounds(), world.x, world.y));
+    if (tap) {
+      this.guide?.wonder();
+      this.ping(world, 0xe3b92c);
+      bridge.emit("game:decoration-tap", { event: tap.event, token: this.token });
+      return;
+    }
+    const stationId = this.stationAt(world);
     const intent: MapIntent = stationId ? { type: "openStation", stationId } : { type: "move", target: world };
     const requestId = newRequestId();
     this.pending.set(requestId, world);

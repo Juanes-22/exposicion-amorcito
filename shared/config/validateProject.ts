@@ -1,6 +1,6 @@
 import type { AssetEntry, AssetManifest, ConfigIssue } from "../contracts/assets";
 import type { LaboratorioConfig } from "../contracts/config";
-import { INVENTOR_ID } from "../contracts/config";
+import { AUDIO_EVENT_IDS, INVENTOR_ID } from "../contracts/config";
 import { buildNavGrid, findPath, isFootprintFree, type NavGrid } from "../domain/navigation";
 import { contentHash } from "./hash";
 import { dirnamePosix, joinPosix } from "./paths";
@@ -99,6 +99,12 @@ export function validateProject(input: ProjectInputs): ProjectResult {
   }
   for (const layer of map.imageLayers) checkImage(`capa «${layer.name}» › propiedad assetId`, layer.assetId, layer.image);
   for (const d of map.decorations) checkImage(`capa «${d.layer}» › objeto #${d.objectId} › propiedad assetId`, d.assetId, "");
+  for (const d of map.decorations) {
+    if (d.tapEvent === undefined) continue;
+    const where = `capa «${d.layer}» › objeto #${d.objectId} › propiedad tapEvent`;
+    // Como cualquier evento de audio, sin sonido asignado en `audio.events` simplemente no suena (los «?» aparecen igual).
+    if (!(AUDIO_EVENT_IDS as readonly string[]).includes(d.tapEvent)) issues.push(tmjIssue(where, `evento de audio desconocido: «${d.tapEvent}»; los válidos son ${AUDIO_EVENT_IDS.join(", ")}`));
+  }
   for (const s of map.stations) checkImage(`capa de estaciones › objeto #${s.objectId} «${s.activityId}» › propiedad assetId`, s.assetId, "");
   if (map.inventor) checkImage(`Inventor #${map.inventor.objectId} › propiedad assetId`, map.inventor.assetId, "");
   for (const e of map.soundEmitters) {

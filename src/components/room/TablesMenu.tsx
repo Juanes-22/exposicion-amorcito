@@ -28,7 +28,8 @@ export function TablesMenu({ project, state, port, open, onOpenChange }: Props) 
   const inActivity = me.view.kind !== "map";
   const closing = adv.round.stage === "closing";
   const inventorOpen = isInventorOpen(adv);
-  const playing = state.summary?.phase === "running";
+  // Terminada la aventura se puede volver a entrar al inventor a mirar la pregunta impresa.
+  const playing = state.summary?.phase === "running" || state.summary?.phase === "finished";
 
   return (
     <details className="stations-menu" open={open} onToggle={(e) => onOpenChange(e.currentTarget.open)}>

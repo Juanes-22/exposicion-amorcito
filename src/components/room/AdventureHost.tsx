@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import type { ParticipantState } from "../../../shared/contracts/state";
 import type { RoomClientState, RoomPort } from "../../app/RoomController";
 import { useBridgeFeed } from "../../app/useBridgeFeed";
@@ -26,6 +26,8 @@ interface Props {
   overlay?: (bridge: GameBridge) => ReactNode;
   /** Controles de la mesa abierta, junto al escenario. Devuelve `null` si no hay ninguna abierta. */
   panel?: (bridge: GameBridge) => ReactNode;
+  /** Se tocó una decoración con sonido (la flor de la esquina): quien llama la hace sonar. */
+  onDecorationTap?: (event: string) => void;
 }
 
 /**
@@ -33,10 +35,16 @@ interface Props {
  * (una persona que juega, o Vanessa en la demostración) ve además la barra del mapa; los controles de la mesa abierta los pone
  * quien llama, porque necesitan el puente para mostrar la linterna o la inclinación sin esperar al servidor.
  */
-export function AdventureHost({ project, state, port, camera, label, demo = null, clock, overlay, panel }: Props) {
+export function AdventureHost({ project, state, port, camera, label, demo = null, clock, overlay, panel, onDecorationTap }: Props) {
   const permissions = permissionsFor(state);
   const bridge = useBridgeFeed(state, port, permissions, demo, clock === undefined ? port : clock);
   useIntentRouter(bridge, port, project);
+  useEffect(() => {
+    if (!onDecorationTap) return;
+    return bridge.on("game:decoration-tap", ({ event, token }) => {
+      if (bridge.isActive(token)) onDecorationTap(event);
+    });
+  }, [bridge, onDecorationTap]);
   const flags = useMemo(() => readGameFlags(), []);
   const panelNode = panel?.(bridge) ?? null;
   const playing = state.me !== null;

@@ -36,6 +36,11 @@ export interface MapDecoration {
   layer: string;
   /** Visible en Tiled en el objeto y en su capa: la visibilidad solo afecta a lo decorativo (SPECS 8.3). */
   visible: boolean;
+  /**
+   * Propiedad opcional `tapEvent`: tocarla en el celular suena ese evento de audio (`AUDIO_EVENT_IDS`) y Vanessa y Jerry se preguntan
+   * qué pasó. Es un detalle local de quien la toca: no viaja al servidor.
+   */
+  tapEvent?: string;
 }
 
 export interface MapSoundEmitter {
@@ -266,6 +271,7 @@ export function readTmj(raw: unknown, mapId: string): TmjRead {
           objectId: oid,
           layer: layerName,
           visible: layerVisible && o.visible !== false,
+          ...(str("tapEvent", false) ? { tapEvent: str("tapEvent", false)! } : {}),
         });
         return;
       }

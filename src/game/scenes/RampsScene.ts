@@ -97,6 +97,9 @@ export class RampsScene extends Phaser.Scene {
     setLabel(this.labels.count, `Pruebas terminadas: ${finished.length} de ${cfg.experiment.requiredTrials}`, vis.left + 20, vis.top + 18, 0, 0);
     // Cada prueba queda registrada sola: la persona recuerda qué inclinaciones probó, también escritas.
     const lines = finished.slice(-4).map((t, i) => `${finished.length - Math.min(4, finished.length) + i + 1}) ${angleLabel(e, t.angleDeg).toLowerCase()}`);
-    this.labels.results.setText(lines.join("\n")).setPosition(vis.left + 20, vis.top + 46).setOrigin(0, 0).setVisible(lines.length > 0);
+    // En la proyección la mesa se muestra sin avance de nadie: el contador del grupo está en la esquina de la consola.
+    const mine = getDeps(this).bridge.visual?.viewer.kind === "participant";
+    this.labels.count.setVisible(mine);
+    this.labels.results.setText(lines.join("\n")).setPosition(vis.left + 20, vis.top + 46).setOrigin(0, 0).setVisible(mine && lines.length > 0);
   }
 }

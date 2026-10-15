@@ -1,7 +1,8 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import type { LoadedProject } from "../../config/loadProject";
 import type { RoomClientState, RoomPort } from "../../app/RoomController";
 import { useAudioSignals } from "../../app/audio/useAudioSignals";
+import { tableShowcase } from "../../app/tableShowcase";
 import { useHouseDemo } from "../../app/useHouseDemo";
 import { roomPath } from "../../app/useRoute";
 import { currentActivity } from "../../app/view";
@@ -57,6 +58,8 @@ export function AdminConsole({ project, state, controller }: Props) {
   const telescope = current?.config.type === "telescope" ? current : null;
   // La casa aparece con la frase de Freire: la idea se muestra directamente, y se queda en la proyección hasta pasar al inventor.
   const houseDemo = useHouseDemo(telescope && stage === "conversation" && adv?.round.freireShown ? telescope.id : null, telescope?.config.type === "telescope" ? telescope.config : null);
+  // Mientras se explora, la proyección muestra la escena de la mesa abierta (en su estado inicial) en lugar del mapa.
+  const showcase = useMemo(() => (adv ? tableShowcase(adv, config) : null), [stage, current?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -95,7 +98,7 @@ export function AdminConsole({ project, state, controller }: Props) {
           port={controller}
           camera="fit"
           label="Escena de la aventura"
-          demo={houseDemo.participant}
+          demo={houseDemo.participant ?? showcase}
           overlay={() => (adv ? <ProjectionBadge config={config} adv={adv} counter={state.presence?.round ?? null} /> : null)}
           // Las preguntas y la frase de Freire se proyectan junto al laboratorio, no encima de él; cuando no hay nada que proyectar, el
           // laboratorio ocupa toda la pantalla.

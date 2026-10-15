@@ -66,6 +66,8 @@ export interface BridgeEvents {
   /** Intención tipada desde el mapa o la escena; la aplicación decide si la envía y resuelve `requestId`. */
   "game:action-request": { intent: MapIntent; requestId: string; token: number };
   "game:asset-failures": { failures: AssetFailure[]; token: number };
+  /** Se tocó una decoración con `tapEvent` (la flor de la esquina): la aplicación suena ese evento. Es local: no viaja al servidor. */
+  "game:decoration-tap": { event: string; token: number };
   "game:invalid-project": { issues: ConfigIssue[] };
 
   "app:visual": VisualState;

@@ -197,6 +197,8 @@ export class TelescopeScene extends Phaser.Scene {
     const vis = visibleStage(this);
     setLabel(this.labels.zoom, view.zoom >= 1 ? `Aumento cercano ×${exp.zoomLevels[1]}` : `Aumento general ×${exp.zoomLevels[0]}`, vis.left + 16, vis.top + 14, 0, 0);
     const participant = bridge.visual?.viewer.kind === "participant";
+    // En la proyección la esquina es de la consola («N de M listos»); el aumento solo importa a quien maneja su telescopio.
+    this.labels.zoom.setVisible(participant);
     this.labels.hint.setVisible(participant);
     if (participant) setLabel(this.labels.hint, this.canDrag() ? "Arrastra dentro del visor para mirar" : "", vis.left + 16, vis.bottom - 14, 0, 1);
     const flashOn = this.flash !== null && this.time.now < this.flash.until;
