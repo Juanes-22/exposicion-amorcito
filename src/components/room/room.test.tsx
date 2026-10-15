@@ -772,15 +772,29 @@ describe("AdminConsole", () => {
     });
   });
 
-  it("Vanessa no tiene personaje: la consola no muestra la barra del mapa ni controles de mesa", async () => {
-    const { ui } = consola(mesaAbierta(0));
+  it("Vanessa no tiene personaje en el mapa: sin barra del mapa ni «Volver al mapa»", async () => {
+    const { ui } = consola(enEtapa("preparation"));
     const { container } = render(ui());
     await escenario();
     expect(screen.queryByText("Mesas")).toBeNull();
     expect(screen.queryByText("Cuaderno")).toBeNull(); // el «Cuaderno del grupo» de abajo es otra cosa
     expect(screen.getByText("Cuaderno del grupo (0)")).toBeTruthy();
-    expect(container.querySelector(".personal")).toBeNull();
+    expect(container.querySelector(".personal")).toBeNull(); // antes de abrir la mesa no hay nada que probar
+  });
+
+  it("con la mesa abierta Vanessa también la prueba en la proyección: sus pruebas no van al servidor ni cuentan para el grupo", async () => {
+    const { port, ui } = consola(mesaAbierta(0));
+    const { container } = render(ui());
+    await escenario();
+    expect(container.querySelector(".adventure__activity .personal")).toBeTruthy();
+    expect(screen.getByText(/es tu propio experimento y no cuenta para el grupo/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Volver al mapa" })).toBeNull();
+    expect(screen.queryByText(/Explorando ·|Listo para conversar/)).toBeNull(); // no tiene avance propio
+    fireEvent.click(screen.getByRole("button", { name: "Alejar la linterna del objeto" }));
+    await act(async () => void (await new Promise((r) => setTimeout(r, 700)))); // el ajuste se registra al terminar
+    expect(port.act).not.toHaveBeenCalled();
+    expect(port.admin).not.toHaveBeenCalled();
+    expect(container.querySelector(".projection-badge")!.textContent).toBe("Sombras · 0 de 2 listos"); // el contador sigue igual
   });
 
   it("ofrece el código QR, reiniciar y cerrar", () => {

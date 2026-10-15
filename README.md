@@ -28,7 +28,8 @@ los textos son de prototipo. Detalle y evidencias en PLAN §5.
 1. Vanessa crea la sala; las personas entran con el QR (nombre y color). Cada una aparece como una
    silueta con su nombre encima en el laboratorio compartido.
 2. **Preparación:** al comenzar, la proyección muestra solo la pregunta de entrada («¿Recuerdan algo que hayan aprendido porque les dio
-   curiosidad?»); las personas pueden caminar. **Abrir mesa:** la proyección muestra la actividad de la mesa con su pregunta al lado, y todas pueden
+   curiosidad?»); las personas pueden caminar. **Abrir mesa:** la proyección muestra la actividad de la mesa con su pregunta al lado (Vanessa también
+   puede hacerla ahí, sin que cuente para el grupo), y todas pueden
    abrirla (menú «Mesas → Ir a la mesa actual» o tocándola en el mapa) y explorar a su ritmo; los resultados se registran solos y cada
    persona queda «Lista para conversar» al cumplir el criterio de la mesa (recién entonces puede volver al mapa). Vanessa ve «N de M listos».
 3. **Conversemos:** se cierran las pruebas (las que ruedan se cancelan), los celulares dicen «Ya exploramos: deja los controles y mira la
