@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import type { RampsActivityConfig } from "../../../shared/contracts/config";
 import type { RampsState } from "../../../shared/contracts/state";
-import { formatNumber } from "../../../shared/domain/models";
+import { angleLabel } from "../../../shared/domain/models";
 import { finishedTrials, hasComparableTrials, runningTrial } from "../../../shared/domain/results";
 import type { PersonalActions } from "./types";
 
 /**
- * Rampas (propuesta de rondas, sección 6): cada persona elige una inclinación y suelta la pelota; al terminar, el ángulo y el tiempo de
- * la simulación se registran solos. Mientras la pelota rueda no se puede cambiar la inclinación ni soltar otra.
+ * Rampas (propuesta de rondas, sección 6): cada persona elige una de las inclinaciones de la mesa, por su nombre, y suelta la pelota; al
+ * terminar, la prueba se registra sola. La mesa no muestra grados ni tiempos: cuánto demoró la pelota en caer es la pregunta que el
+ * grupo conversa después. Mientras la pelota rueda no se puede cambiar la inclinación ni soltar otra.
  */
 export function RampsControls({ cfg, st, a }: { cfg: RampsActivityConfig; st: RampsState; a: PersonalActions }) {
   const e = cfg.experiment;
@@ -18,6 +19,7 @@ export function RampsControls({ cfg, st, a }: { cfg: RampsActivityConfig; st: Ra
   const [angle, setAngle] = useState(() => st.trials.at(-1)?.angleDeg ?? e.minAngleDeg);
   const idx = Math.max(0, angles.indexOf(angle));
   const lock = running !== undefined || !a.interactive; // sin nueva suelta ni cambio de inclinación durante una prueba
+  const label = angleLabel(e, angle);
 
   useEffect(() => {
     a.setLocal({ angleDeg: angle });
@@ -29,7 +31,7 @@ export function RampsControls({ cfg, st, a }: { cfg: RampsActivityConfig; st: Ra
   return (
     <div className="experiment">
       <p className="experiment__readout" role="status" aria-live="polite">
-        Inclinación: <strong>{formatNumber(angle)}°</strong> · la pelota recorre {formatNumber(e.lengthMeters)} m
+        Inclinación: <strong>{label}</strong>
       </p>
       <div className="light-controls">
         <div className="light-controls__row">
@@ -46,44 +48,32 @@ export function RampsControls({ cfg, st, a }: { cfg: RampsActivityConfig; st: Ra
             disabled={lock}
             onChange={(ev) => choose(angles[Number(ev.target.value)]!)}
             aria-label="Inclinación de la rampa"
-            aria-valuetext={`${angle} grados`}
+            aria-valuetext={label}
           />
           <button type="button" className="btn btn--round" disabled={lock || idx >= angles.length - 1} onClick={() => choose(angles[idx + 1]!)} aria-label="Subir la inclinación">
             +
           </button>
         </div>
         <div className="light-controls__ends" aria-hidden="true">
-          <span>{formatNumber(e.minAngleDeg)}°</span>
-          <span>{formatNumber(e.maxAngleDeg)}°</span>
+          <span>Menos empinada</span>
+          <span>Más empinada</span>
         </div>
         <button type="button" className="btn btn--primary" disabled={lock || a.busy} onClick={() => void a.act({ type: "ramps.trial.start", angleDeg: angle })}>
           {running ? "La pelota está rodando…" : "Soltar la pelota"}
         </button>
       </div>
       {st.trials.length > 0 ? (
-        <table className="trials">
-          <caption className="visually-hidden">Tus pruebas de la rampa</caption>
-          <thead>
-            <tr>
-              <th scope="col">Prueba</th>
-              <th scope="col">Inclinación</th>
-              <th scope="col">Tiempo de la simulación</th>
-            </tr>
-          </thead>
-          <tbody>
-            {st.trials.map((t, i) => (
-              <tr key={t.trialId}>
-                <th scope="row">{i + 1}</th>
-                <td>{formatNumber(t.angleDeg)}°</td>
-                <td>{t.state === "finished" ? `${formatNumber(t.durationMs / 1000, 1)} s` : t.state === "running" ? "rodando…" : "cancelada"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <ol className="results" aria-label="Tus pruebas de la rampa">
+          {st.trials.map((t, i) => (
+            <li key={t.trialId}>
+              Prueba {i + 1}: {angleLabel(e, t.angleDeg).toLowerCase()}
+              {t.state === "running" ? " · rodando…" : t.state === "cancelled" ? " · cancelada" : ""}
+            </li>
+          ))}
+        </ol>
       ) : null}
       <p className="hint">
-        {comparable ? "Ya tienes pruebas que se pueden comparar: puedes seguir probando." : `Para comparar hacen falta ${e.requiredTrials} pruebas terminadas con inclinaciones que se diferencien al menos ${formatNumber(e.minDistinctAngleDeg)}° (llevas ${done.length}).`}{" "}
-        El tiempo es el de la simulación, no una medición real.
+        {comparable ? "Ya soltaste la pelota con inclinaciones distintas: puedes seguir probando." : `Suelta la pelota con ${e.requiredTrials} inclinaciones distintas y mira cómo baja (llevas ${done.length}).`} ¿Cuánto crees que demora en caer?
       </p>
     </div>
   );

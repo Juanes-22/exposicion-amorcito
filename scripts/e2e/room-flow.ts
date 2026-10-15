@@ -53,13 +53,15 @@ try {
   const phone = { width: 390, height: 844 };
   const ana = await open("ana", phone, `/sala/${code}`);
   await ana.page.getByLabel("Tu nombre").fill("Ana");
-  // En una pantalla muy estrecha los círculos de color no se aplastan aunque el nombre del color sea largo (defecto visto en Chrome Android a 360 dp; en Chromium de escritorio se reproduce a 320 px sin el arreglo).
-  for (const width of [360, 320]) {
+  // En una pantalla muy estrecha los círculos de color no se aplastan y ningún nombre se parte ni se recorta (defectos vistos en Chrome
+  // Android a 360 dp y en un iPhone: «Nara-nja»). Desde 320 px hay dos columnas; a 320 los círculos ceden a 24 px para que quepa «Turquesa».
+  for (const width of [393, 360, 320]) {
     await ana.page.setViewportSize({ width, height: 640 });
-    const sizes = await ana.page.evaluate(
-      `Array.from(document.querySelectorAll('.color-option__swatch')).map((el) => { const r = el.getBoundingClientRect(); return [Math.round(r.width * 10) / 10, Math.round(r.height * 10) / 10]; })`,
-    ) as Array<[number, number]>;
-    check(sizes.length > 0 && sizes.every(([w, h]) => w === 28 && h === 28), `a ${width} px de ancho los ${sizes.length} círculos de color siguen siendo círculos (28×28)`);
+    const r = (await ana.page.evaluate(
+      `({ sizes: Array.from(document.querySelectorAll('.color-option__swatch')).map((el) => { const b = el.getBoundingClientRect(); return [Math.round(b.width * 10) / 10, Math.round(b.height * 10) / 10]; }), cut: Array.from(document.querySelectorAll('.color-option__label')).filter((l) => l.scrollWidth > l.clientWidth || l.getClientRects().length > 1).map((l) => l.textContent), cols: getComputedStyle(document.querySelector('.color-picker__options')).gridTemplateColumns.split(' ').length })`,
+    )) as { sizes: Array<[number, number]>; cut: string[]; cols: number };
+    check(r.sizes.length === 8 && r.sizes.every(([w, h]) => w === h && w >= 24), `a ${width} px de ancho los 8 círculos de color siguen siendo círculos (${r.sizes[0]?.join("×")})`);
+    check(r.cut.length === 0 && r.cols === 2, `a ${width} px los nombres de los colores caben enteros, en 2 columnas${r.cut.length ? ` (cortados: ${r.cut.join(", ")})` : ""}`);
   }
   await ana.page.setViewportSize(phone);
   await shot(ana.page, "02-entrada-ana.png");

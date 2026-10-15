@@ -4,7 +4,6 @@ import type { Direction, Point } from "./geometry";
  * Estado de sala, ronda y participantes. Es lo que se guarda en SQLite. Se separan tres capas (propuesta de rondas, sección 9):
  * - La sala y la ronda (`AdventureState`): mesa actual, fase, piezas, cuaderno común y pregunta final. Solo las modifica Vanessa.
  * - Cada participante (`ParticipantState`): su personaje, su vista y sus pruebas. Solo las modifica esa persona.
- * - La presentación: la comparación que Vanessa selecciona para proyectar (`presentedNoteId`).
  * Nada de la capa personal se envía a las demás personas: cada una recibe solo la suya.
  */
 
@@ -69,8 +68,8 @@ export interface RampsState {
   trials: RampTrial[];
 }
 
-/** Lo que se puede observar en el cielo con el telescopio; las dos observaciones dejan lista a la persona. */
-export type TelescopeTarget = "moon" | "stars";
+/** Lo que se registra al centrarlo: la Luna y las estrellas (piden «listo») y la galaxia, un hallazgo para quien explora (no se pide). */
+export type TelescopeTarget = "moon" | "stars" | "galaxy";
 
 export interface TelescopeState {
   type: "telescope";
@@ -87,11 +86,23 @@ export interface TelescopeState {
 
 export type ActivityState = ShadowsState | RampsState | TelescopeState;
 
-export type PersonalView = { kind: "map" } | { kind: "activity"; activityId: string };
+/** `inventor`: la persona entró a la máquina del inventor (en el cierre, con el inventor abierto) para registrar su pregunta. */
+export type PersonalView = { kind: "map" } | { kind: "activity"; activityId: string } | { kind: "inventor" };
+
+/** La pregunta que una persona registró en el inventor: una sugerida por las mesas (`presetId`) o una que escribió. */
+export interface ParticipantQuestion {
+  /** ID de `inventor.questions`, o `null` si la escribió la persona. */
+  presetId: string | null;
+  text: string;
+  /** Reloj activo (ms) en que la registró: Vanessa las ve en ese orden. */
+  atActiveMs: number;
+}
 
 export interface ParticipantState {
   character: PlayerState;
   view: PersonalView;
+  /** Su pregunta en el inventor; puede cambiarla mientras el inventor siga abierto. Solo la ven ella y Vanessa. */
+  question?: ParticipantQuestion;
   /** Por ID de mesa del recorrido: las pruebas de esta persona. */
   activities: Record<string, ActivityState>;
 }
@@ -100,7 +111,7 @@ export interface ParticipantState {
 
 /**
  * Fases comunes de cada mesa (propuesta, sección 4): preparación, exploración, conversación. Tras la última mesa llega el cierre:
- * el inventor con sus piezas y la pregunta final.
+ * el inventor con sus piezas y la pregunta final. El cierre tiene su propio paso de abrir (`InventorState.open`), como una mesa.
  */
 export type RoundStage = "preparation" | "exploration" | "conversation" | "closing";
 
@@ -120,7 +131,7 @@ export interface RoundState {
 
 // ---- Cuaderno común ---------------------------------------------------------------
 
-export type NoteKind = "initialIdea" | "synthesis" | "question" | "comparison" | "finalQuestion";
+export type NoteKind = "initialIdea" | "synthesis" | "question" | "finalQuestion";
 
 export interface NoteVersion {
   revision: number;
@@ -128,27 +139,13 @@ export interface NoteVersion {
   at: string;
 }
 
-/** Resultados de una persona seleccionados para proyectar. Es una copia: seleccionar no altera el original (sección 9). */
-export type ComparisonData =
-  | { type: "shadows"; samples: Array<{ distanceCm: number; shadowCm: number }> }
-  | { type: "ramps"; trials: Array<{ angleDeg: number; durationMs: number }> };
-
-export interface Comparison {
-  activityId: string;
-  authorId: string;
-  /** Nombre visible, con su distinción, en el momento de seleccionar. */
-  authorName: string;
-  data: ComparisonData;
-}
-
 export interface GroupNote {
   id: string;
   /** Mesa de la nota; en la pregunta final, el inventor. */
   activityId: string;
   kind: NoteKind;
-  /** Texto escrito por Vanessa. `null` en una comparación (sus datos están en `comparison`). */
+  /** Texto escrito por Vanessa. */
   text: string | null;
-  comparison?: Comparison;
   /** Pregunta guardada de la que procede la pregunta final. */
   sourceNoteId?: string;
   revision: number;
@@ -161,6 +158,11 @@ export interface GroupNote {
 // ---- Aventura (grupo) y sala ----------------------------------------------------------
 
 export interface InventorState {
+  /**
+   * El inventor funciona como una mesa más: al pasar al cierre todas las personas caminan hasta la máquina y Vanessa lo abre. Abierto,
+   * cada persona puede entrar y registrar su pregunta. Las salas guardadas antes de este cambio no lo tienen: cuenta como cerrado.
+   */
+  open?: boolean;
   finalQuestionId?: string;
 }
 
@@ -177,8 +179,6 @@ export interface AdventureState {
   /** Derivado de `completed` por el dominio; el cliente no lo escribe (invariante 4). */
   pieces: string[];
   notebook: GroupNote[];
-  /** La nota de comparación que se proyecta ahora, o ninguna. */
-  presentedNoteId: string | null;
   inventor: InventorState;
   timeline: Timeline;
   /** Contadores para IDs deterministas y estables. */

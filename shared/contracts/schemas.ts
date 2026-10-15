@@ -38,6 +38,22 @@ const participantAction = {
       additionalProperties: false,
       properties: { type: { const: "telescope.aim" }, x: finite, y: finite, zoom: { type: "integer", minimum: 0, maximum: 9 } },
     },
+    {
+      type: "object",
+      required: ["type", "question"],
+      additionalProperties: false,
+      properties: {
+        type: { const: "inventor.question" },
+        question: {
+          type: "object",
+          oneOf: [
+            { type: "object", required: ["kind", "presetId"], additionalProperties: false, properties: { kind: { const: "preset" }, presetId: id } },
+            { type: "object", required: ["kind", "text"], additionalProperties: false, properties: { kind: { const: "written" }, text } },
+          ],
+          discriminator: { propertyName: "kind" },
+        },
+      },
+    },
   ],
   discriminator: { propertyName: "type" },
 };
@@ -63,9 +79,8 @@ const adminAction = {
     { type: "object", required: ["type"], additionalProperties: false, properties: { type: { const: "round.converse" }, withPending: { type: "boolean" } } },
     bare("round.showFreire"),
     bare("round.next"),
+    bare("inventor.open"),
     { type: "object", required: ["type", "principalId"], additionalProperties: false, properties: { type: { const: "round.include" }, principalId: id } },
-    { type: "object", required: ["type", "principalId"], additionalProperties: false, properties: { type: { const: "present.select" }, principalId: id } },
-    bare("present.clear"),
     {
       type: "object",
       required: ["type", "activityId", "kind", "text"],

@@ -4,7 +4,7 @@ import type { TelescopeState } from "../../../shared/contracts/state";
 import { clampView, HORIZON_Y, PANORAMA, TELESCOPE_TARGETS, type TelescopeView } from "../../../shared/domain/telescope";
 import { getDeps } from "../createGame";
 import { STAGE } from "../geometry/stage";
-import { addLabel, bindSceneLifecycle, fillPolygon, fitStage, readActivity, setLabel } from "./activityShared";
+import { addLabel, bindSceneLifecycle, fillPolygon, fitStage, readActivity, setLabel, visibleStage } from "./activityShared";
 import { TELESCOPE_SCENE } from "./sceneKeys";
 
 /** El visor: un círculo en el centro del escenario. Fuera de él, la carcasa del telescopio. */
@@ -90,7 +90,8 @@ export class TelescopeScene extends Phaser.Scene {
     const { bridge } = getDeps(this);
     this.gfx = this.add.graphics().setDepth(5);
     this.labels = { zoom: addLabel(this, 17, "#e9d9b6"), hint: addLabel(this, 16, "#cdbf9d", false), flash: addLabel(this, 20, "#fff8e6") };
-    fitStage(this, this.cleanups);
+    // En el celular, la cámara se acerca al visor: el cielo se ve grande.
+    fitStage(this, this.cleanups, { x: VISOR.x - VISOR.r - 10, y: VISOR.y - VISOR.r - 10, width: 2 * VISOR.r + 20, height: 2 * VISOR.r + 20 });
     bindSceneLifecycle(this, this.cleanups);
 
     const onDown = (p: Phaser.Input.Pointer) => {
@@ -164,7 +165,7 @@ export class TelescopeScene extends Phaser.Scene {
     this.lastCurtain = st.curtain;
     if (this.lastObserved >= 0 && st.observed.length > this.lastObserved) {
       const latest = st.observed.at(-1);
-      this.flash = { text: latest === "moon" ? "Luna observada" : "Estrellas observadas", until: this.time.now + 1600 };
+      this.flash = { text: latest === "moon" ? "Luna observada" : latest === "galaxy" ? "Galaxia observada" : "Estrellas observadas", until: this.time.now + 1600 };
     }
     this.lastObserved = st.observed.length;
 
@@ -180,6 +181,7 @@ export class TelescopeScene extends Phaser.Scene {
       const p = P(s.x, s.y);
       g.fillStyle(0xfff8e6, s.alpha).fillCircle(p.x, p.y, Math.max(0.8, s.size * Math.min(k, 1.6)));
     }
+    this.drawGalaxy(g, P, k);
     this.drawStarGroup(g, P, k);
     this.drawMoon(g, P, k);
     this.drawHorizon(g, P, k, now, st, exp, reducedMotion);
@@ -191,13 +193,46 @@ export class TelescopeScene extends Phaser.Scene {
     // La zona central: lo que queda dentro de este círculo cuenta como «centrado».
     g.lineStyle(2, 0xfff8e6, 0.28).strokeCircle(VISOR.x, VISOR.y, VISOR.r * exp.centerTolerance);
 
-    setLabel(this.labels.zoom, view.zoom >= 1 ? `Aumento cercano ×${exp.zoomLevels[1]}` : `Aumento general ×${exp.zoomLevels[0]}`, 24, 22, 0, 0);
+    // Los rótulos van a las esquinas de lo que se ve: en el celular la cámara se acerca al visor.
+    const vis = visibleStage(this);
+    setLabel(this.labels.zoom, view.zoom >= 1 ? `Aumento cercano ×${exp.zoomLevels[1]}` : `Aumento general ×${exp.zoomLevels[0]}`, vis.left + 16, vis.top + 14, 0, 0);
     const participant = bridge.visual?.viewer.kind === "participant";
     this.labels.hint.setVisible(participant);
-    if (participant) setLabel(this.labels.hint, this.canDrag() ? "Arrastra dentro del visor para mirar" : "", 24, 48, 0, 0);
+    if (participant) setLabel(this.labels.hint, this.canDrag() ? "Arrastra dentro del visor para mirar" : "", vis.left + 16, vis.bottom - 14, 0, 1);
     const flashOn = this.flash !== null && this.time.now < this.flash.until;
     this.labels.flash.setVisible(flashOn);
-    if (flashOn) setLabel(this.labels.flash, `✓ ${this.flash!.text}`, STAGE.width - 24, 22, 1, 0);
+    if (flashOn) setLabel(this.labels.flash, `✓ ${this.flash!.text}`, vis.right - 16, vis.top + 14, 1, 0);
+  }
+
+  /**
+   * Una galaxia en espiral, inclinada: un halo tenue, dos brazos de puntos de luz y un centro brillante. Con el aumento general es una
+   * mancha de luz; con el cercano se ven los brazos.
+   */
+  private drawGalaxy(g: Phaser.GameObjects.Graphics, P: (x: number, y: number) => { x: number; y: number }, k: number): void {
+    const gx = TELESCOPE_TARGETS.galaxy;
+    const c = P(gx.x, gx.y);
+    const R = gx.radius * k;
+    const tilt = -0.45;
+    const flat = 0.5;
+    const at = (r: number, a: number) => {
+      const x = Math.cos(a) * r;
+      const y = Math.sin(a) * r * flat;
+      return { x: c.x + x * Math.cos(tilt) - y * Math.sin(tilt), y: c.y + x * Math.sin(tilt) + y * Math.cos(tilt) };
+    };
+    const ellipse = (r: number) => Array.from({ length: 36 }, (_, i) => at(r, (i / 36) * Math.PI * 2));
+    for (const [s, alpha] of [[1.25, 0.05], [0.9, 0.08], [0.55, 0.12]] as const) {
+      g.fillStyle(0xcdbdff, alpha);
+      fillPolygon(g, ellipse(R * s));
+    }
+    for (let arm = 0; arm < 2; arm++) {
+      for (let i = 0; i < 46; i++) {
+        const t = i / 45;
+        const p = at(R * (0.12 + 0.88 * t), arm * Math.PI + t * 3.6);
+        g.fillStyle(0xeee6ff, 0.6 * (1 - t) + 0.15).fillCircle(p.x, p.y, Math.max(0.7, (1.6 - 1.1 * t) * Math.min(k, 2)));
+      }
+    }
+    g.fillStyle(0xfff6e0, 0.35).fillCircle(c.x, c.y, R * 0.28);
+    g.fillStyle(0xfffbf0, 0.9).fillCircle(c.x, c.y, R * 0.1);
   }
 
   private drawStarGroup(g: Phaser.GameObjects.Graphics, P: (x: number, y: number) => { x: number; y: number }, k: number): void {

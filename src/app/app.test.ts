@@ -2,15 +2,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearCredential, loadCredential, saveCredential, type StoredCredential } from "./credentials";
 import { newRequestId } from "./ids";
-import { demoPath, homePath, parseRoute, roomPath } from "./useRoute";
+import { homePath, parseRoute, roomPath } from "./useRoute";
 
 const cred: StoredCredential = { token: "t".repeat(43), role: "participant", principalId: "p1", displayName: "Ana", color: "azul", savedAt: "2026-10-05T00:00:00.000Z" };
 
 describe("rutas (CT-16)", () => {
-  it("reconoce /, /demo y /sala/:code, normaliza el código y rechaza el resto", () => {
+  it("reconoce / y /sala/:code, normaliza el código y rechaza el resto (ya no existe /demo)", () => {
     expect(parseRoute("/", "/")).toEqual({ name: "home" });
-    expect(parseRoute("/demo", "/")).toEqual({ name: "demo" });
-    expect(parseRoute("/demo/", "/")).toEqual({ name: "demo" });
+    expect(parseRoute("/demo", "/")).toEqual({ name: "notFound" });
     expect(parseRoute("/sala/abc234", "/")).toEqual({ name: "room", code: "ABC234" });
     expect(parseRoute("/sala/ABC234/", "/")).toEqual({ name: "room", code: "ABC234" });
     for (const bad of ["/sala", "/sala/", "/sala/a", "/sala/ABC-234", "/sala/ABC234/otra", "/otra"]) expect(parseRoute(bad, "/"), bad).toEqual({ name: "notFound" });
@@ -18,18 +17,13 @@ describe("rutas (CT-16)", () => {
   it("con otra base de despliegue resuelve igual y no duplica prefijos", () => {
     expect(parseRoute("/laboratorio/sala/ABC234", "/laboratorio/")).toEqual({ name: "room", code: "ABC234" });
     expect(parseRoute("/laboratorio/", "/laboratorio/")).toEqual({ name: "home" });
-    expect(parseRoute("/laboratorio/demo", "/laboratorio/")).toEqual({ name: "demo" });
     expect(roomPath("ABC234", "/")).toBe("/sala/ABC234");
     expect(roomPath("ABC234", "/laboratorio/")).toBe("/laboratorio/sala/ABC234");
   });
-  it("la ruta de la demostración respeta la base y recuerda de qué sala se vino, sin romper el reconocimiento de la ruta", () => {
-    expect(demoPath(undefined, "/")).toBe("/demo");
-    expect(demoPath("ABC234", "/")).toBe("/demo?from=ABC234");
-    expect(demoPath("ABC234", "/laboratorio/")).toBe("/laboratorio/demo?from=ABC234");
+  it("el inicio respeta la base, y la consulta no forma parte de la ruta que se interpreta", () => {
     expect(homePath("/")).toBe("/");
     expect(homePath("/laboratorio/")).toBe("/laboratorio/");
-    // La consulta no forma parte de la ruta que se interpreta.
-    expect(parseRoute(new URL("http://x/laboratorio/demo?from=ABC234").pathname, "/laboratorio/")).toEqual({ name: "demo" });
+    expect(parseRoute(new URL("http://x/laboratorio/sala/ABC234?hooks").pathname, "/laboratorio/")).toEqual({ name: "room", code: "ABC234" });
   });
 });
 

@@ -3,11 +3,13 @@ import { bundle, Driver } from "../testing/drive";
 import { checkGeneration, checkRound, ensureParticipant, expireRoom, isSimulating, onAdminLost, recoverAfterRestart, tickRoom } from "./room";
 import { playerAt, spawnPoint } from "./participant";
 import { roundCounter } from "./round";
-import { buildComparisonData, personReadiness, readiness } from "./results";
+import { personReadiness, readiness } from "./results";
 import { isFootprintFree } from "./navigation";
 import { CLOSE_ZOOM, fieldRadius, HORIZON_Y, PANORAMA, SKY_VIEW, startView, TELESCOPE_TARGETS } from "./telescope";
 import type { TelescopeState } from "../contracts/state";
 import type { TelescopeActivityConfig } from "../contracts/config";
+
+const config = bundle.config;
 
 const cfg = bundle.config;
 
@@ -274,6 +276,20 @@ describe("El observatorio: exploración del cielo con el telescopio", () => {
     expect(d.effects.filter((e) => e.kind !== "piece.earned")).toEqual([]); // ni recompensas ni avisos al grupo
   });
 
+  it("la galaxia es un hallazgo: se registra al centrarla de cerca (de lejos no), sin contar para quedar lista", () => {
+    const d = telescopeOpen();
+    const { galaxy } = TELESCOPE_TARGETS;
+    d.must(d.act("ana", { type: "telescope.aim", x: galaxy.x, y: galaxy.y, zoom: 0 }), "de lejos");
+    expect(scope(d).observed).toEqual([]);
+    d.must(d.act("ana", { type: "telescope.aim", x: galaxy.x, y: galaxy.y, zoom: CLOSE_ZOOM }), "de cerca");
+    expect(scope(d).observed).toEqual(["galaxy"]);
+    expect(personReadiness(d.person("ana"), "cajas", cfg)).toMatchObject({ done: 0, needed: 2, ready: false });
+    d.must(d.act("ana", { type: "telescope.aim", x: moon.x, y: moon.y, zoom: CLOSE_ZOOM }), "Luna");
+    d.must(d.act("ana", { type: "telescope.aim", x: stars.x, y: stars.y, zoom: 0 }), "estrellas");
+    expect(personReadiness(d.person("ana"), "cajas", cfg)).toMatchObject({ done: 2, needed: 2, ready: true });
+    expect(scope(d).observed).toEqual(["galaxy", "moon", "stars"]);
+  });
+
   it("cada persona tiene su propio visor, observaciones y cortina", () => {
     const d = telescopeOpen();
     d.openStation("beto", "cajas");
@@ -322,13 +338,10 @@ describe("El observatorio: exploración del cielo con el telescopio", () => {
     expect(d.round.pendingAtConversation).toContain("ana");
   });
 
-  it("no se proyecta la exploración de nadie: en esta mesa se proyecta la demostración de Vanessa", () => {
+  it("en la conversación nada de lo que cada persona miró pasa al cuaderno común", () => {
     const d = telescopeOpen();
     d.readyTelescope("ana");
     d.must(d.admin({ type: "round.converse", withPending: true }), "reunir");
-    expect(d.admin({ type: "present.select", principalId: "ana" })).toBe(false);
-    expect(d.lastError?.message).toContain("demostración de Vanessa");
-    expect(buildComparisonData(d.person("ana"), "cajas", cfg)).toBeNull();
     expect(d.room.adventure.notebook).toEqual([]);
   });
 
@@ -486,7 +499,7 @@ describe("conducir la ronda: contador, conversación con pendientes y piezas", (
   });
 });
 
-describe("presentación, cuaderno común y pregunta final", () => {
+describe("cuaderno común y pregunta final", () => {
   const conversation = (index = 0) => {
     const d = new Driver(["ana", "beto"]);
     d.toExploration(index);
@@ -495,44 +508,14 @@ describe("presentación, cuaderno común y pregunta final", () => {
     return d;
   };
 
-  it("seleccionar los resultados de una persona los proyecta como una copia y los conserva en el cuaderno común", () => {
+  it("ya no existe proyectar los resultados de una persona: esas acciones no existen y el cuaderno solo tiene lo que Vanessa escribe", () => {
     const d = conversation();
-    d.must(d.admin({ type: "present.select", principalId: "ana" }), "proyectar");
-    const adv = d.room.adventure;
-    const note = adv.notebook.find((n) => n.id === adv.presentedNoteId)!;
-    expect(note).toMatchObject({ kind: "comparison", activityId: "sombras", comparison: { authorId: "ana", authorName: "ana" } });
-    expect(note.comparison!.data).toMatchObject({ type: "shadows", samples: [{ distanceCm: 20 }, { distanceCm: 50 }] });
-    // es una copia: cambiar lo de Ana después no altera la nota
-    expect(buildComparisonData(d.person("ana"), "sombras", cfg)).toEqual(note.comparison!.data);
-    d.must(d.admin({ type: "present.select", principalId: "ana" }), "otra vez");
-    expect(d.room.adventure.notebook.filter((n) => n.kind === "comparison")).toHaveLength(1); // una por persona y mesa
-    d.must(d.admin({ type: "present.clear" }), "quitar");
-    expect(d.room.adventure.presentedNoteId).toBeNull();
-    expect(d.room.adventure.notebook.filter((n) => n.kind === "comparison")).toHaveLength(1); // se conserva
-  });
-
-  it("no se proyecta a quien aún no tiene resultados ni fuera de la conversación", () => {
-    const d = conversation();
-    expect(d.admin({ type: "present.select", principalId: "beto" })).toBe(false);
-    expect(d.lastError?.message).toContain("todavía no tiene resultados");
-    expect(d.admin({ type: "present.select", principalId: "nadie" })).toBe(false);
-    const e = new Driver(["ana"]);
-    e.toExploration(0);
-    expect(e.admin({ type: "present.select", principalId: "ana" })).toBe(false);
-  });
-
-  it("las comparaciones de Rampas muestran la prueba más lenta y la más rápida", () => {
-    const d = new Driver(["ana"]);
-    d.toExploration(1);
-    d.openStation("ana", "rampas");
-    for (const a of [30, 15, 45]) {
-      d.must(d.act("ana", { type: "ramps.trial.start", angleDeg: a }), "soltar");
-      d.tick(6000);
+    for (const type of ["present.select", "present.clear"]) {
+      expect(d.admin({ type, principalId: "ana" } as never), type).toBe(false);
+      expect(d.lastError?.code).toBe("INVALID_PAYLOAD");
     }
-    d.must(d.admin({ type: "round.converse" }), "reunir");
-    d.must(d.admin({ type: "present.select", principalId: "ana" }), "proyectar");
-    const n = d.room.adventure.notebook.find((x) => x.kind === "comparison")!;
-    expect(n.comparison!.data.type === "ramps" && n.comparison!.data.trials.map((t) => t.angleDeg)).toEqual([15, 45]);
+    expect(d.room.adventure.notebook).toEqual([]);
+    expect(d.room.adventure).not.toHaveProperty("presentedNoteId");
   });
 
   it("Vanessa guarda la idea inicial aparte de la síntesis y las edita sin perder la versión anterior", () => {
@@ -580,6 +563,9 @@ describe("presentación, cuaderno común y pregunta final", () => {
     d.must(d.admin({ type: "round.converse", withPending: true }), "reunir");
     d.must(d.admin({ type: "round.next" }), "avanzar");
     expect(d.round.stage).toBe("closing");
+    expect(d.admin({ type: "final.confirm", value: { kind: "saved", noteId: q.id } })).toBe(false); // primero se abre el inventor
+    expect(d.lastError?.message).toBe("Primero abre el inventor.");
+    d.must(d.admin({ type: "inventor.open" }), "abrir el inventor");
     expect(d.admin({ type: "final.confirm", value: { kind: "saved", noteId: "n999" } })).toBe(false);
     d.effects.length = 0;
     d.must(d.admin({ type: "final.confirm", value: { kind: "saved", noteId: q.id } }), "confirmar");
@@ -598,10 +584,97 @@ describe("presentación, cuaderno común y pregunta final", () => {
   it("la pregunta final escrita se normaliza y respeta el límite", () => {
     const d = new Driver(["ana"]);
     d.playToClosing();
+    d.must(d.admin({ type: "inventor.open" }), "abrir el inventor");
     expect(d.admin({ type: "final.confirm", value: { kind: "written", text: "  " } })).toBe(false);
     expect(d.admin({ type: "final.confirm", value: { kind: "written", text: "x".repeat(300) } })).toBe(false);
     d.must(d.admin({ type: "final.confirm", value: { kind: "written", text: "  ¿Qué sigue?  " } }), "confirmar");
     expect(d.room.adventure.notebook.at(-1)).toMatchObject({ text: "¿Qué sigue?" });
+  });
+});
+
+describe("el inventor, como una mesa: caminar hasta él, abrirlo y registrar cada quien su pregunta", () => {
+  const inventor = (d: Driver) => d.map.inventor!;
+  const preset = config.inventor.questions[0]!;
+
+  it("en el cierre se camina; las mesas ya no se abren y el inventor espera a que Vanessa lo abra", () => {
+    const d = new Driver(["ana"]);
+    d.playToClosing();
+    expect(d.person("ana").view).toEqual({ kind: "map" });
+    d.must(d.act("ana", { type: "player.moveTo", target: { x: 600, y: 450 } }), "caminar en el cierre");
+    expect(d.act("ana", { type: "station.open", stationId: "cajas", origin: "quickNav" })).toBe(false);
+    expect(d.lastError?.message).toBe("Ya pasamos por todas las mesas: ve al inventor de preguntas.");
+    expect(d.act("ana", { type: "station.open", stationId: "inventor", origin: "quickNav" })).toBe(false);
+    expect(d.lastError?.message).toBe("Vanessa abrirá el inventor en un momento.");
+    expect(d.act("ana", { type: "inventor.question", question: { kind: "preset", presetId: preset.id } })).toBe(false);
+  });
+
+  it("solo Vanessa lo abre, solo en el cierre y una vez; abrirlo cambia la ronda (las acciones viejas llegan tarde)", () => {
+    const early = new Driver(["ana"]);
+    early.toExploration(0);
+    expect(early.admin({ type: "inventor.open" })).toBe(false);
+    expect(early.act("ana", { type: "station.open", stationId: "inventor", origin: "quickNav" })).toBe(false);
+    expect(early.lastError?.message).toBe("El inventor se abre al final del recorrido, después de la última mesa.");
+    const d = new Driver(["ana"]);
+    d.playToClosing();
+    const before = d.room.roundVersion;
+    d.must(d.admin({ type: "inventor.open" }), "abrir el inventor");
+    expect(d.room.adventure.inventor.open).toBe(true);
+    expect(d.room.roundVersion).toBeGreaterThan(before);
+    const version = d.room.stateVersion;
+    d.must(d.admin({ type: "inventor.open" }), "abrirlo otra vez no cambia nada");
+    expect(d.room.stateVersion).toBe(version);
+  });
+
+  it("desde el mapa hay que llegar a la máquina; desde el menú accesible se entra directo. Al entrar, el personaje se detiene", () => {
+    const d = new Driver(["ana", "beto"]);
+    d.playToClosing();
+    d.must(d.admin({ type: "inventor.open" }), "abrir el inventor");
+    expect(d.act("ana", { type: "station.open", stationId: "inventor", origin: "map" })).toBe(false);
+    expect(d.lastError?.message).toBe("Acércate al inventor para abrirlo.");
+    d.walkTo("ana", inventor(d).point);
+    d.must(d.act("ana", { type: "station.open", stationId: "inventor", origin: "map" }), "entrar junto a la máquina");
+    expect(d.person("ana").view).toEqual({ kind: "inventor" });
+    expect(d.person("ana").character.plan).toBeNull();
+    expect(d.act("ana", { type: "player.moveTo", target: { x: 600, y: 450 } })).toBe(false); // dentro del inventor no se camina
+    d.must(d.act("beto", { type: "station.open", stationId: "inventor", origin: "quickNav" }), "entrar desde el menú");
+    expect(d.person("beto").view).toEqual({ kind: "inventor" });
+    d.must(d.act("beto", { type: "adventure.returnToMap" }), "volver al mapa");
+    expect(d.person("beto").view).toEqual({ kind: "map" });
+  });
+
+  it("cada persona registra una pregunta sugerida o la suya, puede cambiarla y solo se guarda en su estado", () => {
+    const d = new Driver(["ana", "beto"]);
+    d.playToClosing();
+    d.must(d.admin({ type: "inventor.open" }), "abrir el inventor");
+    expect(d.act("ana", { type: "inventor.question", question: { kind: "preset", presetId: preset.id } })).toBe(false); // hay que entrar
+    expect(d.lastError?.message).toBe("Entra al inventor para registrar tu pregunta.");
+    d.must(d.act("ana", { type: "station.open", stationId: "inventor", origin: "quickNav" }), "entrar");
+    d.must(d.act("ana", { type: "inventor.question", question: { kind: "preset", presetId: preset.id } }), "elegir una sugerida");
+    expect(d.person("ana").question).toMatchObject({ presetId: preset.id, text: preset.text });
+    const version = d.room.stateVersion;
+    d.must(d.act("ana", { type: "inventor.question", question: { kind: "preset", presetId: preset.id } }), "la misma otra vez");
+    expect(d.room.stateVersion).toBe(version); // no cambia nada
+    expect(d.act("ana", { type: "inventor.question", question: { kind: "preset", presetId: "no-existe" } })).toBe(false);
+    expect(d.act("ana", { type: "inventor.question", question: { kind: "written", text: "   " } })).toBe(false);
+    expect(d.act("ana", { type: "inventor.question", question: { kind: "written", text: "x".repeat(300) } })).toBe(false);
+    d.must(d.act("ana", { type: "inventor.question", question: { kind: "written", text: "  ¿Por qué la Luna cambia de forma?  " } }), "escribir la suya");
+    expect(d.person("ana").question).toMatchObject({ presetId: null, text: "¿Por qué la Luna cambia de forma?" });
+    expect(d.person("beto").question).toBeUndefined();
+    expect(JSON.stringify(d.room.adventure)).not.toContain("Luna cambia"); // nada del público en el estado de grupo
+  });
+
+  it("con la pregunta del grupo impresa ya no se registran preguntas; reiniciar las borra", () => {
+    const d = new Driver(["ana"]);
+    d.playToClosing();
+    d.must(d.admin({ type: "inventor.open" }), "abrir el inventor");
+    d.must(d.act("ana", { type: "station.open", stationId: "inventor", origin: "quickNav" }), "entrar");
+    d.must(d.act("ana", { type: "inventor.question", question: { kind: "preset", presetId: preset.id } }), "elegir");
+    d.must(d.admin({ type: "final.confirm", value: { kind: "written", text: preset.text } }), "confirmar la sugerida");
+    expect(d.room.adventure.notebook.at(-1)).toMatchObject({ kind: "finalQuestion", text: preset.text });
+    expect(d.act("ana", { type: "inventor.question", question: { kind: "written", text: "¿Otra?" } })).toBe(false);
+    d.must(d.admin({ type: "room.reset", confirm: true }), "reiniciar");
+    expect(d.person("ana").question).toBeUndefined();
+    expect(d.room.adventure.inventor).toEqual({});
   });
 });
 

@@ -19,16 +19,14 @@ export interface PersonalPanelProps {
   busy: boolean;
   /** La mesa está abierta para explorar: fuera de la exploración los controles se detienen. */
   interactive: boolean;
-  /** Demostración de Vanessa: en lugar de «Volver al mapa», termina la demostración. */
-  onClose?: () => void;
 }
 
 /**
  * Lo que cada persona usa en su celular mientras explora la mesa habilitada (propuesta de rondas, secciones 5–7): el objetivo corto, los
- * controles del experimento y si ya quedó lista para conversar. Los resultados se registran solos; no hay formularios, modalidades de
- * respuesta ni botones de «anotar» o «entendido».
+ * controles del experimento y si ya quedó lista para conversar; «Volver al mapa» aparece recién al completarla. Los resultados se
+ * registran solos; no hay formularios, modalidades de respuesta ni botones de «anotar» o «entendido».
  */
-export function PersonalPanel({ config, adv, participant, act, setLocal, onLocal, busy, interactive, onClose }: PersonalPanelProps) {
+export function PersonalPanel({ config, adv, participant, act, setLocal, onLocal, busy, interactive }: PersonalPanelProps) {
   if (participant.view.kind !== "activity") return null;
   const id = participant.view.activityId;
   const cfg = config.activities[id];
@@ -42,15 +40,12 @@ export function PersonalPanel({ config, adv, participant, act, setLocal, onLocal
     <section className="personal" aria-labelledby="personal-title">
       <header className="personal__head">
         <h2 id="personal-title">{cfg.title}</h2>
-        {onClose ? (
-          <button type="button" className="btn btn--ghost" onClick={onClose}>
-            Terminar la demostración
-          </button>
-        ) : (
+        {/* Solo quien ya completó la mesa puede volver al mapa: antes, la mesa se queda abierta hasta terminarla. */}
+        {r.ready ? (
           <button type="button" className="btn btn--ghost" disabled={busy} onClick={() => void act({ type: "adventure.returnToMap" })}>
             Volver al mapa
           </button>
-        )}
+        ) : null}
       </header>
       <p className="personal__goal">{cfg.goal}</p>
       <p className={`chip ${r.ready ? "chip--ok" : ""}`} role="status">

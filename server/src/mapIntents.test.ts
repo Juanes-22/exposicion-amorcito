@@ -125,7 +125,6 @@ describe("enrutador de intenciones del mapa", () => {
       ["antes de comenzar la aventura", { prepare: () => undefined }, "La aventura todavía no comienza."],
       ["con la sala en pausa", { prepare: (d) => (d.toExploration(0), d.admin({ type: "room.pause" })) }, "La aventura está en pausa."],
       ["mientras el grupo conversa", { prepare: (d) => (d.toExploration(0), d.admin({ type: "round.converse", withPending: true })) }, "Estamos conversando: mira la proyección."],
-      ["en el cierre", { prepare: (d) => d.playToClosing() }, "Estamos en el cierre: mira la proyección."],
       ["sin conexión con la sala", { override: (st) => ({ ...st, status: "reconnecting" }) }, "Sin conexión con la sala."],
       ["quien observa", { override: (st) => ({ ...st, me: null, summary: { ...st.summary!, self: { ...st.summary!.self, observer: true } } }) }, "Estás como observador."],
     ])("%s no se envía nada: se explica por qué y se libera la solicitud (denegación visible)", async (_name, scenario, reason) => {
@@ -216,14 +215,52 @@ describe("enrutador de intenciones del mapa", () => {
       s.stop();
     });
 
-    it("tras el último cierre no queda mesa que abrir (rama defensiva: los permisos ya lo impiden)", async () => {
+    it("tras la última mesa no queda mesa que abrir: se manda al inventor (rama defensiva: los permisos ya lo impiden)", async () => {
       const s = setup({ prepare: (d) => d.playToClosing() });
       s.bridge.emit("app:permissions", { canMove: true, canExplore: true, reason: null });
       s.request({ type: "openStation", stationId: "sombras" });
       await flush();
       expect(s.port.calls).toEqual([]);
-      expect(s.results[0]).toMatchObject({ accepted: false, reason: "La aventura ya pasó por las tres mesas." });
+      expect(s.results[0]).toMatchObject({ accepted: false, reason: "Ya pasamos por todas las mesas: ve al inventor de preguntas." });
       s.stop();
+    });
+
+    describe("el inventor, como una mesa", () => {
+      it("en el cierre se camina hasta el inventor; tocar la máquina antes de que Vanessa lo abra lo explica", async () => {
+        const s = setup({ prepare: (d) => d.playToClosing() });
+        s.request({ type: "move", target: { x: 640, y: 450 } });
+        await flush();
+        expect(s.results).toEqual([{ requestId: "r1", accepted: true }]);
+        s.request({ type: "openStation", stationId: "inventor" }, "r2");
+        await flush();
+        expect(s.types()).toEqual(["player.moveTo"]);
+        expect(s.results[1]).toEqual({ requestId: "r2", accepted: false, reason: "Vanessa abrirá el inventor en un momento." });
+        s.stop();
+      });
+
+      it("durante una mesa, la máquina del inventor todavía no se abre", async () => {
+        const s = setup();
+        s.request({ type: "openStation", stationId: "inventor" });
+        await flush();
+        expect(s.port.calls).toEqual([]);
+        expect(s.results[0]).toMatchObject({ accepted: false, reason: "El inventor se abre al final del recorrido, después de la última mesa." });
+        s.stop();
+      });
+
+      it("abierto: tocar la máquina lejana camina hasta ella y entra al llegar, según el reloj de simulación", async () => {
+        const s = setup({ prepare: (d) => d.playToClosing() });
+        s.admin({ type: "inventor.open" });
+        s.request({ type: "openStation", stationId: "inventor" });
+        await flush();
+        expect(s.types()).toEqual(["player.moveTo"]);
+        expect((s.port.calls[0] as { target: unknown }).target).toEqual(stationTarget(project, "inventor")!.point);
+        const duration = arrivalMs(s);
+        s.advance(duration + 100);
+        await vi.advanceTimersByTimeAsync(100);
+        expect(s.port.calls[1]).toEqual({ type: "station.open", stationId: "inventor", origin: "map" });
+        expect(s.d.person("ana").view).toEqual<PersonalView>({ kind: "inventor" }); // el dominio la aceptó: llegó de verdad
+        s.stop();
+      });
     });
 
     it("tocar una mesa lejana: camina hasta ella y la abre solo cuando el reloj de simulación dice que llegó", async () => {

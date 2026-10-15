@@ -1,7 +1,9 @@
 // Solo pruebas: conduce la sala (rondas, participantes, Vanessa) paso a paso con un reloj controlado.
 import type { AdminAction, ParticipantAction } from "../contracts/actions";
 import type { EffectEvent } from "../contracts/events";
+import type { Point } from "../contracts/geometry";
 import type { RoomState } from "../contracts/state";
+import { planDurationMs } from "../domain/movement";
 import { ensureParticipant, applyAdminAction, applyParticipantAction, createRoomState, tickRoom, type AdminContext } from "../domain/room";
 import { realBundle } from "./project";
 import { CLOSE_ZOOM, TELESCOPE_TARGETS } from "../domain/telescope";
@@ -88,6 +90,17 @@ export class Driver {
       this.must(this.admin({ type: "round.next" }), "avanzar");
     }
     this.must(this.admin({ type: "round.open" }), "abrir la mesa");
+  }
+
+  get map() {
+    return bundle.map;
+  }
+
+  /** Camina hasta el punto y espera a que llegue, con el reloj de simulación. */
+  walkTo(id: string, target: Point): void {
+    this.must(this.act(id, { type: "player.moveTo", target }), "caminar");
+    const plan = this.person(id).character.plan;
+    if (plan) this.tick(planDurationMs(plan) + 50);
   }
 
   openStation(id: string, station: string): void {

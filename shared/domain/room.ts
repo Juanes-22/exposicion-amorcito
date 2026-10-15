@@ -6,7 +6,7 @@ import type { MapIndex } from "../config/tmj";
 import { bump, fail, isClockRunning, isTerminal, type RoomChange, type RoomError } from "./change";
 import { samplePlan } from "./movement";
 import { createParticipantState, hasDueTrial, reduceParticipant, type ParticipantContext } from "./participant";
-import { clearPresentation, confirmFinal, converse, correctFinal, createInitialAdventure, editNote, includeLate, nextRound, openRound, resetAdventure, saveNote, selectPresentation, settleAll, showFreire, startRoom, type RoundContext } from "./round";
+import { confirmFinal, converse, correctFinal, createInitialAdventure, editNote, includeLate, nextRound, openInventor, openRound, resetAdventure, saveNote, settleAll, showFreire, startRoom, type RoundContext } from "./round";
 
 /**
  * Transiciones de sala puras: fases, pausa, reanudación, reinicio y cierre, y el despacho de las acciones de Vanessa (`round.ts`) y de
@@ -103,9 +103,8 @@ export function applyAdminAction(room: RoomState, action: AdminAction, ctx: Admi
     case "round.converse":
     case "round.showFreire":
     case "round.next":
+    case "inventor.open":
     case "round.include":
-    case "present.select":
-    case "present.clear":
     case "note.save":
     case "note.edit": {
       const blocked = needRunning();
@@ -125,7 +124,7 @@ export function applyAdminAction(room: RoomState, action: AdminAction, ctx: Admi
   }
 }
 
-function conduct(room: RoomState, action: Extract<AdminAction, { type: "round.open" | "round.converse" | "round.showFreire" | "round.next" | "round.include" | "present.select" | "present.clear" | "note.save" | "note.edit" }>, ctx: AdminContext): RoomChange {
+function conduct(room: RoomState, action: Extract<AdminAction, { type: "round.open" | "round.converse" | "round.showFreire" | "round.next" | "inventor.open" | "round.include" | "note.save" | "note.edit" }>, ctx: AdminContext): RoomChange {
   switch (action.type) {
     case "round.open":
       return openRound(room);
@@ -135,12 +134,10 @@ function conduct(room: RoomState, action: Extract<AdminAction, { type: "round.op
       return showFreire(room);
     case "round.next":
       return nextRound(settledRoom(room, ctx.activeMs), ctx);
+    case "inventor.open":
+      return openInventor(room);
     case "round.include":
       return includeLate(room, action.principalId);
-    case "present.select":
-      return selectPresentation(room, action.principalId, ctx);
-    case "present.clear":
-      return clearPresentation(room);
     case "note.save":
       return saveNote(room, action, ctx);
     case "note.edit":

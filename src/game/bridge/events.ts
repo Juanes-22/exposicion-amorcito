@@ -18,9 +18,9 @@ export interface AssetFailure {
 
 /** Qué puede hacer quien tiene delante la escena y por qué no (SPECS 10.2). */
 export interface BridgePermissions {
-  /** Puede caminar por el laboratorio: preparación o exploración, con la sala en curso. */
+  /** Puede caminar por el laboratorio: preparación, exploración o cierre (hasta el inventor), con la sala en curso. */
   canMove: boolean;
-  /** Puede abrir la mesa habilitada y explorarla: solo durante la exploración. */
+  /** Puede abrir la mesa habilitada y explorarla (solo durante la exploración) o entrar al inventor abierto. */
   canExplore: boolean;
   /** Motivo legible cuando no puede: pausa, conversación, conexión perdida… */
   reason: string | null;

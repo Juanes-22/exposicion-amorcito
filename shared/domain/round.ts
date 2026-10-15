@@ -5,12 +5,12 @@ import type { AdventureState, GroupNote, RoomState, RoundState } from "../contra
 import type { MapIndex } from "../config/tmj";
 import { bump, fail, type RoomChange } from "./change";
 import { cancelRunningTrials, createParticipantState, hasDueTrial, settleTrials } from "./participant";
-import { buildComparison, personReadiness } from "./results";
+import { personReadiness } from "./results";
 import { normalizeRecordText } from "./text";
 
 /**
  * Conducción de la ronda por Vanessa (propuesta de rondas, secciones 4 a 8). Funciones puras sobre `RoomState`: abrir la mesa,
- * reunir al grupo, mostrar la frase de Freire, avanzar, proyectar resultados, guardar síntesis y confirmar la pregunta final.
+ * reunir al grupo, mostrar la frase de Freire, avanzar, guardar síntesis, abrir el inventor y confirmar la pregunta final.
  * Participantes no adelantan la ronda ni abren mesas futuras: ninguna de estas acciones existe para ellos.
  */
 
@@ -27,7 +27,7 @@ export interface RoundContext {
 export const freshRound = (): RoundState => ({ index: 0, stage: "preparation", roster: [], included: [], pendingAtConversation: [], freireShown: false });
 
 export function createInitialAdventure(map: MapIndex): AdventureState {
-  return { mapId: map.mapId, round: freshRound(), completed: [], pieces: [], notebook: [], presentedNoteId: null, inventor: {}, timeline: { activeMs: 0 }, counters: { note: 0, trial: 0, plan: 0 } };
+  return { mapId: map.mapId, round: freshRound(), completed: [], pieces: [], notebook: [], inventor: {}, timeline: { activeMs: 0 }, counters: { note: 0, trial: 0, plan: 0 } };
 }
 
 /** Piezas incorporadas al inventor: las de las mesas cuya ronda ya terminó, en orden de recorrido. Nunca provienen del cliente. */
@@ -117,10 +117,21 @@ export function nextRound(room: RoomState, ctx: RoundContext): RoomChange {
     {
       ...bump(room, true),
       participants,
-      adventure: { ...adv, completed, pieces: derivePieces(completed, config), presentedNoteId: null, round: { index: nextIndex, stage: closing ? "closing" : "preparation", roster: [], included: [], pendingAtConversation: [], freireShown: false } },
+      adventure: { ...adv, completed, pieces: derivePieces(completed, config), round: { index: nextIndex, stage: closing ? "closing" : "preparation", roster: [], included: [], pendingAtConversation: [], freireShown: false } },
     },
     effects,
   );
+}
+
+/**
+ * Cierre: Vanessa abre el inventor como se abre una mesa. Hasta entonces las personas caminan hasta la máquina; abierto, cada una entra
+ * cuando llega y registra su pregunta.
+ */
+export function openInventor(room: RoomState): RoomChange {
+  const adv = room.adventure;
+  if (adv.round.stage !== "closing") return fail("INVALID_STEP", "El inventor se abre al final del recorrido, después de la última mesa.");
+  if (adv.inventor.open) return { ok: true, room, changed: false, effects: [] };
+  return ok({ ...bump(room, true), adventure: { ...adv, inventor: { ...adv.inventor, open: true } } });
 }
 
 /** Quien llegó después de abrir la ronda acompaña sin contar; Vanessa puede incluirla si todavía hay tiempo. */
@@ -144,37 +155,7 @@ export function settleAll(room: RoomState, activeMs: number): RoomState {
   return participants === room.participants ? room : { ...room, participants };
 }
 
-// ---- presentación y cuaderno común -------------------------------------------------------------------------------------
-
-/**
- * Proyecta los resultados de una persona en la mesa actual. Es una copia: seleccionarlos no altera sus pruebas. El cuaderno común
- * conserva la comparación seleccionada (una por persona y mesa).
- */
-export function selectPresentation(room: RoomState, principalId: string, ctx: RoundContext): RoomChange {
-  const { config } = ctx;
-  const adv = room.adventure;
-  const id = currentActivityId(adv, config);
-  if (adv.round.stage !== "conversation" || id === null) return fail("INVALID_STEP", "Los resultados se proyectan durante la conversación.");
-  // En el observatorio nadie expone lo que miró: se proyecta la demostración de Vanessa, nunca la exploración de una persona.
-  if (config.activities[id]?.type === "telescope") return fail("INVALID_STEP", "En el observatorio no se proyectan los resultados de una persona: se proyecta la demostración de Vanessa.");
-  const person = room.participants[principalId];
-  if (!person) return fail("INVALID_PAYLOAD", "Esa persona no juega en esta sala.");
-  const comparison = buildComparison(person, id, config, principalId, ctx.nameOf(principalId));
-  if (!comparison) return fail("INVALID_STEP", "Esa persona todavía no tiene resultados para mostrar.");
-  const existing = adv.notebook.find((n) => n.kind === "comparison" && n.comparison?.authorId === principalId && n.activityId === id);
-  if (existing) {
-    const notebook = adv.notebook.map((n) => (n.id === existing.id ? { ...n, comparison, revision: n.revision + 1, updatedAt: ctx.nowIso, history: [...n.history, { revision: n.revision, text: null, at: n.updatedAt }] } : n));
-    return ok({ ...bump(room), adventure: { ...adv, notebook, presentedNoteId: existing.id } });
-  }
-  const counters = { ...adv.counters, note: adv.counters.note + 1 };
-  const note: GroupNote = { id: `n${counters.note}`, activityId: id, kind: "comparison", text: null, comparison, revision: 1, createdAt: ctx.nowIso, updatedAt: ctx.nowIso, history: [] };
-  return ok({ ...bump(room), adventure: { ...adv, counters, notebook: [...adv.notebook, note], presentedNoteId: note.id } });
-}
-
-export function clearPresentation(room: RoomState): RoomChange {
-  if (room.adventure.presentedNoteId === null) return { ok: true, room, changed: false, effects: [] };
-  return ok({ ...bump(room), adventure: { ...room.adventure, presentedNoteId: null } });
-}
+// ---- cuaderno común -------------------------------------------------------------------------------------------------
 
 /** ¿La mesa ya empezó (o terminó)? Las notas de una mesa futura no existen todavía. */
 const reached = (adv: AdventureState, config: LaboratorioConfig, activityId: string): boolean => {
@@ -204,7 +185,6 @@ export function editNote(room: RoomState, input: { noteId: string; expectedRevis
   const adv = room.adventure;
   const note = adv.notebook.find((n) => n.id === input.noteId);
   if (!note) return fail("INVALID_PAYLOAD", "Esa nota no existe.");
-  if (note.kind === "comparison") return fail("INVALID_STEP", "Las comparaciones se guardan tal como se seleccionaron.");
   if (note.kind === "finalQuestion") return fail("INVALID_STEP", "La pregunta final se corrige con su propia acción.");
   if (input.expectedRevision !== note.revision) return fail("REVISION_CONFLICT", "La nota cambió mientras la editabas. Revisa la versión actual.");
   const text = normalizeRecordText(input.text, ctx.config.ui.maxRecordCharacters);
@@ -217,11 +197,15 @@ const edited = (n: GroupNote, text: string, at: string): GroupNote => ({ ...n, t
 
 // ---- cierre -------------------------------------------------------------------------------------------------------------
 
-/** Pregunta final: la escribe Vanessa o elige una pregunta guardada. Cierra la aventura en la misma transición. */
+/**
+ * Pregunta final: Vanessa confirma un texto (lo escribe o lo toma de las preguntas de las personas o de las sugeridas por las mesas) o
+ * elige una pregunta guardada. Cierra la aventura en la misma transición.
+ */
 export function confirmFinal(room: RoomState, value: FinalQuestionInput, ctx: RoundContext): RoomChange {
   const adv = room.adventure;
   if (adv.round.stage !== "closing") return fail("INVALID_STEP", "La pregunta final se confirma en el cierre, con las tres piezas en el inventor.");
   if (adv.inventor.finalQuestionId) return fail("INVALID_STEP", "La pregunta final ya se confirmó.");
+  if (!adv.inventor.open) return fail("INVALID_STEP", "Primero abre el inventor.");
   let text: string;
   let sourceNoteId: string | undefined;
   if (value.kind === "saved") {

@@ -5,8 +5,10 @@ export function ColorPicker({ value, onChange, legend = "Elige tu color" }: { va
   return (
     <fieldset className="color-picker">
       <legend>{legend}</legend>
-      <div className="color-picker__options">
-        {PARTICIPANT_COLORS.map((c) => (
+      {/* El marco mide el espacio disponible: las opciones se acomodan a él (container queries), no al ancho de la ventana. */}
+      <div className="color-picker__frame">
+        <div className="color-picker__options">
+          {PARTICIPANT_COLORS.map((c) => (
           <label key={c.id} className={`color-option${value === c.id ? " is-selected" : ""}`}>
             <input type="radio" name="color" value={c.id} checked={value === c.id} onChange={() => onChange(c.id)} />
             <span className="color-option__swatch" style={{ background: c.hex }} aria-hidden="true">
@@ -14,7 +16,8 @@ export function ColorPicker({ value, onChange, legend = "Elige tu color" }: { va
             </span>
             <span className="color-option__label">{c.label}</span>
           </label>
-        ))}
+          ))}
+        </div>
       </div>
     </fieldset>
   );

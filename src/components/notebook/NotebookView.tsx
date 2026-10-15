@@ -1,6 +1,6 @@
 import { INVENTOR_ID, type LaboratorioConfig } from "../../../shared/contracts/config";
 import type { AdventureState, GroupNote, ParticipantState } from "../../../shared/contracts/state";
-import { NOTE_LABEL, noteText, personalLines } from "./notes";
+import { isShownNote, NOTE_LABEL, noteText, personalLines } from "./notes";
 
 export interface NotebookViewProps {
   config: LaboratorioConfig;
@@ -16,10 +16,10 @@ export interface NotebookViewProps {
  */
 export function NotebookView({ config, me, adv }: NotebookViewProps) {
   const own = config.route
-    .map((id) => ({ id, title: config.activities[id]!.title, lines: personalLines(me?.activities[id]) }))
+    .map((id) => ({ id, title: config.activities[id]!.title, lines: personalLines(me?.activities[id], config.activities[id]) }))
     .filter((g) => g.lines.length > 0);
   const byTable = [...config.route, INVENTOR_ID]
-    .map((id) => ({ id, title: id === INVENTOR_ID ? "El inventor" : config.activities[id]!.title, rows: adv.notebook.filter((n) => n.activityId === id) }))
+    .map((id) => ({ id, title: id === INVENTOR_ID ? "El inventor" : config.activities[id]!.title, rows: adv.notebook.filter((n) => n.activityId === id && isShownNote(n)) }))
     .filter((g) => g.rows.length > 0);
 
   return (
@@ -81,7 +81,7 @@ export function GroupNoteRow({ note }: { note: GroupNote }) {
           <ol>
             {note.history.map((h) => (
               <li key={h.revision}>
-                <span className="hint">Versión {h.revision}:</span> {h.text ?? "(resultados anteriores)"}
+                <span className="hint">Versión {h.revision}:</span> {h.text}
               </li>
             ))}
           </ol>

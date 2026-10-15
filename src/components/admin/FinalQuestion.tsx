@@ -1,28 +1,43 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { CommandResult, FinalQuestionInput } from "../../../shared/contracts/actions";
 import type { LaboratorioConfig } from "../../../shared/contracts/config";
+import type { ParticipantInfo } from "../../../shared/contracts/events";
 import type { AdventureState } from "../../../shared/contracts/state";
+import { questionGroups, questionKey } from "../inventor/questions";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { NoteForm } from "./NoteForm";
 
 interface Props {
   config: LaboratorioConfig;
   adv: AdventureState;
+  /** Personas de la sala (presencia): de aquí salen las preguntas que registró cada una en el inventor. */
+  participants: ParticipantInfo[];
   busy: boolean;
   confirm: (value: FinalQuestionInput) => Promise<CommandResult>;
   correct: (expectedRevision: number, text: string) => Promise<CommandResult>;
 }
 
+/** Valor de la opción «escribir otra pregunta» (las demás claves llevan prefijo: `person:`, `preset:`, `saved:`). */
+const WRITE = "write";
+
+interface Choice {
+  key: string;
+  text: string;
+  value: FinalQuestionInput;
+  /** Quiénes la registraron. */
+  who: string[];
+}
+
 /**
- * Pregunta final (propuesta de rondas, sección 8): Vanessa la escribe o elige una pregunta que el grupo guardó. Antes de imprimirla en
- * el inventor se le muestra para que la confirme; después se puede corregir un error de escritura (se conserva la versión anterior).
+ * Preguntas del inventor (propuesta de rondas, sección 8): Vanessa ve las que registró cada persona (escritas por ella o elegidas entre
+ * las sugeridas por las mesas) y elige con el grupo la pregunta final; también puede tomar una pregunta guardada en el cuaderno o
+ * escribir otra. Antes de imprimirla en el inventor se le muestra para que la confirme; después se puede corregir un error de escritura
+ * (se conserva la versión anterior).
  */
-export function FinalQuestion({ config, adv, busy, confirm, correct }: Props) {
+export function FinalQuestion({ config, adv, participants, busy, confirm, correct }: Props) {
   const max = config.ui.maxRecordCharacters;
-  const saved = adv.notebook.filter((n) => n.kind === "question" && n.text);
   const final = adv.notebook.find((n) => n.id === adv.inventor.finalQuestionId) ?? null;
-  const [choice, setChoice] = useState<"written" | "saved">(saved.length > 0 ? "saved" : "written");
-  const [noteId, setNoteId] = useState<string>(saved[0]?.id ?? "");
+  const [choice, setChoice] = useState("");
   const [pending, setPending] = useState<{ value: FinalQuestionInput; text: string } | null>(null);
   const [correcting, setCorrecting] = useState(false);
   const [sending, setSending] = useState(false);
@@ -42,29 +57,72 @@ export function FinalQuestion({ config, adv, busy, confirm, correct }: Props) {
     );
   }
 
+  const players = participants.filter((p) => !p.observer);
+  const registered = players.filter((p) => p.question !== null);
+  // Las preguntas escritas iguales se reúnen en una sola opción, con todas las personas que la escribieron.
+  const written = new Map<string, Choice>();
+  for (const p of registered) {
+    const q = p.question!;
+    if (q.presetId !== null) continue;
+    const key = `person:${questionKey(q.text)}`;
+    const entry = written.get(key) ?? { key, text: q.text, value: { kind: "written", text: q.text }, who: [] };
+    entry.who.push(p.displayName);
+    written.set(key, entry);
+  }
+  const groups = questionGroups(config).map((g) => ({
+    ...g,
+    choices: g.questions.map((q): Choice => ({ key: `preset:${q.id}`, text: q.text, value: { kind: "written", text: q.text }, who: registered.filter((p) => p.question!.presetId === q.id).map((p) => p.displayName) })),
+  }));
+  const saved = adv.notebook.filter((n) => n.kind === "question" && n.text).map((n): Choice => ({ key: `saved:${n.id}`, text: n.text!, value: { kind: "saved", noteId: n.id }, who: [] }));
+  const all = [...written.values(), ...groups.flatMap((g) => g.choices), ...saved];
+  const selected = all.find((c) => c.key === choice) ?? null;
+
+  const option = (c: Choice, whoLabel: (names: string[]) => string) => (
+    <label key={c.key} className="question-option">
+      <input type="radio" name="final-question" value={c.key} checked={choice === c.key} onChange={() => setChoice(c.key)} />
+      <span>
+        <span className="question-option__text">{c.text}</span>
+        {c.who.length > 0 ? <span className="question-option__who">{whoLabel(c.who)}</span> : null}
+      </span>
+    </label>
+  );
+  const group = (id: string, title: string, children: ReactNode) => (
+    <div className="question-group" role="group" aria-labelledby={`final-${id}`}>
+      <p id={`final-${id}`} className="question-group__title">{title}</p>
+      {children}
+    </div>
+  );
+
   return (
     <div className="stack">
       <p>{config.inventor.prompt}</p>
-      <div className="row" role="radiogroup" aria-label="Cómo elegir la pregunta final">
-        <label className="check"><input type="radio" name="final-kind" checked={choice === "saved"} disabled={saved.length === 0} onChange={() => setChoice("saved")} /> <span>Elegir una pregunta guardada</span></label>
-        <label className="check"><input type="radio" name="final-kind" checked={choice === "written"} onChange={() => setChoice("written")} /> <span>Escribir una pregunta</span></label>
-      </div>
-      {choice === "saved" ? (
-        <div className="stack">
-          <div className="field">
-            <label htmlFor="final-saved">Preguntas guardadas por el grupo</label>
-            <select id="final-saved" className="input" value={noteId} onChange={(e) => setNoteId(e.target.value)}>
-              {saved.map((n) => (
-                <option key={n.id} value={n.id}>{n.text}</option>
-              ))}
-            </select>
-          </div>
-          <button type="button" className="btn btn--primary" disabled={busy || !noteId} onClick={() => setPending({ value: { kind: "saved", noteId }, text: saved.find((n) => n.id === noteId)?.text ?? "" })}>
-            Revisar y confirmar
-          </button>
-        </div>
-      ) : (
+      <p className="hint" role="status">
+        {players.length === 0 ? "Todavía no hay personas en la sala." : `${registered.length} de ${players.length} ${players.length === 1 ? "persona registró" : "personas registraron"} su pregunta.`}
+      </p>
+      <fieldset className="question-choices">
+        <legend>Elige la pregunta del grupo</legend>
+        {group(
+          "personas",
+          "Escritas por las personas",
+          written.size > 0 ? [...written.values()].map((c) => option(c, (names) => names.join(", "))) : <p className="hint">Todavía nadie escribió su propia pregunta.</p>,
+        )}
+        {groups.map((g) => group(g.activityId, `Sugeridas en ${g.title}`, g.choices.map((c) => option(c, (names) => `Elegida por ${names.length}: ${names.join(", ")}`))))}
+        {saved.length > 0 ? group("cuaderno", "Guardadas en el cuaderno del grupo", saved.map((c) => option(c, () => ""))) : null}
+        {group(
+          "otra",
+          "Otra pregunta",
+          <label className="question-option">
+            <input type="radio" name="final-question" value={WRITE} checked={choice === WRITE} onChange={() => setChoice(WRITE)} />
+            <span>Escribir otra pregunta</span>
+          </label>,
+        )}
+      </fieldset>
+      {choice === WRITE ? (
         <NoteForm label="Pregunta final del grupo" maxChars={max} submitLabel="Revisar y confirmar" busy={busy} keep onSubmit={async (t) => { setPending({ value: { kind: "written", text: t }, text: t.trim() }); return { ok: false, requestId: "", code: "INVALID_STEP", message: "" }; }} />
+      ) : (
+        <button type="button" className="btn btn--primary" disabled={busy || !selected} onClick={() => selected && setPending({ value: selected.value, text: selected.text })}>
+          Revisar y confirmar
+        </button>
       )}
       {pending ? (
         <ConfirmDialog

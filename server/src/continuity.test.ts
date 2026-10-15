@@ -277,7 +277,7 @@ describe("aislamiento entre salas (CA-30)", () => {
     expect(await b.admin.admin({ type: "room.pause" })).toMatchObject({ ok: true });
     expect(state(a.code).phase).toBe("running");
     expect(state(b.code).phase).toBe("paused");
-    expect(await b.people[1]!.client.admin({ type: "present.select", principalId: a.anaId })).toMatchObject({ ok: false, code: "NOT_AUTHORIZED" });
+    expect(await b.people[1]!.client.admin({ type: "round.include", principalId: a.anaId })).toMatchObject({ ok: false, code: "NOT_AUTHORIZED" });
     // Entrar con el código de A no da acceso a B y viceversa.
     const j = await joinRoom(server.url, a.code, "Intruso");
     const intruder = track(await new TestClient(server.url, j.body.token).ready());

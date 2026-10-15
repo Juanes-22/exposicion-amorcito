@@ -13,6 +13,7 @@ const participantSamples: Record<ParticipantAction["type"], ParticipantAction> =
   "shadows.sample": { type: "shadows.sample", distanceCm: 30 },
   "ramps.trial.start": { type: "ramps.trial.start", angleDeg: 30 },
   "telescope.aim": { type: "telescope.aim", x: 560, y: 430, zoom: 1 },
+  "inventor.question": { type: "inventor.question", question: { kind: "preset", presetId: "sombras-objeto" } },
 };
 const adminSamples: Record<AdminAction["type"], AdminAction> = {
   "room.start": { type: "room.start" },
@@ -24,9 +25,8 @@ const adminSamples: Record<AdminAction["type"], AdminAction> = {
   "round.converse": { type: "round.converse", withPending: true },
   "round.showFreire": { type: "round.showFreire" },
   "round.next": { type: "round.next" },
+  "inventor.open": { type: "inventor.open" },
   "round.include": { type: "round.include", principalId: "p1" },
-  "present.select": { type: "present.select", principalId: "p1" },
-  "present.clear": { type: "present.clear" },
   "note.save": { type: "note.save", activityId: "sombras", kind: "synthesis", text: "Cerca, la sombra es mayor" },
   "note.edit": { type: "note.edit", noteId: "n1", expectedRevision: 1, text: "Corregida" },
   "final.confirm": { type: "final.confirm", value: { kind: "saved", noteId: "n2" } },
@@ -42,11 +42,13 @@ describe("esquemas de comandos", () => {
   });
 
   it("rechazan acciones libres que el cliente no puede enviar", () => {
-    for (const type of ["setState", "grantPiece", "setResult", "telescope.observe", "telescope.complete", "boxes.object.inspect", "round.open", "round.next"]) {
+    for (const type of ["setState", "grantPiece", "setResult", "present.select", "telescope.observe", "telescope.complete", "boxes.object.inspect", "round.open", "round.next"]) {
       expect(parseParticipantCommand(participant({ type, piece: "lupa" })).ok, type).toBe(false); // avanzar la ronda es de Vanessa
     }
     expect(parseAdminCommand(admin({ type: "role.set", role: "admin" })).ok).toBe(false);
     expect(parseAdminCommand(admin({ type: "control.assign", principalId: "p1" })).ok).toBe(false); // ya no hay un único controlador
+    expect(parseAdminCommand(admin({ type: "present.select", principalId: "p1" })).ok).toBe(false); // ya no se proyectan resultados de una persona
+    expect(parseAdminCommand(admin({ type: "present.clear" })).ok).toBe(false);
   });
 
   it("rechazan propiedades de más, tipos erróneos, enteros inválidos y campos ausentes", () => {
@@ -72,8 +74,20 @@ describe("esquemas de comandos", () => {
     expect(parseAdminCommand(final({ kind: "written" })).ok).toBe(false);
     expect(parseAdminCommand(final({ kind: "oral" })).ok).toBe(false);
     expect(parseAdminCommand(final({ kind: "saved", noteId: "n3", text: "oculto" })).ok).toBe(false);
-    expect(parseAdminCommand(admin({ type: "note.save", activityId: "sombras", kind: "comparison", text: "x" })).ok).toBe(false); // las comparaciones se guardan al proyectarlas
+    expect(parseAdminCommand(admin({ type: "note.save", activityId: "sombras", kind: "comparison", text: "x" })).ok).toBe(false); // no hay notas de comparación
     expect(parseAdminCommand(admin({ type: "note.save", activityId: "sombras", kind: "finalQuestion", text: "x" })).ok).toBe(false);
+  });
+
+  it("validan la pregunta de cada persona en el inventor por unión discriminada", () => {
+    const pregunta = (question: unknown) => participant({ type: "inventor.question", question });
+    expect(parseParticipantCommand(pregunta({ kind: "written", text: "¿Por qué la Luna cambia de forma?" })).ok).toBe(true);
+    expect(parseParticipantCommand(pregunta({ kind: "preset", presetId: "rampas-peso" })).ok).toBe(true);
+    expect(parseParticipantCommand(pregunta({ kind: "preset" })).ok).toBe(false);
+    expect(parseParticipantCommand(pregunta({ kind: "written", text: "x", presetId: "rampas-peso" })).ok).toBe(false);
+    expect(parseParticipantCommand(pregunta({ kind: "final", text: "x" })).ok).toBe(false); // nadie del público confirma la pregunta final
+    expect(parseParticipantCommand(participant({ type: "inventor.question", text: "sin envoltura" })).ok).toBe(false);
+    expect(parseParticipantCommand(participant({ type: "inventor.open" })).ok).toBe(false); // abrir el inventor es de Vanessa
+    expect(parseParticipantCommand(pregunta({ kind: "written", text: "x".repeat(20_000) })).ok).toBe(false); // el tamaño bruto se acota; el conteo fino, en el servidor
   });
 
   it("exigen confirmación explícita para reiniciar y cerrar", () => {

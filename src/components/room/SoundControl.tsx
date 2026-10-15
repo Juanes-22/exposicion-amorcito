@@ -1,14 +1,15 @@
 import type { AudioSignals } from "../../app/audio/useAudioSignals";
 
 /**
- * Control de sonido de esta pantalla (SPECS 10.4): empieza apagado y solo un toque lo activa. El volumen y el silencio son preferencia
- * local. Si el navegador no puede reproducir audio, lo dice y todo sigue igual: cada señal importante tiene su texto.
+ * Control de sonido de esta pantalla (SPECS 10.4): empieza activado (suena desde el primer toque en la página) y se puede silenciar. El
+ * volumen y el silencio son preferencia local. Si el navegador no puede reproducir audio, lo dice y todo sigue igual: cada señal
+ * importante tiene su texto.
  */
 export function SoundControl({ audio, compact = false }: { audio: AudioSignals; compact?: boolean }) {
-  const on = audio.status === "on";
+  const on = audio.status === "on" || audio.armed;
   return (
     <div className={`sound-control${compact ? " sound-control--compact" : ""}`}>
-      <button type="button" className="btn btn--small-bar" aria-pressed={on} disabled={audio.status === "unavailable"} onClick={on ? audio.disable : audio.enable}>
+      <button type="button" className="btn btn--small-bar" data-sound-toggle aria-pressed={on} disabled={audio.status === "unavailable"} onClick={on ? audio.disable : audio.enable}>
         {on ? "🔊 Silenciar" : "🔈 Activar sonido"}
       </button>
       {on && !compact ? (

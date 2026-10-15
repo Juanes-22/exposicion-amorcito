@@ -129,7 +129,7 @@ export interface AuthIdentity {
 const failure = (requestId: string, code: CommandErrorCode, message: string): CommandResult => ({ ok: false, requestId, code, message });
 
 /** Lo del estado de grupo que importa a todas las personas: si no cambia, no se vuelve a enviar. */
-const groupKey = (a: AdventureState): string => JSON.stringify([a.round, a.completed, a.pieces, a.notebook, a.presentedNoteId, a.inventor]);
+const groupKey = (a: AdventureState): string => JSON.stringify([a.round, a.completed, a.pieces, a.notebook, a.inventor]);
 
 export class RoomService {
   private readonly repo: RoomRepository;
@@ -781,6 +781,7 @@ export class RoomService {
           inRound: members.has(p.principalId),
           ready: r?.ready ?? false,
           progress: r ? { done: r.done, needed: r.needed } : null,
+          question: st?.question ? { presetId: st.question.presetId, text: st.question.text } : null,
         };
       });
     const counter = roundCounter(rt.state, config);

@@ -196,7 +196,7 @@ describe("autoridad del servidor sobre los comandos (CA-08, CA-09)", () => {
     const r = await room();
     await beginExploration(r);
     const [ana] = r.people.map((p) => p.client) as [TestClient];
-    for (const action of [{ type: "round.converse", withPending: true }, { type: "round.next" }, { type: "round.open" }, { type: "room.pause" }, { type: "room.close", confirm: true }, { type: "present.clear" }] as const) {
+    for (const action of [{ type: "round.converse", withPending: true }, { type: "round.next" }, { type: "round.open" }, { type: "room.pause" }, { type: "room.close", confirm: true }, { type: "round.showFreire" }] as const) {
       expect(await ana.admin(action), action.type).toMatchObject({ ok: false, code: "NOT_AUTHORIZED" });
     }
     expect(await r.admin.act({ type: "player.moveTo", target: { x: 640, y: 450 } })).toMatchObject({ ok: false, code: "NOT_AUTHORIZED" });

@@ -2,19 +2,19 @@
 const KEY = "laboratorio-cosas-cotidianas:v1:sonido";
 
 export interface SoundPreference {
-  /** La persona lo había activado la última vez. Solo un gesto puede volver a hacerlo sonar. */
+  /** El sonido está activado (por defecto, sí; queda apagado solo si la persona lo silenció). Solo un gesto puede hacerlo sonar. */
   on: boolean;
   volume: number;
 }
 
-const DEFAULT: SoundPreference = { on: false, volume: 0.8 };
+const DEFAULT: SoundPreference = { on: true, volume: 0.8 };
 
 export function loadSoundPreference(): SoundPreference {
   try {
     const raw = window.localStorage.getItem(KEY);
     if (!raw) return DEFAULT;
     const v = JSON.parse(raw) as Partial<SoundPreference>;
-    return { on: v.on === true, volume: typeof v.volume === "number" && v.volume >= 0 && v.volume <= 1 ? v.volume : DEFAULT.volume };
+    return { on: v.on !== false, volume: typeof v.volume === "number" && v.volume >= 0 && v.volume <= 1 ? v.volume : DEFAULT.volume };
   } catch {
     return DEFAULT;
   }

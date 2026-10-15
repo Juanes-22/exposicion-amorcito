@@ -1,5 +1,6 @@
+import { INVENTOR_ID } from "../../../shared/contracts/config";
 import type { RoomClientState, RoomPort } from "../../app/RoomController";
-import { currentActivity } from "../../app/view";
+import { currentActivity, isInventorOpen } from "../../app/view";
 import type { LoadedProject } from "../../config/loadProject";
 
 interface Props {
@@ -12,7 +13,8 @@ interface Props {
 
 /**
  * «Mesas»: el recorrido de hoy y a dónde llevar al personaje. Hay una sola mesa habilitada a la vez; las demás se ven como hechas o por
- * venir. «Ir a la mesa actual» es el equivalente accesible de caminar hasta ella (SPECS 2.4, 11.1).
+ * venir, y al final, el inventor. «Ir a la mesa actual» («Ir al inventor» en el cierre) es el equivalente accesible de caminar hasta ella
+ * (SPECS 2.4, 11.1).
  */
 export function TablesMenu({ project, state, port, open, onOpenChange }: Props) {
   const adv = state.group?.adventure;
@@ -23,7 +25,10 @@ export function TablesMenu({ project, state, port, open, onOpenChange }: Props) 
   const exploring = adv.round.stage === "exploration" && state.summary?.phase === "running";
   const STATUS = { done: "Terminada", now: "Mesa de ahora", later: "Más adelante" } as const;
   const status = (id: string) => (adv.completed.includes(id) ? "done" : current?.id === id ? "now" : "later");
-  const inActivity = me.view.kind === "activity";
+  const inActivity = me.view.kind !== "map";
+  const closing = adv.round.stage === "closing";
+  const inventorOpen = isInventorOpen(adv);
+  const playing = state.summary?.phase === "running";
 
   return (
     <details className="stations-menu" open={open} onToggle={(e) => onOpenChange(e.currentTarget.open)}>
@@ -36,6 +41,10 @@ export function TablesMenu({ project, state, port, open, onOpenChange }: Props) 
               <span className="hint"> · {STATUS[status(id)]}</span>
             </li>
           ))}
+          <li>
+            <strong>El inventor de preguntas</strong>
+            <span className="hint"> · {inventorOpen ? "Abierto" : closing ? "Ahora" : "Al final"}</span>
+          </li>
         </ol>
         {current ? (
           <button
@@ -51,7 +60,26 @@ export function TablesMenu({ project, state, port, open, onOpenChange }: Props) 
             Ir a la mesa actual
           </button>
         ) : null}
-        {!current ? <p className="hint">Ya pasamos por las tres mesas.</p> : !exploring ? <p className="hint">La mesa se abre cuando Vanessa lo indique.</p> : inActivity ? <p className="hint">Ya estás en la mesa.</p> : null}
+        {closing ? (
+          <button
+            type="button"
+            className="btn btn--primary"
+            disabled={!inventorOpen || !playing || inActivity || state.pending > 0}
+            onClick={() => {
+              onOpenChange(false);
+              void port.act({ type: "station.open", stationId: INVENTOR_ID, origin: "quickNav" });
+            }}
+          >
+            Ir al inventor
+          </button>
+        ) : null}
+        {closing ? (
+          !inventorOpen ? <p className="hint">Camina hasta el inventor: Vanessa lo abrirá en un momento.</p> : inActivity ? <p className="hint">Ya estás en el inventor.</p> : null
+        ) : !exploring ? (
+          <p className="hint">La mesa se abre cuando Vanessa lo indique.</p>
+        ) : inActivity ? (
+          <p className="hint">Ya estás en la mesa.</p>
+        ) : null}
       </div>
     </details>
   );

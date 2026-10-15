@@ -15,14 +15,16 @@ interface Props {
   intro?: string | null;
 }
 
-/** Entrada a una sala: nombre de 1–20 caracteres Unicode, color de la paleta y silueta. Sin cuenta ni fotografía (SPECS 2.1). */
+/**
+ * Entrada a una sala: nombre de 1–20 caracteres Unicode, color de la paleta y silueta. Sin cuenta ni fotografía (SPECS 2.1). Todas las
+ * personas que entran juegan: la pantalla no ofrece entrar solo a acompañar.
+ */
 export function JoinView({ code, onJoined, navigate, intro }: Props) {
   const [info, setInfo] = useState<RoomPublicInfo | "missing" | "loading">("loading");
   const [name, setName] = useState("");
   const [color, setColor] = useState<string>(PARTICIPANT_COLORS[0].id);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [observer, setObserver] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,7 +46,7 @@ export function JoinView({ code, onJoined, navigate, intro }: Props) {
     setBusy(true);
     setError(null);
     try {
-      const r = await joinRoom(code, valid.value, color, observer);
+      const r = await joinRoom(code, valid.value, color);
       onJoined({ token: r.token, role: "participant", principalId: r.principalId, displayName: r.displayName, color: r.color, savedAt: new Date().toISOString() });
     } catch (err) {
       setError(err instanceof ApiFailure ? err.message : "No se pudo entrar a la sala.");
@@ -85,16 +87,9 @@ export function JoinView({ code, onJoined, navigate, intro }: Props) {
           <Silhouette color={color} size={64} title="Tu silueta" />
           <strong>{valid.ok ? valid.value : "Tu nombre"}</strong>
         </div>
-        <div className="field">
-          <label className="check">
-            <input type="checkbox" checked={observer} onChange={(e) => setObserver(e.target.checked)} aria-describedby="join-observer-hint" />
-            <span>Solo quiero acompañar: no explorar ni contar en la ronda</span>
-          </label>
-          <span id="join-observer-hint" className="hint">Quien acompaña ve la proyección y sus textos en el celular, pero no tiene personaje y no cuenta entre las personas listas.</span>
-        </div>
         {error ? <div className="error" role="alert">{error}</div> : null}
         <button type="submit" className="btn btn--primary" disabled={busy || !valid.ok}>
-          {busy ? "Entrando…" : observer ? "Entrar como observadora" : "Entrar a la sala"}
+          {busy ? "Entrando…" : "Entrar a la sala"}
         </button>
       </form>
     </main>

@@ -1,17 +1,14 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useState } from "react";
 import type { LoadedProject } from "../../config/loadProject";
 import type { RoomClientState, RoomPort } from "../../app/RoomController";
 import { useAudioSignals } from "../../app/audio/useAudioSignals";
-import { prepareBackup } from "../../app/backup";
 import { useHouseDemo } from "../../app/useHouseDemo";
 import { roomPath } from "../../app/useRoute";
 import { currentActivity } from "../../app/view";
 import { GroupNotes } from "../admin/GroupNotes";
 import { FinalQuestion } from "../admin/FinalQuestion";
-import { Guide } from "../admin/Guide";
-import { ProjectionBadge, ProjectionPanel } from "../admin/ProjectionPanel";
+import { hasProjection, ProjectionBadge, ProjectionPanel } from "../admin/ProjectionPanel";
 import { RoundControls } from "../admin/RoundControls";
-import { PersonalPanel } from "../activities/PersonalPanel";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { QrCode } from "../ui/QrCode";
 import { ParticipantList } from "./ParticipantList";
@@ -29,18 +26,13 @@ interface Props {
   project: LoadedProject;
   state: RoomClientState;
   controller: RoomPort;
-  /** Demostración completa (sin sala): Vanessa también explora y no hay QR, cierre ni reinicio de la sala. */
-  standalone?: boolean;
-  /** Controles propios de la pantalla que aloja la consola (p. ej. «Reiniciar la demostración»). */
-  barExtra?: ReactNode;
 }
 
 /**
  * Aventura de Vanessa (propuesta de rondas, sección 4): el laboratorio compartido que se proyecta, con los pasos de cada ronda, el
- * contador de personas listas, los resultados que decide proyectar y el cuaderno del grupo. Las personas exploran en su celular; aquí
- * solo se conduce.
+ * contador de personas listas y el cuaderno del grupo. Las personas exploran en su celular; aquí solo se conduce.
  */
-export function AdminConsole({ project, state, controller, standalone = false, barExtra }: Props) {
+export function AdminConsole({ project, state, controller }: Props) {
   const summary = state.summary!;
   const group = state.group;
   const adv = group?.adventure ?? null;
@@ -48,27 +40,23 @@ export function AdminConsole({ project, state, controller, standalone = false, b
   const [confirm, setConfirm] = useState<Confirm>(null);
   const [busy, setBusy] = useState(false);
 
-  // Con la sala funcionando se deja listo el respaldo: si el servidor deja de responder, la demostración ya está descargada.
-  useEffect(() => {
-    if (standalone) return;
-    const idle = (window as unknown as { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
-    const t = idle ? idle(() => void prepareBackup(project)) : window.setTimeout(() => void prepareBackup(project), 1500);
-    return () => (idle ? undefined : window.clearTimeout(t));
-  }, [project, standalone]);
-
   const audio = useAudioSignals({ project, state, device: "computer" });
   const online = state.status === "connected";
   const participants = state.presence?.participants ?? [];
   const current = adv ? currentActivity(adv, config) : null;
   const stage = adv?.round.stage;
   const pending = participants.filter((p) => p.inRound && !p.observer && !p.ready).map((p) => p.displayName);
+  const players = participants.filter((p) => !p.observer);
+  // En el inventor abierto: cuántas personas ya registraron su pregunta (Vanessa las ve en «Preguntas del inventor»).
+  const questions = { registered: players.filter((p) => p.question !== null).length, total: players.length };
+  const connected = state.presence?.connectedCount ?? 0;
   const joinUrl = `${window.location.origin}${roomPath(summary.code)}`;
-  const presentedAuthor = adv?.notebook.find((n) => n.id === adv.presentedNoteId)?.comparison?.authorId ?? null;
   const paused = summary.phase === "paused";
   const playing = summary.phase === "running";
-  // En el observatorio no se proyecta la exploración de nadie: Vanessa muestra la casa con una demostración propia (SPECS 3.4).
+  // En el observatorio Vanessa muestra la casa con una demostración propia (SPECS 3.4).
   const telescope = current?.config.type === "telescope" ? current : null;
-  const houseDemo = useHouseDemo(telescope && stage === "conversation" ? telescope.id : null, telescope?.config.type === "telescope" ? telescope.config : null);
+  // La casa aparece con la frase de Freire: la idea se muestra directamente, y se queda en la proyección hasta pasar al inventor.
+  const houseDemo = useHouseDemo(telescope && stage === "conversation" && adv?.round.freireShown ? telescope.id : null, telescope?.config.type === "telescope" ? telescope.config : null);
 
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -87,20 +75,15 @@ export function AdminConsole({ project, state, controller, standalone = false, b
         {stage ? <span className="chip" role="status">{STAGE_LABEL[stage]}</span> : null}
         <span className="chip" role="status">{PHASE_LABEL[summary.phase] ?? summary.phase}</span>
         {adv && (playing || stage === "exploration") ? (
-          <RoundControls config={config} adv={adv} counter={state.presence?.round ?? null} pending={pending} disabled={disabled || !playing} admin={(a) => controller.admin(a)} houseDemo={telescope && stage === "conversation" ? houseDemo : null} />
+          <RoundControls config={config} adv={adv} counter={state.presence?.round ?? null} pending={pending} questions={questions} disabled={disabled || !playing} admin={(a) => controller.admin(a)} />
         ) : null}
         {paused ? (
           <button type="button" className="btn btn--primary" disabled={disabled} onClick={() => void run(() => controller.admin({ type: "room.resume" }))}>Reanudar</button>
         ) : summary.phase === "running" || summary.phase === "finished" ? (
           <button type="button" className="btn" disabled={disabled} onClick={() => void run(() => controller.admin({ type: "room.pause" }))}>Pausar</button>
         ) : null}
-        {!standalone ? (
-          <>
-            <button type="button" className="btn" disabled={disabled} onClick={() => setConfirm("reset")}>Reiniciar</button>
-            <button type="button" className="btn btn--danger" disabled={disabled} onClick={() => setConfirm("close")}>Cerrar</button>
-          </>
-        ) : null}
-        {barExtra}
+        <button type="button" className="btn" disabled={disabled} onClick={() => setConfirm("reset")}>Reiniciar</button>
+        <button type="button" className="btn btn--danger" disabled={disabled} onClick={() => setConfirm("close")}>Cerrar</button>
         <SoundControl audio={audio} />
       </div>
       <SignalText audio={audio} />
@@ -111,44 +94,35 @@ export function AdminConsole({ project, state, controller, standalone = false, b
           state={state}
           port={controller}
           camera="fit"
-          label={standalone ? "Escena de la demostración" : "Escena de la aventura"}
+          label="Escena de la aventura"
           demo={houseDemo.participant}
           overlay={() => (adv ? <ProjectionBadge config={config} adv={adv} counter={state.presence?.round ?? null} /> : null)}
-          panel={(bridge) => {
-            if (!adv) return null;
-            const interactive = stage === "exploration" && playing;
-            if (state.me && state.me.participant.view.kind === "activity" && (stage === "exploration" || stage === "preparation")) {
-              return <PersonalPanel config={config} adv={adv} participant={state.me.participant} act={(a) => controller.act(a)} setLocal={(p) => bridge.setLocal(p)} onLocal={(cb) => bridge.on("app:local", cb)} busy={state.pending > 0} interactive={interactive} />;
-            }
-            // La pregunta, los resultados y la frase de Freire se proyectan junto al laboratorio, no encima de él.
-            return stage !== "exploration" ? <ProjectionPanel config={config} adv={adv} /> : null;
-          }}
+          // Las preguntas y la frase de Freire se proyectan junto al laboratorio, no encima de él; cuando no hay nada que proyectar, el
+          // laboratorio ocupa toda la pantalla.
+          panel={() => (adv && hasProjection(config, adv) ? <ProjectionPanel config={config} adv={adv} /> : null)}
         />
       </Suspense>
 
       <div className="adventure__panels">
-        <details className="panel" open={stage === "conversation"}>
-          <summary>Participantes ({state.presence?.connectedCount ?? 0} {(state.presence?.connectedCount ?? 0) === 1 ? "conectada" : "conectadas"})</summary>
+        <details className="panel">
+          <summary>Participantes ({connected} {connected === 1 ? "conectado" : "conectados"})</summary>
           <ParticipantList
             participants={participants}
             loading={state.presence === null}
             busy={disabled}
             {...(stage ? { stage } : {})}
-            presentedAuthorId={presentedAuthor}
+            questions={stage === "closing" && adv?.inventor.open === true && summary.phase !== "finished"}
             onInclude={(principalId) => void run(() => controller.admin({ type: "round.include", principalId }))}
-            {...(telescope ? {} : { onSelect: (principalId: string) => void run(() => controller.admin({ type: "present.select", principalId })) })}
           />
-          {presentedAuthor ? (
-            <button type="button" className="btn btn--ghost" disabled={disabled} onClick={() => void run(() => controller.admin({ type: "present.clear" }))}>Quitar los resultados de la proyección</button>
-          ) : null}
         </details>
-        {stage === "closing" || summary.phase === "finished" ? (
-          <details className="panel" open>
-            <summary>Pregunta final</summary>
+        {(stage === "closing" && adv?.inventor.open) || summary.phase === "finished" ? (
+          <details className="panel">
+            <summary>Preguntas del inventor ({questions.registered} de {questions.total})</summary>
             {adv ? (
               <FinalQuestion
                 config={config}
                 adv={adv}
+                participants={participants}
                 busy={disabled}
                 confirm={(value) => controller.admin({ type: "final.confirm", value })}
                 correct={(expectedRevision, text) => controller.admin({ type: "final.correct", expectedRevision, text })}
@@ -171,21 +145,15 @@ export function AdminConsole({ project, state, controller, standalone = false, b
           )}
         </details>
         <details className="panel">
-          <summary>Guía para conversar</summary>
-          {adv ? <Guide config={config} adv={adv} phase={summary.phase} /> : null}
-        </details>
-        {!standalone ? (
-          <details className="panel">
-            <summary>Código QR para entrar ({summary.code})</summary>
-            <div className="row">
-              <QrCode value={joinUrl} size={160} label={`Código QR para entrar a la sala ${summary.code}`} />
-              <div>
-                <div className="join-code" style={{ fontSize: "2rem" }}>{summary.code}</div>
-                <div className="hint join-url">{joinUrl}</div>
-              </div>
+          <summary>Código QR para entrar ({summary.code})</summary>
+          <div className="row">
+            <QrCode value={joinUrl} size={160} label={`Código QR para entrar a la sala ${summary.code}`} />
+            <div>
+              <div className="join-code" style={{ fontSize: "2rem" }}>{summary.code}</div>
+              <div className="hint join-url">{joinUrl}</div>
             </div>
-          </details>
-        ) : null}
+          </div>
+        </details>
       </div>
 
       {confirm === "reset" ? (

@@ -92,6 +92,8 @@ export interface ParticipantInfo {
   ready: boolean;
   /** Avance en la mesa actual, por ejemplo 1 de 2 posiciones; `null` fuera de la exploración. */
   progress: { done: number; needed: number } | null;
+  /** La pregunta que registró en el inventor (`presetId` si eligió una sugerida por las mesas), o `null` si aún no registra ninguna. */
+  question: { presetId: string | null; text: string } | null;
 }
 
 /** `presence.updated`: solo a Vanessa. */

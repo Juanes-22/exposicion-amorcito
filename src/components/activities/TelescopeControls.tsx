@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { TelescopeActivityConfig } from "../../../shared/contracts/config";
 import type { TelescopeState } from "../../../shared/contracts/state";
-import { centeredTargets, clampView, fieldRadius, HORIZON_Y, isVisible, startView, TELESCOPE_TARGETS, TELESCOPE_ZONES, type TelescopeView } from "../../../shared/domain/telescope";
+import { centeredTargets, clampView, fieldRadius, HORIZON_Y, isVisible, TELESCOPE_TARGETS, type TelescopeView } from "../../../shared/domain/telescope";
 import type { PersonalActions } from "./types";
 
 /** Cuánto se mueve el visor con cada flecha, en fracción de lo que se ve. */
@@ -21,7 +21,7 @@ function useSettled(text: string, ms = 700): string {
   return shown;
 }
 
-/** Lo que se ve por el visor, dicho con palabras (SPECS 11.1): la misma información que la escena, sin depender de verla. */
+/** Lo que se ve por el visor, dicho con palabras, solo para lectores de pantalla (SPECS 11.1): la misma información que la escena. */
 function describe(view: TelescopeView, st: TelescopeState, cfg: TelescopeActivityConfig, curtainJustClosed: boolean): string {
   const exp = cfg.experiment;
   const c = centeredTargets(view, exp);
@@ -30,6 +30,8 @@ function describe(view: TelescopeView, st: TelescopeState, cfg: TelescopeActivit
   else if (isVisible(view, exp, TELESCOPE_TARGETS.moon)) parts.push("La Luna está a la vista.");
   if (c.stars) parts.push("Un grupo de estrellas brillantes, muy juntas.");
   else if (isVisible(view, exp, TELESCOPE_TARGETS.stars)) parts.push("Hay un grupo de estrellas a la vista.");
+  if (c.galaxy) parts.push("Una galaxia en espiral: un remolino de luz tenue con el centro brillante.");
+  else if (isVisible(view, exp, TELESCOPE_TARGETS.galaxy)) parts.push("Hay una mancha de luz tenue a la vista.");
   if (view.y + fieldRadius(exp, view.zoom) > HORIZON_Y) parts.push("Abajo se ven los tejados de unas casas.");
   if (isVisible(view, exp, TELESCOPE_TARGETS.window)) {
     if (curtainJustClosed) parts.push("Una persona cierra la cortina.");
@@ -40,9 +42,10 @@ function describe(view: TelescopeView, st: TelescopeState, cfg: TelescopeActivit
 }
 
 /**
- * El observatorio (SPECS 3.4): mover el telescopio con flechas o por zonas, acercar y alejar, y volver al cielo. Es la alternativa
- * accesible de arrastrar en el visor y produce las mismas observaciones. No hay ningún botón ni zona que lleve a la ventana de la casa:
- * se encuentra, o no, explorando. La vista mientras se mueve es local; cuando queda quieta se envía y el servidor decide qué se observó.
+ * El observatorio (SPECS 3.4): mover el telescopio con flechas y acercar o alejar la vista. Es la alternativa accesible de arrastrar en
+ * el visor y produce las mismas observaciones. No hay atajos («ir a la Luna», «volver al cielo»): cada persona encuentra las cosas
+ * moviendo el telescopio con libertad, y la casa se encuentra, o no, explorando. La vista mientras se mueve es local; cuando queda
+ * quieta se envía y el servidor decide qué se observó.
  */
 export function TelescopeControls({ cfg, st, a }: { cfg: TelescopeActivityConfig; st: TelescopeState; a: PersonalActions }) {
   const exp = cfg.experiment;
@@ -79,7 +82,7 @@ export function TelescopeControls({ cfg, st, a }: { cfg: TelescopeActivityConfig
   useEffect(() => {
     if (!a.interactive) return;
     const c = centeredTargets(view, exp);
-    const observes = (c.moon && !st.observed.includes("moon")) || (c.stars && !st.observed.includes("stars"));
+    const observes = (["moon", "stars", "galaxy"] as const).some((t) => c[t] && !st.observed.includes(t));
     const closesCurtain = c.window && st.curtain === "open";
     if (!observes && !closesCurtain && sameView(view, lastSent.current)) return;
     const wait = closesCurtain ? exp.curtainDelayMs : observes ? exp.dwellMs : PERSIST_MS;
@@ -106,21 +109,22 @@ export function TelescopeControls({ cfg, st, a }: { cfg: TelescopeActivityConfig
     return undefined;
   }, [st.curtain]);
 
-  const description = describe(view, st, cfg, justClosed);
-  const announced = useSettled(description);
+  const announced = useSettled(describe(view, st, cfg, justClosed));
   const step = STEP * fieldRadius(exp, view.zoom);
-  const goTo = (p: { x: number; y: number }) => move({ ...p, zoom: view.zoom });
 
   return (
     <div className="experiment">
-      <p className="experiment__readout" role="status" aria-live="polite">
-        <span className="visually-hidden">{announced}</span>
-        <span aria-hidden="true">{description}</span>
+      {/* La pantalla no describe lo que se ve: cada persona hace sus propias observaciones mirando el visor. Solo quien usa un lector
+          de pantalla, que no puede ver la escena, recibe la descripción (SPECS 11.1). */}
+      <p className="visually-hidden" role="status" aria-live="polite">
+        {announced}
       </p>
 
       <ul className="observations" aria-label="Observaciones del cielo">
         <li className={st.observed.includes("moon") ? "is-done" : ""}>{st.observed.includes("moon") ? "✓ Luna observada" : "Luna: acércala y céntrala"}</li>
         <li className={st.observed.includes("stars") ? "is-done" : ""}>{st.observed.includes("stars") ? "✓ Estrellas observadas" : "Grupo de estrellas: búscalo y céntralo"}</li>
+        {/* La galaxia no se anuncia: aparece aquí solo si alguien la encuentra explorando. */}
+        {st.observed.includes("galaxy") ? <li className="is-done">✓ Galaxia observada</li> : null}
       </ul>
 
       <div className="telescope-controls">
@@ -149,20 +153,6 @@ export function TelescopeControls({ cfg, st, a }: { cfg: TelescopeActivityConfig
         </div>
       </div>
 
-      <div className="row telescope-zones" role="group" aria-label="Ir a una zona del panorama">
-        <button type="button" className="btn btn--small" disabled={disabled} onClick={() => goTo(TELESCOPE_ZONES.moon)}>
-          Luna
-        </button>
-        <button type="button" className="btn btn--small" disabled={disabled} onClick={() => goTo(TELESCOPE_ZONES.stars)}>
-          Estrellas
-        </button>
-        <button type="button" className="btn btn--small" disabled={disabled} onClick={() => goTo(TELESCOPE_ZONES.horizon)}>
-          Horizonte
-        </button>
-        <button type="button" className="btn btn--small" disabled={disabled} onClick={() => move(startView(exp))}>
-          Volver al cielo
-        </button>
-      </div>
       <p className="hint">También puedes arrastrar dentro del visor para mirar hacia otro lado.</p>
     </div>
   );

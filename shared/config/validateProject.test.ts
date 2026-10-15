@@ -211,6 +211,8 @@ describe("configuración de contenido", () => {
     expectIssue(issuesFor((r) => (r.config.activities.cajas.experiment.fieldRadius = 700)), "fieldRadius", "no cabe");
     // Un visor muy amplio queda lejos del borde: el grupo de estrellas, cerca del borde de arriba, ya no se puede centrar.
     expectIssue(issuesFor((r) => Object.assign(r.config.activities.cajas.experiment, { fieldRadius: 595, centerTolerance: 0.2 })), "no se puede centrar el grupo de estrellas");
+    // Con un aumento cercano débil el visor no llega a la esquina donde está la galaxia.
+    expectIssue(issuesFor((r) => Object.assign(r.config.activities.cajas.experiment, { zoomLevels: [1, 1.2], centerTolerance: 0.05 })), "no se puede centrar la galaxia");
     expectIssue(issuesFor((r) => (r.config.activities.cajas.experiment.curtainDelayMs = -1)), "curtainDelayMs");
     // La casa no es un objetivo: la configuración no admite pistas, puntos ni requisitos sobre la ventana.
     expectIssue(issuesFor((r) => (r.config.activities.cajas.experiment.requireWindow = true)), "requireWindow", "no permitida");
@@ -220,6 +222,9 @@ describe("configuración de contenido", () => {
     expectIssue(issuesFor((r) => (r.config.activities.sombras.experiment.minDistinctDistanceCm = 80)), "muestras separadas");
     expectIssue(issuesFor((r) => (r.config.activities.rampas.experiment.minDistinctAngleDeg = 40)), "pruebas separadas");
     expectIssue(issuesFor((r) => (r.config.activities.rampas.experiment.angleStepDeg = 4)), "dividir exactamente");
+    // Las inclinaciones se eligen por su nombre: uno por cada una (aquí, seis).
+    expectIssue(issuesFor((r) => r.config.activities.rampas.experiment.angleLabels.pop()), "angleLabels", "un nombre por inclinación: 6 (hay 5)");
+    expectIssue(issuesFor((r) => delete r.config.activities.rampas.experiment.angleLabels), "angleLabels");
   });
   it("rechaza propiedades desconocidas y credenciales: la configuración pública no admite datos extra", () => {
     expectIssue(issuesFor((r) => (r.config.adminToken = "secreto")), "adminToken", "no permitida");
@@ -229,7 +234,6 @@ describe("configuración de contenido", () => {
     expectIssue(issuesFor((r) => delete r.config.activities.sombras.goal), "goal", "obligatoria");
     expectIssue(issuesFor((r) => delete r.config.activities.rampas.openingQuestion), "openingQuestion", "obligatoria");
     expectIssue(issuesFor((r) => delete r.config.activities.cajas.freirePhrase), "freirePhrase", "obligatoria");
-    expectIssue(issuesFor((r) => delete r.config.supportPhrases.inicio), "supportPhrases", "inicio");
     expectIssue(issuesFor((r) => delete r.config.ui.labels.roundConversationPhone), "ui.labels.roundConversationPhone", "falta este texto");
     expectIssue(issuesFor((r) => (r.config.ui.labels.readyYou = "   ")), "ui.labels.readyYou", "falta este texto");
   });
@@ -248,12 +252,13 @@ describe("configuración de contenido", () => {
     expect(issuesFor((r) => (r.config.audio.events = {}))).toEqual([]);
   });
 
-  it("mode presentation no admite recursos provisionales ni guiones vacíos; prototype sí", () => {
+  it("mode presentation no admite recursos provisionales; prototype sí", () => {
     expect(issuesFor((r) => (r.config.mode = "prototype"))).toEqual([]);
     expectIssue(issuesFor((r) => (r.config.mode = "presentation")), "laboratorio.tmj", "lab.station.shadows", "provisional");
     expectIssue(issuesFor((r) => ((r.config.mode = "presentation"), (r.manifest.assets["ui.icon.open-book"].placeholder = true), (r.manifest.assets["ui.icon.open-book"].provenance = "x"))), "ui.assets.notebookIcon", "provisional");
-    expectIssue(issuesFor((r) => ((r.config.mode = "presentation"), (r.config.facilitatorNotes.cierre = []))), "facilitatorNotes.cierre", "guion vacío");
-    expect(issuesFor((r) => (r.config.facilitatorNotes.cierre = []))).toEqual([]); // en prototype se admite
+    // La guía de Vanessa vive fuera del juego (un documento aparte): el paquete ya no lleva guiones ni frases de apoyo.
+    expectIssue(issuesFor((r) => (r.config.facilitatorNotes = { cierre: ["x"] })), "facilitatorNotes", "no permitida");
+    expectIssue(issuesFor((r) => (r.config.supportPhrases = { inicio: "x" })), "supportPhrases", "no permitida");
   });
 });
 

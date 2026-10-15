@@ -19,24 +19,23 @@ export interface Circle {
 }
 
 /**
- * Lo que se puede observar. La ventana es parte de la exploración libre, nunca un objetivo anunciado ni necesario. Los objetivos del cielo
- * quedan dentro de la zona donde el visor puede centrarse con el aumento general (a más de `fieldRadius` de los bordes del panorama).
+ * Lo que se puede observar. La Luna y el grupo de estrellas quedan dentro de la zona donde el visor puede centrarse con el aumento
+ * general (a más de `fieldRadius` de los bordes del panorama). La galaxia, arriba a la derecha más allá de las estrellas, es un hallazgo
+ * para quien explora: solo se ve entera, y se centra, con el aumento cercano; no se pide. La ventana es parte de la exploración libre,
+ * nunca un objetivo anunciado ni necesario.
  */
 export const TELESCOPE_TARGETS: Record<TelescopeTarget | "window", Circle> = {
   moon: { x: 560, y: 430, radius: 80 },
   stars: { x: 1760, y: 410, radius: 130 },
+  galaxy: { x: 2150, y: 300, radius: 70 },
   window: { x: 1330, y: 930, radius: 30 },
 };
 
-/** Vista general del cielo: donde empieza el visor y a donde lleva «Volver al cielo». La Luna se ve, sin estar centrada. */
-export const SKY_VIEW = { x: 800, y: 420 } as const;
+/** Lo que hay que observar para quedar lista; la galaxia es un hallazgo aparte. */
+export const REQUIRED_TARGETS: readonly TelescopeTarget[] = ["moon", "stars"];
 
-/** Navegación por zonas (accesible): ninguna lleva a la ventana; el horizonte la deja a la vista, sin centrarla. */
-export const TELESCOPE_ZONES = {
-  moon: { x: TELESCOPE_TARGETS.moon.x, y: TELESCOPE_TARGETS.moon.y },
-  stars: { x: TELESCOPE_TARGETS.stars.x, y: TELESCOPE_TARGETS.stars.y },
-  horizon: { x: 1050, y: 900 },
-} as const;
+/** Vista general del cielo: donde empieza el visor. La Luna se ve, sin estar centrada. */
+export const SKY_VIEW = { x: 800, y: 420 } as const;
 
 export interface TelescopeView {
   x: number;
@@ -65,16 +64,17 @@ export const startView = (exp: TelescopeExperiment): TelescopeView => clampView(
 const distance = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
 
 /**
- * Qué queda centrado en el visor. La Luna y la ventana piden el aumento cercano; el grupo de estrellas se puede observar con cualquiera.
- * «Centrado» es estar dentro de la zona central del visor (`centerTolerance` del radio que se ve con ese aumento).
+ * Qué queda centrado en el visor. La Luna, la galaxia y la ventana piden el aumento cercano; el grupo de estrellas se puede observar con
+ * cualquiera. «Centrado» es estar dentro de la zona central del visor (`centerTolerance` del radio que se ve con ese aumento).
  */
-export function centeredTargets(view: TelescopeView, exp: TelescopeExperiment): { moon: boolean; stars: boolean; window: boolean } {
+export function centeredTargets(view: TelescopeView, exp: TelescopeExperiment): Record<TelescopeTarget | "window", boolean> {
   const v = clampView(view, exp);
   const tolerance = exp.centerTolerance * fieldRadius(exp, v.zoom);
   const close = v.zoom >= CLOSE_ZOOM;
   return {
     moon: close && distance(v, TELESCOPE_TARGETS.moon) <= tolerance,
     stars: distance(v, TELESCOPE_TARGETS.stars) <= tolerance,
+    galaxy: close && distance(v, TELESCOPE_TARGETS.galaxy) <= tolerance,
     window: close && distance(v, TELESCOPE_TARGETS.window) <= tolerance,
   };
 }

@@ -102,12 +102,12 @@ try {
   // Las dos personas sueltan una pelota: cada una la suya, a la vez.
   await okAct(anaC, { type: "station.open", stationId: "rampas", origin: "quickNav" });
   await okAct(betoC, { type: "station.open", stationId: "rampas", origin: "quickNav" });
-  await okAct(anaC, { type: "ramps.trial.start", angleDeg: 15 });
-  await okAct(betoC, { type: "ramps.trial.start", angleDeg: 20 });
+  await okAct(anaC, { type: "ramps.trial.start", angleDeg: 20 });
+  await okAct(betoC, { type: "ramps.trial.start", angleDeg: 25 });
   const trialOf = (c: RoomController) => (c.getState().me!.participant.activities.rampas as RampsState).trials[0]!;
   await until(() => trialOf(anaC) !== undefined && trialOf(betoC) !== undefined, "las dos pruebas empezaron");
 
-  // Mitad de la prueba de Ana (dura ~3,6 s): se anota hasta dónde llegó el reloj de simulación y se mata el proceso.
+  // Mitad de la prueba de Ana (dura ~3,1 s): se anota hasta dónde llegó el reloj de simulación y se mata el proceso.
   let lastActive = 0;
   admin.subscribeClock((f) => void (lastActive = f.activeMs));
   await until(() => lastActive > 0, "muestras del reloj de simulación");

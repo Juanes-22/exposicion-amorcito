@@ -10,20 +10,19 @@ export interface HouseDemo {
   active: boolean;
   /** Estado de una persona ficticia que mira la ventana de cerca: lo dibuja la proyección. `null` si no está activa. */
   participant: ParticipantState | null;
-  start(): void;
-  stop(): void;
 }
 
 /**
- * La demostración de Vanessa en el observatorio (SPECS 3.4): en la conversación, la proyección muestra la ventana de cerca, las dos
- * siluetas discutiendo con gestos y, a los pocos segundos, cómo una se gira y cierra la cortina. Es un estado propio de la proyección:
- * no pasa por el servidor, no cuenta para nadie y no se puede explorar. `activityId` nulo (otra mesa u otra fase) la apaga.
+ * La demostración de la casa en el observatorio (SPECS 3.4): al mostrar la frase de Freire en la conversación, la proyección muestra la
+ * ventana de cerca, las dos siluetas discutiendo con gestos y, a los pocos segundos, cómo una se gira y cierra la cortina; ahí se queda
+ * hasta pasar al inventor. Es un estado propio de la proyección: no pasa por el servidor, no cuenta para nadie y no se puede explorar.
+ * Empieza sola cuando `activityId` deja de ser nulo y se apaga cuando vuelve a serlo (otra mesa u otra fase).
  */
 export function useHouseDemo(activityId: string | null, cfg: TelescopeActivityConfig | null, holdMs = HOUSE_DEMO_HOLD_MS): HouseDemo {
-  const [phase, setPhase] = useState<"off" | "open" | "closed">("off");
+  const [phase, setPhase] = useState<"off" | "open" | "closed">(activityId ? "open" : "off");
 
   useEffect(() => {
-    if (!activityId) setPhase("off");
+    setPhase(activityId ? "open" : "off");
   }, [activityId]);
   useEffect(() => {
     if (phase !== "open") return;
@@ -41,5 +40,5 @@ export function useHouseDemo(activityId: string | null, cfg: TelescopeActivityCo
     };
   }, [phase, activityId, cfg]);
 
-  return { active: phase !== "off" && activityId !== null, participant, start: () => setPhase("open"), stop: () => setPhase("off") };
+  return { active: phase !== "off" && activityId !== null, participant };
 }
