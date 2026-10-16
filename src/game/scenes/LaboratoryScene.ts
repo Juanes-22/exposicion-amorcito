@@ -120,8 +120,8 @@ export class LaboratoryScene extends Phaser.Scene {
     const w = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
     const world = { x: w.x, y: w.y };
 
-    if (bridge.visual?.viewer.kind !== "participant") return; // la proyección solo mira
     // La flor de la esquina (y cualquier decoración con `tapEvent`): suena y Vanessa y Jerry se preguntan qué pasó. No mueve a nadie.
+    // Funciona en cada celular y también en la consola de Vanessa (solo en la pantalla de quien la toca).
     const tap = this.built?.taps.find((t) => Phaser.Geom.Rectangle.Contains(t.image.getBounds(), world.x, world.y));
     if (tap) {
       this.guide?.wonder();
@@ -129,6 +129,7 @@ export class LaboratoryScene extends Phaser.Scene {
       bridge.emit("game:decoration-tap", { event: tap.event, token: this.token });
       return;
     }
+    if (bridge.visual?.viewer.kind !== "participant") return; // la proyección no camina ni abre mesas
     const stationId = this.stationAt(world);
     const intent: MapIntent = stationId ? { type: "openStation", stationId } : { type: "move", target: world };
     const requestId = newRequestId();

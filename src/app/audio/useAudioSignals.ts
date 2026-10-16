@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { LoadedProject } from "../../config/loadProject";
 import { readGameFlags } from "../../game/flags";
 import type { RoomClientState } from "../RoomController";
@@ -63,6 +63,8 @@ export function useAudioSignals({ project, state, device, player: injected }: { 
 
   // Activado por preferencia (por defecto, sí) y a la espera del primer gesto de la página.
   const [armed, setArmed] = useState(() => loadSoundPreference(device).on && !(device === "phone" && config.audio.phoneInitiallyMuted));
+  /** La activación que lanzó el primer gesto, mientras termina: un sonido pedido en ese mismo gesto suena al terminar. */
+  const enabling = useRef<Promise<unknown> | null>(null);
 
   const enable = useCallback(() => {
     setArmed(false);
@@ -92,7 +94,11 @@ export function useAudioSignals({ project, state, device, player: injected }: { 
       if (ev.target instanceof Element && ev.target.closest("[data-sound-toggle]")) return;
       setArmed(false);
       player.setVolume(volume);
-      void player.enable(urls);
+      const p = player.enable(urls);
+      enabling.current = p;
+      void p.finally(() => {
+        if (enabling.current === p) enabling.current = null;
+      });
     };
     window.addEventListener("pointerdown", arm);
     window.addEventListener("keydown", arm);
@@ -133,7 +139,15 @@ export function useAudioSignals({ project, state, device, player: injected }: { 
     return () => clearTimeout(t);
   }, [signal]);
 
-  const play = useCallback((event: string) => void player.play(event), [player]);
+  // Si el toque que pide el sonido es el primer gesto de la página (la flor, recién entrada la pantalla), el audio todavía se está
+  // activando y cargando sus archivos: suena en cuanto termina, en lugar de perderse.
+  const play = useCallback(
+    (event: string) => {
+      if (player.play(event)) return;
+      void enabling.current?.then(() => player.play(event));
+    },
+    [player],
+  );
 
   return { status, volume, enable, disable, setVolume, signal, armed: armed && status === "off", play };
 }

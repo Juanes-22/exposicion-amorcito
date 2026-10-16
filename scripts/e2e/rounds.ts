@@ -163,6 +163,16 @@ try {
   await ana.page.waitForFunction(() => ((window as any).__AUDIO_LOG__ ?? []).includes("flower.tap"), undefined, { timeout: 3000 });
   check(((await visual(ana.page)).viewer.me.character.plan?.planId ?? "") === planAntes, "tocar la flor suena, aparece un «?» sobre Vanessa y otro sobre Jerry, y el personaje no se mueve");
   await shot(ana.page, "02b-flor-telefono.png");
+  // Vanessa también: en la proyección, tocar la flor suena y aparecen los «?» (solo en su pantalla).
+  const florVanessa = await admin.page.evaluate(() => {
+    const b = (window as any).__PHASER_GAME__.scene.getScene("LaboratoryScene").built.taps[0].image.getBounds();
+    return { x: b.centerX, y: b.centerY };
+  });
+  await tapWorld(admin.page, florVanessa.x, florVanessa.y);
+  await admin.page.waitForFunction(() => (window as any).__PHASER_GAME__.scene.getScene("LaboratoryScene").children.list.filter((o: any) => o.type === "Text" && o.text === "?" && o.visible).length === 2);
+  await admin.page.waitForFunction(() => ((window as any).__AUDIO_LOG__ ?? []).includes("flower.tap"), undefined, { timeout: 3000 });
+  check(true, "Vanessa toca la flor en la proyección: suena y aparecen los «?» sobre Vanessa y Jerry");
+  await shot(admin.page, "02c-flor-proyeccion.png");
   await shot(admin.page, "03-proyeccion-pregunta-entrada.png");
 
   // ================= SOMBRAS =================

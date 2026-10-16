@@ -1,0 +1,97 @@
+{
+  "fecha": "2026-10-15T21:55:42.425Z",
+  "equipo": {
+    "sistema": "Darwin 25.1.0 (darwin/arm64)",
+    "procesador": "Apple M3 Pro",
+    "nucleos": 11,
+    "memoriaGiB": 18,
+    "node": "v24.20.0"
+  },
+  "red": "bucle local (127.0.0.1): clientes y servidor en la misma computadora; no hay red inalámbrica ni celulares reales",
+  "escenario": {
+    "participantes": 30,
+    "administradoras": 1,
+    "enLaRonda": 26,
+    "entradasTardias": 4,
+    "desconectadasYReconectadas": 3,
+    "rondas": 3,
+    "enLaRondaDeRampasYObservatorio": 30
+  },
+  "metas": {
+    "entryMs": 5000,
+    "transitionMs": 1000,
+    "reflectMs": 250,
+    "counterMs": 1000,
+    "clockGapP95Ms": 700
+  },
+  "entradaMs": {
+    "n": 26,
+    "min": 7.646082999999976,
+    "p50": 14.964374999999905,
+    "p95": 19.65629100000001,
+    "p99": 19.801249999999982,
+    "max": 19.801249999999982
+  },
+  "transicionesDeRondaMs": {
+    "n": 7,
+    "min": 1.852125000000001,
+    "p50": 3.6186670000006416,
+    "p95": 13.668165999999474,
+    "p99": 13.668165999999474,
+    "max": 13.668165999999474
+  },
+  "acuseRegistroPosicionMs": {
+    "n": 52,
+    "min": 0.6080000000000609,
+    "p50": 2.7018340000004173,
+    "p95": 7.853667000000087,
+    "p99": 17.869333000000097,
+    "max": 17.869333000000097
+  },
+  "reflejoEnElPropioTelefonoMs": {
+    "n": 52,
+    "min": 0.5066249999999854,
+    "p50": 2.3963340000000244,
+    "p95": 6.4381249999999,
+    "p99": 16.218916000000036,
+    "max": 16.218916000000036
+  },
+  "acuseSoltarPelotaMs": {
+    "n": 60,
+    "min": 1.1363750000000437,
+    "p50": 11.598833000000013,
+    "p95": 20.734458000000814,
+    "p99": 21.40504200000032,
+    "max": 21.40504200000032
+  },
+  "entradasTardiasMs": {
+    "n": 4,
+    "min": 20.169750000000022,
+    "p50": 22.431125000000065,
+    "p95": 26.63254199999983,
+    "p99": 26.63254199999983,
+    "max": 26.63254199999983
+  },
+  "separacionMuestrasDeRelojMs": {
+    "n": 10,
+    "min": 503.8907909999998,
+    "p50": 504.53600000000006,
+    "p95": 506.8488749999997,
+    "p99": 506.8488749999997,
+    "max": 506.8488749999997
+  },
+  "muestrasDeRelojEnLaProyeccion": 11,
+  "contadorLlegaAlTotalMs": 0,
+  "reanudacionTrasCaerLaAdministradoraMs": 3,
+  "servidor": {
+    "cpuMaxPct": 26.7,
+    "cpuP95Pct": 10.7,
+    "memoriaMaxMiB": 130.4375
+  },
+  "bytes": {
+    "maxPorPersona": 38257,
+    "promedioPorPersona": 35604,
+    "administradora": 1489154
+  },
+  "incumplidas": []
+}

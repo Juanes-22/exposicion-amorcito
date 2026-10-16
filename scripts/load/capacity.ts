@@ -6,6 +6,10 @@
 //
 //   npm run test:load                 → informe en la consola
 //   LOAD_REPORT=1 npm run test:load   → además escribe docs/evidencia/fase7/capacidad.{json,md}
+//   LOAD_PARTICIPANTS=30 npm run test:load                        → con 30 participantes (por defecto, 50)
+//   LOAD_URL=https://… LOAD_PARTICIPANTS=30 npm run test:load     → contra un servidor ya publicado (no arranca uno propio; crea una
+//                                                                   sala de prueba y la cierra al terminar). Sin CPU ni memoria del
+//                                                                   servidor: esas solo se miden en local.
 //
 // Qué NO mide: celulares reales, red inalámbrica ni FPS. Los clientes y el servidor comparten computadora y red de bucle local (ver el
 // informe). Sirve para el comportamiento del protocolo y del servidor con 51 conexiones; los celulares reales se ensayan aparte (P7-06).
@@ -20,8 +24,12 @@ import type { RampsState, ShadowsState } from "../../shared/contracts/state";
 import { CLOSE_ZOOM, TELESCOPE_TARGETS } from "../../shared/domain/telescope";
 import { LoadClient, now, stats, type Stats } from "./client";
 
-const TOTAL = 50;
-const LATE = 6;
+const TOTAL = Number(process.env.LOAD_PARTICIPANTS ?? 50);
+if (!Number.isInteger(TOTAL) || TOTAL < 10 || TOTAL > 100) throw new Error("LOAD_PARTICIPANTS debe ser un entero entre 10 y 100");
+/** Entradas tardías: ~12 % (6 de 50, 4 de 30). */
+const LATE = Math.max(1, Math.round(TOTAL * 0.12));
+/** Servidor publicado (Render, Docker…) en lugar de uno local. */
+const REMOTE = process.env.LOAD_URL?.replace(/\/$/, "") ?? null;
 const INITIAL = TOTAL - LATE;
 // Metas de SPECS 11.2 que esta prueba puede comprobar (en bucle local).
 const GOALS = { entryMs: 5000, transitionMs: 1000, reflectMs: 250, counterMs: 1000, clockGapP95Ms: 700 };
@@ -46,37 +54,49 @@ const until = async (cond: () => boolean, what: string, ms = 10_000) => {
   return now() - start;
 };
 
-const port = await new Promise<number>((resolvePort) => {
-  const s = net.createServer();
-  s.listen(0, "127.0.0.1", () => {
-    const p = (s.address() as net.AddressInfo).port;
-    s.close(() => resolvePort(p));
-  });
-});
-const BASE = `http://127.0.0.1:${port}`;
 const serverErrors: string[] = [];
-const server: ChildProcess = spawn(process.execPath, ["--import", "tsx", "server/src/index.ts"], {
-  env: { ...process.env, PORT: String(port), HOST: "127.0.0.1", DATABASE_PATH: join(dir, "capacidad.sqlite"), DIST_DIR: join(dir, "sin-dist") },
-  stdio: ["ignore", "pipe", "pipe"],
-});
-server.stderr!.on("data", (d: Buffer) => serverErrors.push(String(d).trim()));
-await new Promise<void>((res, rej) => {
-  const t = setTimeout(() => rej(new Error("el servidor no arrancó")), 20_000);
-  server.stdout!.on("data", (d: Buffer) => String(d).includes("Servidor escuchando") && (clearTimeout(t), res()));
-  server.once("exit", () => rej(new Error("el servidor terminó antes de escuchar")));
-});
-
-// ---- muestreo del proceso del servidor (CPU y memoria) ----
 const cpuSamples: number[] = [];
 const rssSamples: number[] = [];
-const sampler = setInterval(() => {
-  execFile("ps", ["-o", "%cpu=,rss=", "-p", String(server.pid)], (err, out) => {
-    if (err) return;
-    const [cpu, rss] = out.trim().split(/\s+/).map(Number);
-    if (Number.isFinite(cpu)) cpuSamples.push(cpu!);
-    if (Number.isFinite(rss)) rssSamples.push(rss! / 1024);
+let server: ChildProcess | null = null;
+let sampler: ReturnType<typeof setInterval> | undefined;
+let BASE: string;
+if (REMOTE) {
+  BASE = REMOTE;
+  const t0 = now();
+  const health = await fetch(`${BASE}/api/health`).catch((e: unknown) => ({ ok: false, status: String(e) }) as const);
+  if (!health.ok) throw new Error(`el servidor remoto no responde en /api/health (${health.status})`);
+  console.log(`Servidor remoto: ${BASE} (salud en ${(now() - t0).toFixed(0)} ms)`);
+} else {
+  const port = await new Promise<number>((resolvePort) => {
+    const sock = net.createServer();
+    sock.listen(0, "127.0.0.1", () => {
+      const p = (sock.address() as net.AddressInfo).port;
+      sock.close(() => resolvePort(p));
+    });
   });
-}, 500);
+  BASE = `http://127.0.0.1:${port}`;
+  const child = spawn(process.execPath, ["--import", "tsx", "server/src/index.ts"], {
+    env: { ...process.env, PORT: String(port), HOST: "127.0.0.1", DATABASE_PATH: join(dir, "capacidad.sqlite"), DIST_DIR: join(dir, "sin-dist") },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  server = child;
+  child.stderr!.on("data", (d: Buffer) => serverErrors.push(String(d).trim()));
+  await new Promise<void>((res, rej) => {
+    const t = setTimeout(() => rej(new Error("el servidor no arrancó")), 20_000);
+    child.stdout!.on("data", (d: Buffer) => String(d).includes("Servidor escuchando") && (clearTimeout(t), res()));
+    child.once("exit", () => rej(new Error("el servidor terminó antes de escuchar")));
+  });
+
+  // ---- muestreo del proceso del servidor (CPU y memoria) ----
+  sampler = setInterval(() => {
+    execFile("ps", ["-o", "%cpu=,rss=", "-p", String(child.pid)], (err, out) => {
+      if (err) return;
+      const [cpu, rss] = out.trim().split(/\s+/).map(Number);
+      if (Number.isFinite(cpu)) cpuSamples.push(cpu!);
+      if (Number.isFinite(rss)) rssSamples.push(rss! / 1024);
+    });
+  }, 500);
+}
 
 const clients: LoadClient[] = [];
 const post = async <T>(path: string, body: unknown): Promise<{ status: number; body: T }> => {
@@ -217,7 +237,7 @@ try {
   transitions.push(await everywhere("la conversación en todas las pantallas", (c) => c.group?.adventure.round.stage === "conversation", t0Conv));
   await must(admin.admin({ type: "round.showFreire" }), "round.showFreire");
   await until(() => people.every((p) => p.client.group?.adventure.round.freireShown === true), "la frase de Freire llega a todas las pantallas", 3000);
-  check(true, "lo que Vanessa proyecta en la conversación (la frase de Freire) llega a las 50 pantallas");
+  check(true, `lo que Vanessa proyecta en la conversación (la frase de Freire) llega a las ${TOTAL} pantallas`);
   const t0Next = now();
   await must(admin.admin({ type: "round.next" }), "round.next");
   transitions.push(await everywhere("la siguiente mesa en todas las pantallas", (c) => c.group?.adventure.round.index === 1 && c.group.adventure.round.stage === "preparation", t0Next));
@@ -251,12 +271,12 @@ try {
   await until(() => admin.presence?.round.ready === TOTAL, `el contador de rampas llega a ${TOTAL}`, 3000);
   offClockA();
   offClockP();
-  console.log(`  ℹ acuse de «soltar la pelota» (100 pruebas): ${fmt(ramps)}`);
+  console.log(`  ℹ acuse de «soltar la pelota» (${TOTAL * 2} pruebas): ${fmt(ramps)}`);
   const gaps = adminClock.slice(1).map((t, i) => t - adminClock[i]!);
   const gapStats = stats(gaps);
   console.log(`  ℹ ${adminClock.length} muestras de reloj en la proyección; separación: ${fmt(gapStats)}; un teléfono recibió ${phoneClock.length}`);
-  check(adminClock.length >= 8 && gapStats.p95 <= GOALS.clockGapP95Ms, `la proyección recibe el reloj a ~2 Hz sin huecos mientras ruedan 50 pelotas (cada 500 ms por diseño; p95 de separación ${gapStats.p95.toFixed(0)} ms ≤ ${GOALS.clockGapP95Ms} ms; el cliente interpola entre muestras)`);
-  check(people.every((p) => trialsOf(p).every((t) => t.state === "finished" && t.endedActiveMs !== undefined && Math.abs(t.endedActiveMs - t.startActiveMs - t.durationMs) < 1e-6)), "las 100 pruebas terminaron en su instante exacto de simulación, cada una en el estado de su dueña");
+  check(adminClock.length >= 8 && gapStats.p95 <= GOALS.clockGapP95Ms, `la proyección recibe el reloj a ~2 Hz sin huecos mientras ruedan ${TOTAL} pelotas (cada 500 ms por diseño; p95 de separación ${gapStats.p95.toFixed(0)} ms ≤ ${GOALS.clockGapP95Ms} ms; el cliente interpola entre muestras)`);
+  check(people.every((p) => trialsOf(p).every((t) => t.state === "finished" && t.endedActiveMs !== undefined && Math.abs(t.endedActiveMs - t.startActiveMs - t.durationMs) < 1e-6)), `las ${TOTAL * 2} pruebas terminaron en su instante exacto de simulación, cada una en el estado de su dueña`);
   void tLast;
 
   // Conversar y avanzar al observatorio.
@@ -321,7 +341,7 @@ try {
   await must(admin2.admin({ type: "round.converse" }), "round.converse");
   await must(admin2.admin({ type: "round.next" }), "round.next");
   transitions.push(await everywhere("el cierre", (c) => c.group?.adventure.round.stage === "closing", tConv3));
-  // El inventor, como una mesa: Vanessa lo abre y las 50 personas entran a la vez y registran su pregunta (sugerida o escrita).
+  // El inventor, como una mesa: Vanessa lo abre y todas las personas entran a la vez y registran su pregunta (sugerida o escrita).
   const tInventor = now();
   await must(admin2.admin({ type: "inventor.open" }), "inventor.open");
   transitions.push(await everywhere("el inventor abierto", (c) => c.group?.adventure.inventor.open === true, tInventor));
@@ -337,7 +357,7 @@ try {
   check(true, `las ${TOTAL} personas entran al inventor a la vez y Vanessa ve sus ${TOTAL} preguntas`);
   await must(admin2.admin({ type: "final.confirm", value: { kind: "written", text: "¿Cómo seguimos investigando con respeto?" } }), "final.confirm");
   await everywhere("la aventura terminó", (c) => c.summary?.phase === "finished", now());
-  check(true, "la pregunta final llega a las 50 pantallas y la aventura termina para todas");
+  check(true, `la pregunta final llega a las ${TOTAL} pantallas y la aventura termina para todas`);
   const transStats = stats(transitions);
   console.log(`  ℹ cada transición de ronda visible en todas las pantallas (${transitions.length} medidas): ${fmt(transStats)}`);
   check(transStats.max <= GOALS.transitionMs, `cada transición de ronda es visible en < ${GOALS.transitionMs} ms en las ${TOTAL + 1} pantallas (máx ${transStats.max.toFixed(0)} ms)`);
@@ -353,17 +373,20 @@ try {
   const phoneBytes = phones.map((c) => c.bytes());
   const adminBytes = admin.bytes() + admin2.bytes();
   console.log(`  ℹ bytes recibidos por persona: mín ${Math.min(...phoneBytes)} · prom ${Math.round(phoneBytes.reduce((a, b) => a + b, 0) / phoneBytes.length)} · máx ${Math.max(...phoneBytes)}; la administradora: ${adminBytes}`);
-  check(serverErrors.length === 0, `el servidor no escribió errores${serverErrors.length ? `: ${serverErrors.slice(0, 2).join(" | ")}` : ""}`);
+  if (REMOTE) console.log("  ℹ los errores del servidor remoto no se ven desde aquí: revisa sus registros (Render › Logs)");
+  else check(serverErrors.length === 0, `el servidor no escribió errores${serverErrors.length ? `: ${serverErrors.slice(0, 2).join(" | ")}` : ""}`);
+  // La sala de prueba no se queda abierta en un servidor publicado.
+  if (REMOTE) await must(admin2.admin({ type: "room.close", confirm: true }), "room.close");
 
   // ---- informe ----
   clearInterval(sampler);
-  const cpu = stats(cpuSamples);
-  const rss = stats(rssSamples);
-  console.log(`\n  ℹ servidor durante el ensayo: CPU máx ${cpu.max.toFixed(0)} % (p95 ${cpu.p95.toFixed(0)} %), memoria máx ${rss.max.toFixed(0)} MiB`);
+  const cpu = stats(cpuSamples.length ? cpuSamples : [0]);
+  const rss = stats(rssSamples.length ? rssSamples : [0]);
+  if (!REMOTE) console.log(`\n  ℹ servidor durante el ensayo: CPU máx ${cpu.max.toFixed(0)} % (p95 ${cpu.p95.toFixed(0)} %), memoria máx ${rss.max.toFixed(0)} MiB`);
   const report = {
     fecha: new Date().toISOString(),
     equipo: { sistema: `${os.type()} ${os.release()} (${os.platform()}/${os.arch()})`, procesador: os.cpus()[0]?.model ?? "?", nucleos: os.cpus().length, memoriaGiB: Math.round(os.totalmem() / 2 ** 30), node: process.version },
-    red: "bucle local (127.0.0.1): clientes y servidor en la misma computadora; no hay red inalámbrica ni celulares reales",
+    red: REMOTE ? `Internet hasta ${REMOTE}: los clientes salen de una sola computadora (una IP) y el servidor es el publicado` : "bucle local (127.0.0.1): clientes y servidor en la misma computadora; no hay red inalámbrica ni celulares reales",
     escenario: { participantes: TOTAL, administradoras: 1, enLaRonda: INITIAL, entradasTardias: LATE, desconectadasYReconectadas: droppers.length, rondas: 3, enLaRondaDeRampasYObservatorio: TOTAL },
     metas: GOALS,
     entradaMs: entryStats,
@@ -376,24 +399,25 @@ try {
     muestrasDeRelojEnLaProyeccion: adminClock.length,
     contadorLlegaAlTotalMs: Math.round(counterMs),
     reanudacionTrasCaerLaAdministradoraMs: Math.round(pausedMs),
-    servidor: { cpuMaxPct: cpu.max, cpuP95Pct: cpu.p95, memoriaMaxMiB: rss.max },
+    servidor: REMOTE ? { remoto: REMOTE } : { cpuMaxPct: cpu.max, cpuP95Pct: cpu.p95, memoriaMaxMiB: rss.max },
     bytes: { maxPorPersona: Math.max(...phoneBytes), promedioPorPersona: Math.round(phoneBytes.reduce((a, b) => a + b, 0) / phoneBytes.length), administradora: adminBytes },
     incumplidas: failures,
   };
   if (process.env.LOAD_REPORT) {
     const out = resolve("docs/evidencia/fase7");
     mkdirSync(out, { recursive: true });
-    writeFileSync(join(out, "capacidad.json"), JSON.stringify(report, null, 2) + "\n");
+    const name = REMOTE ? `capacidad-remota-${TOTAL}` : TOTAL === 50 ? "capacidad" : `capacidad-${TOTAL}`;
+    writeFileSync(join(out, `${name}.json`), JSON.stringify(report, null, 2) + "\n");
     const row = (name: string, st: Stats, goal: string) => `| ${name} | ${st.n} | ${st.p50.toFixed(1)} | ${st.p95.toFixed(1)} | ${st.p99.toFixed(1)} | ${st.max.toFixed(1)} | ${goal} |`;
     writeFileSync(
-      join(out, "capacidad.md"),
+      join(out, `${name}.md`),
       [
         "# Ensayo de capacidad con participación simultánea (P7-05)",
         "",
         `Fecha: ${report.fecha}`,
         `Equipo: ${report.equipo.sistema}, ${report.equipo.procesador}, ${report.equipo.nucleos} núcleos, ${report.equipo.memoriaGiB} GiB, Node ${report.equipo.node}.`,
         `Red: ${report.red}.`,
-        `Escenario: ${TOTAL} participantes y 1 administradora; ${INITIAL} en la lista de la ronda y ${LATE} entradas tardías que acompañan; las tres mesas completas con todas las personas explorando a la vez (44 personas con 2 posiciones de linterna cada una; después las 50 con 2 pruebas de rampa simultáneas; el observatorio, con la Luna y las estrellas); ${droppers.length} desconexiones y reconexiones; caída y regreso de la administradora; pregunta final.`,
+        `Escenario: ${TOTAL} participantes y 1 administradora; ${INITIAL} en la lista de la ronda y ${LATE} entradas tardías que acompañan; las tres mesas completas con todas las personas explorando a la vez (${INITIAL} personas con 2 posiciones de linterna cada una; después las ${TOTAL} con 2 pruebas de rampa simultáneas; el observatorio, con la Luna y las estrellas; el inventor, con la pregunta de cada persona); ${droppers.length} desconexiones y reconexiones; caída y regreso de la administradora; pregunta final.`,
         "",
         "| Medida (ms) | n | p50 | p95 | p99 | máx | Meta (SPECS 11.2) |",
         "| --- | --- | --- | --- | --- | --- | --- |",
@@ -406,12 +430,14 @@ try {
         row("Separación entre muestras de reloj (cada 500 ms)", gapStats, `≈ 500 (≤ ${GOALS.clockGapP95Ms})`),
         "",
         `El contador de la administradora llegó al total ${report.contadorLlegaAlTotalMs} ms después de la última acción (meta ≤ ${GOALS.counterMs}). Las ${TOTAL} personas vieron la pausa ${report.reanudacionTrasCaerLaAdministradoraMs} ms después de caer la administradora.`,
-        `Servidor: CPU máx ${cpu.max.toFixed(0)} % (p95 ${cpu.p95.toFixed(0)} %), memoria máx ${rss.max.toFixed(0)} MiB.`,
+        REMOTE ? `Servidor: el publicado en ${REMOTE} (CPU y memoria: ver su panel).` : `Servidor: CPU máx ${cpu.max.toFixed(0)} % (p95 ${cpu.p95.toFixed(0)} %), memoria máx ${rss.max.toFixed(0)} MiB.`,
         `Bytes recibidos por persona: promedio ${report.bytes.promedioPorPersona}, máx ${report.bytes.maxPorPersona}; la administradora, ${adminBytes}. Nadie recibió el listado de presencia ni estados personales ajenos.`,
         "",
         failures.length ? `**Metas incumplidas:** ${failures.join("; ")}` : "Ninguna meta comprobable aquí quedó incumplida.",
         "",
-        "**Limitaciones:** bucle local, sin celulares reales, sin red inalámbrica y sin FPS; los clientes no renderizan. Los celulares reales se ensayan por separado (P7-06 y fase 8).",
+        REMOTE
+          ? "**Limitaciones:** todos los clientes salen de una misma computadora y red (una IP), sin celulares reales y sin FPS; los clientes no renderizan."
+          : "**Limitaciones:** bucle local, sin celulares reales, sin red inalámbrica y sin FPS; los clientes no renderizan. Los celulares reales se ensayan por separado (P7-06 y fase 8).",
         "",
       ].join("\n"),
     );
@@ -422,6 +448,6 @@ try {
 } finally {
   clearInterval(sampler);
   for (const c of clients) c.close();
-  server.kill("SIGKILL");
+  server?.kill("SIGKILL");
   rmSync(dir, { recursive: true, force: true });
 }
